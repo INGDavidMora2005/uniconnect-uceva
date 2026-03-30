@@ -4,6 +4,7 @@ import '../widgets/custom_text_field.dart';
 import '../widgets/primary_button.dart';
 import '../services/auth_service.dart';
 import 'register_screen.dart';
+import 'home_rutas_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -38,13 +39,10 @@ class _LoginScreenState extends State<LoginScreen> {
     if (!mounted) return;
 
     if (success) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('¡Bienvenido a UniConnect!'),
-          backgroundColor: AppColors.accentGreen,
-        ),
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const HomeRutasScreen()),
       );
-      // TODO: Navigator.pushReplacement → HomeScreen (Módulo 2)
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
