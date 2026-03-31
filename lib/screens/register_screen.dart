@@ -12,12 +12,12 @@ class RegisterScreen extends StatefulWidget {
 }
 
 class _RegisterScreenState extends State<RegisterScreen> {
-  final _formKey             = GlobalKey<FormState>();
-  final _nameController      = TextEditingController();
-  final _codeController      = TextEditingController();
-  final _emailController     = TextEditingController();
-  final _passwordController  = TextEditingController();
-  final _confirmController   = TextEditingController();
+  final _formKey            = GlobalKey<FormState>();
+  final _nameController     = TextEditingController();
+  final _codeController     = TextEditingController();
+  final _emailController    = TextEditingController();
+  final _passwordController = TextEditingController();
+  final _confirmController  = TextEditingController();
   String? _selectedRole;
   bool _isLoading = false;
 
@@ -33,35 +33,51 @@ class _RegisterScreenState extends State<RegisterScreen> {
     super.dispose();
   }
 
+  void _showError(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.redAccent,
+      ),
+    );
+  }
+
   void _handleRegister() async {
     if (!_formKey.currentState!.validate()) return;
     if (_selectedRole == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Selecciona un rol')),
-      );
+      _showError('Selecciona un rol');
       return;
     }
+
     setState(() => _isLoading = true);
 
-    final success = await AuthService().register(
-      fullName:    _nameController.text.trim(),
-      studentCode: _codeController.text.trim(),
-      email:       _emailController.text.trim(),
-      password:    _passwordController.text,
-      role:        _selectedRole!,
-    );
-
-    setState(() => _isLoading = false);
-    if (!mounted) return;
-
-    if (success) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('¡Cuenta creada exitosamente!'),
-          backgroundColor: AppColors.accentGreen,
-        ),
+    try {
+      final success = await AuthService().register(
+        fullName:    _nameController.text.trim(),
+        studentCode: _codeController.text.trim(),
+        email:       _emailController.text.trim(),
+        password:    _passwordController.text,
+        role:        _selectedRole!,
       );
-      Navigator.pop(context);
+
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+
+      if (success) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('¡Cuenta creada exitosamente!'),
+            backgroundColor: AppColors.accentGreen,
+          ),
+        );
+        Navigator.pop(context);
+      } else {
+        _showError('No se pudo crear la cuenta. Verifica tus datos.');
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      _showError('Error: ${e.toString()}');
     }
   }
 
@@ -98,6 +114,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   style: TextStyle(fontSize: 12, color: AppColors.textLight),
                 ),
                 const SizedBox(height: 32),
+
                 CustomTextField(
                   label: 'Nombre completo',
                   hint: 'Tu nombre completo',
@@ -106,6 +123,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       v == null || v.isEmpty ? 'Ingresa tu nombre' : null,
                 ),
                 const SizedBox(height: 16),
+
                 CustomTextField(
                   label: 'Código Estudiantil',
                   hint: 'Ej: 230231053',
@@ -115,6 +133,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       v == null || v.isEmpty ? 'Ingresa tu código' : null,
                 ),
                 const SizedBox(height: 16),
+
                 CustomTextField(
                   label: 'Correo Institucional (@uceva.edu.co)',
                   hint: 'nombre@uceva.edu.co',
@@ -129,6 +148,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   },
                 ),
                 const SizedBox(height: 16),
+
                 CustomTextField(
                   label: 'Contraseña',
                   hint: 'Crea una contraseña',
@@ -141,6 +161,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   },
                 ),
                 const SizedBox(height: 16),
+
                 CustomTextField(
                   label: 'Confirma la contraseña',
                   hint: 'Repite tu contraseña',
@@ -155,6 +176,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   },
                 ),
                 const SizedBox(height: 16),
+
+                // Selector de Rol
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -191,19 +214,24 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                     child: Text(r),
                                   ))
                               .toList(),
-                          onChanged: (v) => setState(() => _selectedRole = v),
+                          onChanged: (v) =>
+                              setState(() => _selectedRole = v),
                         ),
                       ),
                     ),
                   ],
                 ),
+
                 const SizedBox(height: 28),
+
                 PrimaryButton(
                   text: 'Crear cuenta',
                   onPressed: _handleRegister,
                   isLoading: _isLoading,
                 ),
+
                 const SizedBox(height: 12),
+
                 GestureDetector(
                   onTap: () => Navigator.pop(context),
                   child: RichText(
@@ -226,6 +254,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     ),
                   ),
                 ),
+
                 const SizedBox(height: 32),
               ],
             ),
