@@ -17,7 +17,7 @@ class UserModel {
     required this.email,
     required this.studentCode,
     required this.role,
-    this.faculty = '',
+    required this.faculty,
     this.rating = 0.0,
     this.tripsCompleted = 0,
     this.bazarPurchases = 0,
