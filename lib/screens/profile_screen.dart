@@ -5,7 +5,8 @@ import '../services/auth_service.dart';
 import '../models/user_model.dart';
 
 class ProfileScreen extends StatefulWidget {
-  const ProfileScreen({super.key});
+   const ProfileScreen({super.key, this.showBottomNav = true});
+   final bool showBottomNav;
 
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
@@ -255,10 +256,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
               ),
       ),
-      bottomNavigationBar: BottomNavBar(
-        currentIndex: _currentNavIndex,
-        onTap: (i) => setState(() => _currentNavIndex = i),
-      ),
+      bottomNavigationBar: widget.showBottomNav
+          ? BottomNavBar(
+              currentIndex: _currentNavIndex,
+              onTap: (i) => setState(() => _currentNavIndex = i),
+            )
+          : null,
     );
   }
 }
