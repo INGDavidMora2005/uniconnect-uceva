@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 import '../models/route_model.dart';
+import '../models/user_model.dart';
+import '../services/auth_service.dart';
 import '../widgets/route_card.dart';
 import '../widgets/bottom_nav_bar.dart';
 import 'profile_screen.dart';
@@ -16,6 +18,7 @@ class _HomeRutasScreenState extends State<HomeRutasScreen> {
   int _currentNavIndex = 0;
   int _selectedFilter = 0;
   final TextEditingController _searchController = TextEditingController();
+  UserModel? _user;
 
   final List<String> _filters = ['Todas', 'Mañana', 'Tarde', 'Noche'];
 
@@ -64,6 +67,33 @@ class _HomeRutasScreenState extends State<HomeRutasScreen> {
     ),
   ];
 
+  @override
+  void initState() {
+    super.initState();
+    _loadUser();
+  }
+
+  Future<void> _loadUser() async {
+    final user = await AuthService().getUserData();
+    setState(() => _user = user);
+  }
+
+  // Solo el primer nombre
+  String get _firstName {
+    if (_user == null) return '...';
+    return _user!.fullName.trim().split(' ').first;
+  }
+
+  // Iniciales del usuario
+  String get _initials {
+    if (_user == null) return '?';
+    final parts = _user!.fullName.trim().split(' ');
+    if (parts.length >= 2) {
+      return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
+    }
+    return parts[0][0].toUpperCase();
+  }
+
   List<RouteModel> get _filteredRoutes {
     String query = _searchController.text.toLowerCase();
     return _routes.where((r) {
@@ -108,18 +138,18 @@ class _HomeRutasScreenState extends State<HomeRutasScreen> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Column(
+                  Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Hola, David 👋',
-                        style: TextStyle(
+                        'Hola, $_firstName 👋',
+                        style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
                           color: AppColors.textDark,
                         ),
                       ),
-                      Text(
+                      const Text(
                         '¿A dónde vas hoy?',
                         style: TextStyle(
                           fontSize: 13,
@@ -136,12 +166,12 @@ class _HomeRutasScreenState extends State<HomeRutasScreen> {
                         builder: (_) => const ProfileScreen(),
                       ),
                     ),
-                    child: const CircleAvatar(
+                    child: CircleAvatar(
                       radius: 20,
                       backgroundColor: AppColors.accentGreen,
                       child: Text(
-                        'DM',
-                        style: TextStyle(
+                        _initials,
+                        style: const TextStyle(
                           color: Colors.white,
                           fontSize: 13,
                           fontWeight: FontWeight.bold,
@@ -287,7 +317,7 @@ class _HomeRutasScreenState extends State<HomeRutasScreen> {
 
                     const SizedBox(height: 20),
 
-                    // ── Botón Publicar Ruta (dentro del scroll) ──
+                    // Botón Publicar Ruta
                     SizedBox(
                       width: double.infinity,
                       height: 48,
@@ -313,7 +343,6 @@ class _HomeRutasScreenState extends State<HomeRutasScreen> {
                         ),
                       ),
                     ),
-
                     const SizedBox(height: 20),
                   ],
                 ),
@@ -322,8 +351,6 @@ class _HomeRutasScreenState extends State<HomeRutasScreen> {
           ],
         ),
       ),
-
-      // Menú inferior
       bottomNavigationBar: BottomNavBar(
         currentIndex: _currentNavIndex,
         onTap: (i) => setState(() => _currentNavIndex = i),
