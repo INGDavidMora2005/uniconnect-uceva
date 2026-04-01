@@ -124,230 +124,237 @@ class _HomeRutasScreenState extends State<HomeRutasScreen> {
     super.dispose();
   }
 
+  Widget _buildRutasContent() {
+    return Column(
+      children: [
+        // ── Header ──────────────────────────────────────────
+        Container(
+          color: AppColors.backgroundWhite,
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Hola, $_firstName 👋',
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.textDark,
+                    ),
+                  ),
+                  const Text(
+                    '¿A dónde vas hoy?',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: AppColors.textLight,
+                    ),
+                  ),
+                ],
+              ),
+              // Avatar → navega al perfil
+              GestureDetector(
+                onTap: () => setState(() => _currentNavIndex = 3),
+                child: CircleAvatar(
+                  radius: 20,
+                  backgroundColor: AppColors.accentGreen,
+                  child: Text(
+                    _initials,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        // ── Contenido scrolleable ────────────────────────────
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Barra de búsqueda
+                TextField(
+                  controller: _searchController,
+                  onChanged: (_) => setState(() {}),
+                  style: const TextStyle(
+                    fontSize: 14,
+                    color: AppColors.textDark,
+                  ),
+                  decoration: InputDecoration(
+                    hintText: 'Buscar rutas disponibles...',
+                    prefixIcon: const Icon(
+                      Icons.search,
+                      color: AppColors.textPlaceholder,
+                    ),
+                    suffixIcon: _searchController.text.isNotEmpty
+                        ? IconButton(
+                            icon: const Icon(
+                              Icons.close,
+                              color: AppColors.textPlaceholder,
+                            ),
+                            onPressed: () {
+                              _searchController.clear();
+                              setState(() {});
+                            },
+                          )
+                        : null,
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                // Filtros
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: List.generate(_filters.length, (i) {
+                      final selected = _selectedFilter == i;
+                      return GestureDetector(
+                        onTap: () =>
+                            setState(() => _selectedFilter = i),
+                        child: Container(
+                          margin: const EdgeInsets.only(right: 8),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 8,
+                          ),
+                          decoration: BoxDecoration(
+                            color: selected
+                                ? AppColors.accentGreen
+                                : AppColors.backgroundWhite,
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                              color: selected
+                                  ? AppColors.accentGreen
+                                  : AppColors.borderDefault,
+                            ),
+                          ),
+                          child: Text(
+                            _filters[i],
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w500,
+                              color: selected
+                                  ? Colors.white
+                                  : AppColors.textMedium,
+                            ),
+                          ),
+                        ),
+                      );
+                    }),
+                  ),
+                ),
+                const SizedBox(height: 20),
+
+                // Título + Ver todas
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'Rutas disponibles',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.textDark,
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: () {},
+                      child: const Text(
+                        'Ver todas',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: AppColors.accentGreen,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+
+                // Lista de rutas
+                _filteredRoutes.isEmpty
+                    ? const Center(
+                        child: Padding(
+                          padding: EdgeInsets.symmetric(vertical: 40),
+                          child: Text(
+                            'No hay rutas disponibles',
+                            style: TextStyle(
+                              color: AppColors.textLight,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ),
+                      )
+                    : ListView.builder(
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        itemCount: _filteredRoutes.length,
+                        itemBuilder: (_, i) => RouteCard(
+                          route: _filteredRoutes[i],
+                          onTap: () {
+                            // TODO: navegar a detalle de ruta
+                          },
+                        ),
+                      ),
+
+                const SizedBox(height: 20),
+
+                // Botón Publicar Ruta
+                SizedBox(
+                  width: double.infinity,
+                  height: 48,
+                  child: ElevatedButton.icon(
+                    onPressed: () {
+                      // TODO: navegar a PublicarRutaScreen
+                    },
+                    icon: const Icon(Icons.add, color: Colors.white),
+                    label: const Text(
+                      'Publicar Ruta',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.accentGreen,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      elevation: 0,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.backgroundApp,
       body: SafeArea(
-        child: Column(
+        child: IndexedStack(
+          index: _currentNavIndex,
           children: [
-            // ── Header ──────────────────────────────────────────
-            Container(
-              color: AppColors.backgroundWhite,
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Hola, $_firstName 👋',
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.textDark,
-                        ),
-                      ),
-                      const Text(
-                        '¿A dónde vas hoy?',
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: AppColors.textLight,
-                        ),
-                      ),
-                    ],
-                  ),
-                  // Avatar → navega al perfil
-                  GestureDetector(
-                    onTap: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const ProfileScreen(),
-                      ),
-                    ),
-                    child: CircleAvatar(
-                      radius: 20,
-                      backgroundColor: AppColors.accentGreen,
-                      child: Text(
-                        _initials,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 13,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            // ── Contenido scrolleable ────────────────────────────
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Barra de búsqueda
-                    TextField(
-                      controller: _searchController,
-                      onChanged: (_) => setState(() {}),
-                      style: const TextStyle(
-                        fontSize: 14,
-                        color: AppColors.textDark,
-                      ),
-                      decoration: InputDecoration(
-                        hintText: 'Buscar rutas disponibles...',
-                        prefixIcon: const Icon(
-                          Icons.search,
-                          color: AppColors.textPlaceholder,
-                        ),
-                        suffixIcon: _searchController.text.isNotEmpty
-                            ? IconButton(
-                                icon: const Icon(
-                                  Icons.close,
-                                  color: AppColors.textPlaceholder,
-                                ),
-                                onPressed: () {
-                                  _searchController.clear();
-                                  setState(() {});
-                                },
-                              )
-                            : null,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-
-                    // Filtros
-                    SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: Row(
-                        children: List.generate(_filters.length, (i) {
-                          final selected = _selectedFilter == i;
-                          return GestureDetector(
-                            onTap: () =>
-                                setState(() => _selectedFilter = i),
-                            child: Container(
-                              margin: const EdgeInsets.only(right: 8),
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 16,
-                                vertical: 8,
-                              ),
-                              decoration: BoxDecoration(
-                                color: selected
-                                    ? AppColors.accentGreen
-                                    : AppColors.backgroundWhite,
-                                borderRadius: BorderRadius.circular(20),
-                                border: Border.all(
-                                  color: selected
-                                      ? AppColors.accentGreen
-                                      : AppColors.borderDefault,
-                                ),
-                              ),
-                              child: Text(
-                                _filters[i],
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w500,
-                                  color: selected
-                                      ? Colors.white
-                                      : AppColors.textMedium,
-                                ),
-                              ),
-                            ),
-                          );
-                        }),
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-
-                    // Título + Ver todas
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Text(
-                          'Rutas disponibles',
-                          style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.textDark,
-                          ),
-                        ),
-                        TextButton(
-                          onPressed: () {},
-                          child: const Text(
-                            'Ver todas',
-                            style: TextStyle(
-                              fontSize: 13,
-                              color: AppColors.accentGreen,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-
-                    // Lista de rutas
-                    _filteredRoutes.isEmpty
-                        ? const Center(
-                            child: Padding(
-                              padding: EdgeInsets.symmetric(vertical: 40),
-                              child: Text(
-                                'No hay rutas disponibles',
-                                style: TextStyle(
-                                  color: AppColors.textLight,
-                                  fontSize: 14,
-                                ),
-                              ),
-                            ),
-                          )
-                        : ListView.builder(
-                            shrinkWrap: true,
-                            physics: const NeverScrollableScrollPhysics(),
-                            itemCount: _filteredRoutes.length,
-                            itemBuilder: (_, i) => RouteCard(
-                              route: _filteredRoutes[i],
-                              onTap: () {
-                                // TODO: navegar a detalle de ruta
-                              },
-                            ),
-                          ),
-
-                    const SizedBox(height: 20),
-
-                    // Botón Publicar Ruta
-                    SizedBox(
-                      width: double.infinity,
-                      height: 48,
-                      child: ElevatedButton.icon(
-                        onPressed: () {
-                          // TODO: navegar a PublicarRutaScreen
-                        },
-                        icon: const Icon(Icons.add, color: Colors.white),
-                        label: const Text(
-                          'Publicar Ruta',
-                          style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                          ),
-                        ),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.accentGreen,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          elevation: 0,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                  ],
-                ),
-              ),
-            ),
+            _buildRutasContent(), // Index 0: Rutas
+            const Center(child: Text('Bazar - Próximamente')), // Index 1: Bazar
+            const Center(child: Text('Notificaciones - Próximamente')), // Index 2: Notificaciones
+            const ProfileScreen(showBottomNav: false), // Index 3: Perfil
           ],
         ),
       ),
