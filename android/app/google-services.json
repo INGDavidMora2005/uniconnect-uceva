@@ -7,12 +7,25 @@
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:26604708677:android:c994bad51b0d1d8b13942c",
+        "mobilesdk_app_id": "1:26604708677:android:4091d02b0cee8ff113942c",
         "android_client_info": {
           "package_name": "com.uceva.uniconnect_app"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "26604708677-20jggn8rpk8p2sp9is9jg51r2edebqtj.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.uceva.uniconnect_app",
+            "certificate_hash": "26e10f0658547915274e9371065d21e5868d9975"
+          }
+        },
+        {
+          "client_id": "26604708677-f5vmd2mf0omaogetpn46vqr55fk698bk.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyD3JdajygGlYcXt486KU-PhJpExKoDpdf0"
@@ -20,7 +33,12 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "26604708677-f5vmd2mf0omaogetpn46vqr55fk698bk.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }
