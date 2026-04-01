@@ -253,6 +253,32 @@ class AuthService {
     }
   }
 
+    // ── ACTUALIZAR PERFIL ─────────────────────────────────────
+  Future<bool> updateProfile({
+    required String fullName,
+    required String role,
+    required String faculty,
+    required String description,
+  }) async {
+    try {
+      final uid = _auth.currentUser?.uid;
+      if (uid == null) return false;
+
+      await _db.collection('users').doc(uid).set({
+      
+        'fullName': fullName,
+        'role': role,
+        'faculty': faculty,
+        'description': description,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
   // ── LOGOUT ────────────────────────────────────────────────
   Future<void> logout() async {
     await _auth.signOut();
