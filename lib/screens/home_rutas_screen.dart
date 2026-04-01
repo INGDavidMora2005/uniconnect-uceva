@@ -354,7 +354,7 @@ class _HomeRutasScreenState extends State<HomeRutasScreen> {
             _buildRutasContent(), // Index 0: Rutas
             const Center(child: Text('Bazar - Próximamente')), // Index 1: Bazar
             const Center(child: Text('Notificaciones - Próximamente')), // Index 2: Notificaciones
-            const ProfileScreen(), // Index 3: Perfil
+            const ProfileScreen(showBottomNav: false), // Index 3: Perfil
           ],
         ),
       ),
