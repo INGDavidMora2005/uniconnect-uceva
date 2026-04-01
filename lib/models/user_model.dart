@@ -12,7 +12,7 @@ class UserModel {
   final int tripsCompleted;
   final int bazarPurchases;
 
-  const UserModel({
+    const UserModel({
     required this.id,
     required this.fullName,
     required this.email,
