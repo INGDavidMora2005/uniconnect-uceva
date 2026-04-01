@@ -57,6 +57,12 @@ class AuthService {
         return 'Inicio de sesión cancelado.';
       }
 
+      // Validar dominio @uceva.edu.co
+      if (!googleUser.email.endsWith('@uceva.edu.co')) {
+        await GoogleSignIn().signOut();
+        return 'Solo se permiten emails @uceva.edu.co.';
+      }
+
       final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
       final AuthCredential credential = GoogleAuthProvider.credential(
         accessToken: googleAuth.accessToken,
@@ -145,6 +151,18 @@ class AuthService {
     required String faculty,
   }) async {
     try {
+      // Cerrar sesión de Firebase si hay un usuario activo
+      if (_auth.currentUser != null) {
+        await _auth.signOut();
+      }
+
+      // Forzar desconexión completa de Google Sign-In para permitir selección de cuenta
+      try {
+        await GoogleSignIn().disconnect();
+      } catch (e) {
+        // Ignorar error si no hay sesión activa de Google
+      }
+
       final GoogleSignInAccount? googleUser = await GoogleSignIn().signIn();
       if (googleUser == null) {
         return 'Registro cancelado por el usuario.';
@@ -163,6 +181,20 @@ class AuthService {
       );
 
       final UserCredential userCredential = await _auth.signInWithCredential(credential);
+
+      // Verificar si el usuario ya existe en Firestore
+      final existingUserDoc = await _db.collection('users').doc(userCredential.user!.uid).get();
+      if (existingUserDoc.exists) {
+        // Usuario ya registrado, verificar que el código estudiantil coincida
+        final existingStudentCode = existingUserDoc.data()?['studentCode'];
+        if (existingStudentCode != studentCode) {
+          await _auth.signOut();
+          await GoogleSignIn().signOut();
+          return 'Este email ya está registrado con un código estudiantil diferente.';
+        }
+        // Si el código coincide, permitir continuar (ya está registrado)
+        return 'Ya tienes una cuenta registrada con este email y código estudiantil.';
+      }
 
       // Verificar que el código estudiantil sea único
       final studentCodeDoc = await _db.collection('studentCodes').doc(studentCode).get();
@@ -218,6 +250,32 @@ class AuthService {
       });
     } catch (e) {
       return null;
+    }
+  }
+
+    // ── ACTUALIZAR PERFIL ─────────────────────────────────────
+  Future<bool> updateProfile({
+    required String fullName,
+    required String role,
+    required String faculty,
+    required String description,
+  }) async {
+    try {
+      final uid = _auth.currentUser?.uid;
+      if (uid == null) return false;
+
+      await _db.collection('users').doc(uid).set({
+      
+        'fullName': fullName,
+        'role': role,
+        'faculty': faculty,
+        'description': description,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+
+      return true;
+    } catch (e) {
+      return false;
     }
   }
 
