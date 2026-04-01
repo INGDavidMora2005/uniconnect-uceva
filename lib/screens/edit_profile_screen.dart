@@ -14,7 +14,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _descriptionController = TextEditingController();
-  final TextEditingController _facultyController = TextEditingController();
+  String? _selectedFaculty;
 
   String? _selectedRole;
   bool _loading = true;
@@ -25,6 +25,15 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     'Administrativo',
     'Colaborador',
   ];
+
+  final List<String> _faculties = [
+  'Facultad de Ingeniería',
+  'Facultad de Ciencias Sociales',
+  'Facultad de Ciencias de la Salud',
+  'Facultad de Ciencias Básicas',
+  'Facultad de Ciencias de la Educación',
+  'Facultad de Ciencias de la Comunicación',
+];
 
   @override
   void initState() {
@@ -37,7 +46,11 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
     if (user != null) {
       _nameController.text = user.fullName;
-      _facultyController.text = user.faculty;
+      if (_faculties.contains(user.faculty)) {
+  _selectedFaculty = user.faculty;
+} else {
+  _selectedFaculty = null;
+}
       _selectedRole = user.role;
 
       // Solo si tu modelo ya tiene description
@@ -58,7 +71,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   void dispose() {
     _nameController.dispose();
     _descriptionController.dispose();
-    _facultyController.dispose();
     super.dispose();
   }
 
@@ -67,7 +79,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       final success = await AuthService().updateProfile(
         fullName: _nameController.text.trim(),
         role: _selectedRole!,
-        faculty: _facultyController.text.trim(),
+        faculty: _selectedFaculty ?? '',
         description: _descriptionController.text.trim(),
       );
 
@@ -212,17 +224,34 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                       const SizedBox(height: 16),
 
                       const Text(
-                        'Facultad',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.textDark,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      TextFormField(
-                        controller: _facultyController,
-                        decoration: _inputDecoration('Ingresa tu facultad'),
-                      ),
+  'Facultad',
+  style: TextStyle(
+    fontWeight: FontWeight.w600,
+    color: AppColors.textDark,
+  ),
+),
+const SizedBox(height: 8),
+DropdownButtonFormField<String>(
+  initialValue: _selectedFaculty,
+  items: _faculties.map((faculty) {
+    return DropdownMenuItem<String>(
+      value: faculty,
+      child: Text(faculty),
+    );
+  }).toList(),
+  decoration: _inputDecoration('Selecciona tu facultad'),
+  validator: (value) {
+    if (value == null || value.isEmpty) {
+      return 'La facultad es obligatoria';
+    }
+    return null;
+  },
+  onChanged: (value) {
+    setState(() {
+      _selectedFaculty = value;
+    });
+  },
+),
                       const SizedBox(height: 28),
 
                       SizedBox(
