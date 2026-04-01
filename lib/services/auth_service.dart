@@ -145,6 +145,9 @@ class AuthService {
     required String faculty,
   }) async {
     try {
+      // Cerrar sesión previa para forzar el selector de cuentas
+      await GoogleSignIn().signOut();
+
       final GoogleSignInAccount? googleUser = await GoogleSignIn().signIn();
       if (googleUser == null) {
         return 'Registro cancelado por el usuario.';
