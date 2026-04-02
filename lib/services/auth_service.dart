@@ -275,6 +275,32 @@ class AuthService {
     }
   }
 
+  // ── RESET PASSWORD ────────────────────────────────────────
+  Future<String> forgotPassword(String email) async {
+    try {
+      if (email.isEmpty) {
+        return 'El correo electrónico es obligatorio.';
+      }
+
+      if (!email.endsWith('@uceva.edu.co')) {
+        return 'Solo se permiten emails @uceva.edu.co.';
+      }
+
+      await _auth.sendPasswordResetEmail(email: email);
+      return 'Email de recuperación enviado. Revisa tu bandeja de entrada.';
+    } on FirebaseAuthException catch (e) {
+      if (e.code == 'user-not-found') {
+        return 'Usuario no encontrado.';
+      } else if (e.code == 'invalid-email') {
+        return 'Correo electrónico inválido.';
+      } else {
+        return 'Error al enviar email: ${e.message}';
+      }
+    } catch (e) {
+      return 'Error inesperado: ${e.toString()}';
+    }
+  }
+
   // ── LOGOUT ────────────────────────────────────────────────
   Future<void> logout() async {
     await _auth.signOut();
