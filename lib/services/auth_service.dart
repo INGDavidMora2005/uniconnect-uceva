@@ -25,10 +25,7 @@ class AuthService {
         password: password,
       );
 
-      if (!credential.user!.emailVerified) {
-        await _auth.signOut();
-        return 'Debes verificar tu email antes de iniciar sesión. Revisa tu bandeja de entrada.';
-      }
+
 
       return 'Inicio de sesión exitoso.';
     } on FirebaseAuthException catch (e) {
@@ -98,28 +95,33 @@ class AuthService {
     required String faculty,
   }) async {
     try {
-      final studentCodeDoc =
-          await _db.collection('studentCodes').doc(studentCode).get();
-      if (studentCodeDoc.exists) {
-        return 'Este código estudiantil ya está registrado.';
-      }
-
       final credential = await _auth.createUserWithEmailAndPassword(
         email: email,
         password: password,
       );
 
+      // Verificar studentCode después de autenticar
+      final studentCodeDoc = await _db
+          .collection('studentCodes')
+          .doc(studentCode)
+          .get();
+      if (studentCodeDoc.exists) {
+        // Eliminar la cuenta recién creada si el código ya existe
+        await credential.user!.delete();
+        return 'Este código estudiantil ya está registrado.';
+      }
+
       await _db.collection('users').doc(credential.user!.uid).set({
-        'fullName':       fullName,
-        'studentCode':    studentCode,
-        'email':          email,
-        'role':           role,
-        'faculty':        faculty,
-        'description':    '',
-        'rating':         0.0,
+        'fullName': fullName,
+        'studentCode': studentCode,
+        'email': email,
+        'role': role,
+        'faculty': faculty,
+        'description': '',
+        'rating': 0.0,
         'tripsCompleted': 0,
         'bazarPurchases': 0,
-        'createdAt':      FieldValue.serverTimestamp(),
+        'createdAt': FieldValue.serverTimestamp(),
       });
 
       await _db.collection('studentCodes').doc(studentCode).set({
@@ -176,8 +178,9 @@ class AuthService {
         idToken: googleAuth.idToken,
       );
 
-      final UserCredential userCredential =
-          await _auth.signInWithCredential(credential);
+      final UserCredential userCredential = await _auth.signInWithCredential(
+        credential,
+      );
 
       final existingUserDoc = await _db
           .collection('users')
@@ -185,8 +188,7 @@ class AuthService {
           .get();
 
       if (existingUserDoc.exists) {
-        final existingStudentCode =
-            existingUserDoc.data()?['studentCode'];
+        final existingStudentCode = existingUserDoc.data()?['studentCode'];
         if (existingStudentCode != studentCode) {
           await _auth.signOut();
           await GoogleSignIn().signOut();
@@ -195,37 +197,36 @@ class AuthService {
         return 'Ya tienes una cuenta registrada con este email y código estudiantil.';
       }
 
-      final studentCodeDoc =
-          await _db.collection('studentCodes').doc(studentCode).get();
+      final studentCodeDoc = await _db
+          .collection('studentCodes')
+          .doc(studentCode)
+          .get();
       if (studentCodeDoc.exists) {
         await _auth.signOut();
         await GoogleSignIn().signOut();
         return 'Este código estudiantil ya está registrado.';
       }
 
-      await _db
-          .collection('users')
-          .doc(userCredential.user!.uid)
-          .set({
-        'fullName':       googleUser.displayName ?? '',
-        'studentCode':    studentCode,
-        'email':          googleUser.email,
-        'role':           role,
-        'faculty':        faculty,
-        'description':    '',
-        'rating':         0.0,
+      await _db.collection('users').doc(userCredential.user!.uid).set({
+        'fullName': googleUser.displayName ?? '',
+        'studentCode': studentCode,
+        'email': googleUser.email,
+        'role': role,
+        'faculty': faculty,
+        'description': '',
+        'rating': 0.0,
         'tripsCompleted': 0,
         'bazarPurchases': 0,
-        'createdAt':      FieldValue.serverTimestamp(),
+        'createdAt': FieldValue.serverTimestamp(),
       });
 
       await _db.collection('studentCodes').doc(studentCode).set({
         'uid': userCredential.user!.uid,
       });
 
-      await userCredential.user!.sendEmailVerification();
 
-      return 'Cuenta creada exitosamente. Revisa tu email para verificar la cuenta.';
+
+      return 'Cuenta creada exitosamente.';
     } on FirebaseAuthException catch (e) {
       if (e.code == 'account-exists-with-different-credential') {
         return 'Ya existe una cuenta con este email.';
@@ -246,10 +247,7 @@ class AuthService {
       final doc = await _db.collection('users').doc(uid).get();
       if (!doc.exists) return null;
 
-      return UserModel.fromMap({
-        'id': uid,
-        ...doc.data()!,
-      });
+      return UserModel.fromMap({'id': uid, ...doc.data()!});
     } catch (e) {
       return null;
     }
@@ -267,9 +265,9 @@ class AuthService {
       if (uid == null) return 'No hay sesión activa.';
 
       await _db.collection('users').doc(uid).update({
-        'fullName':    fullName,
-        'role':        role,
-        'faculty':     faculty,
+        'fullName': fullName,
+        'role': role,
+        'faculty': faculty,
         'description': description,
       });
 
