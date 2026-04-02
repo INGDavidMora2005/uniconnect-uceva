@@ -15,7 +15,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _descriptionController = TextEditingController();
   String? _selectedFaculty;
-
   String? _selectedRole;
 
   bool _loading = true;
@@ -35,22 +34,20 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   }
 
   Future<void> _loadUserData() async {
-  final user = await AuthService().getUserData();
+    final user = await AuthService().getUserData();
 
-  if (user != null) {
-    _nameController.text = user.fullName;
-    _descriptionController.text = user.description;
-    _selectedRole = user.role;
+    if (user != null) {
+      _nameController.text = user.fullName;
+      _descriptionController.text = user.description;
+      _selectedRole = user.role;
+      _selectedFaculty = user.faculty.isNotEmpty ? user.faculty : null;
+    }
 
-    _selectedFaculty =
-        user.faculty.isNotEmpty ? user.faculty : null;
+    if (!mounted) return;
+    setState(() {
+      _loading = false;
+    });
   }
-
-  if (!mounted) return;
-  setState(() {
-    _loading = false;
-  });
-}
 
   Future<void> _saveProfile() async {
     if (!_formKey.currentState!.validate()) return;
@@ -199,8 +196,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                       _buildSectionLabel('Nombre completo'),
                       TextFormField(
                         controller: _nameController,
-                        decoration:
-                            _inputDecoration('Ingresa tu nombre completo'),
+                        decoration: _inputDecoration('Ingresa tu nombre completo'),
                         validator: (value) {
                           if (value == null || value.trim().isEmpty) {
                             return 'El nombre es obligatorio';
@@ -214,14 +210,13 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                       TextFormField(
                         controller: _descriptionController,
                         maxLines: 3,
-                        decoration:
-                            _inputDecoration('Escribe una breve descripción'),
+                        decoration: _inputDecoration('Escribe una breve descripción'),
                       ),
                       const SizedBox(height: 16),
 
                       _buildSectionLabel('Rol'),
                       DropdownButtonFormField<String>(
-                        initialValue: _selectedRole,
+                        value: _selectedRole, // ✅ Fix: era initialValue
                         decoration: _inputDecoration('Selecciona tu rol'),
                         items: roles.map((role) {
                           return DropdownMenuItem<String>(
@@ -244,48 +239,48 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                       const SizedBox(height: 16),
 
                       _buildSectionLabel('Facultad'),
-DropdownButtonFormField<String>(
-  value: _selectedFaculty,
-  dropdownColor: Colors.white,
-  decoration: _inputDecoration('Selecciona tu facultad'),
-  items: const [
-    DropdownMenuItem(
-      value: 'Facultad de Ingeniería',
-      child: Text('Facultad de Ingeniería'),
-    ),
-    DropdownMenuItem(
-      value: 'Facultad de Ciencias Sociales',
-      child: Text('Facultad de Ciencias Sociales'),
-    ),
-    DropdownMenuItem(
-      value: 'Facultad de Ciencias de la Salud',
-      child: Text('Facultad de Ciencias de la Salud'),
-    ),
-    DropdownMenuItem(
-      value: 'Facultad de Ciencias Básicas',
-      child: Text('Facultad de Ciencias Básicas'),
-    ),
-    DropdownMenuItem(
-      value: 'Facultad de Ciencias de la Educación',
-      child: Text('Facultad de Ciencias de la Educación'),
-    ),
-    DropdownMenuItem(
-      value: 'Facultad de Ciencias de la Comunicación',
-      child: Text('Facultad de Ciencias de la Comunicación'),
-    ),
-  ],
-  validator: (value) {
-    if (value == null || value.isEmpty) {
-      return 'La facultad es obligatoria';
-    }
-    return null;
-  },
-  onChanged: (value) {
-    setState(() {
-      _selectedFaculty = value;
-    });
-  },
-),
+                      DropdownButtonFormField<String>(
+                        value: _selectedFaculty,
+                        dropdownColor: Colors.white,
+                        decoration: _inputDecoration('Selecciona tu facultad'),
+                        items: const [
+                          DropdownMenuItem(
+                            value: 'Facultad de Ingeniería',
+                            child: Text('Facultad de Ingeniería'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'Facultad de Ciencias Sociales',
+                            child: Text('Facultad de Ciencias Sociales'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'Facultad de Ciencias de la Salud',
+                            child: Text('Facultad de Ciencias de la Salud'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'Facultad de Ciencias Básicas',
+                            child: Text('Facultad de Ciencias Básicas'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'Facultad de Ciencias de la Educación',
+                            child: Text('Facultad de Ciencias de la Educación'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'Facultad de Ciencias de la Comunicación',
+                            child: Text('Facultad de Ciencias de la Comunicación'),
+                          ),
+                        ],
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'La facultad es obligatoria';
+                          }
+                          return null;
+                        },
+                        onChanged: (value) {
+                          setState(() {
+                            _selectedFaculty = value;
+                          });
+                        },
+                      ),
                       const SizedBox(height: 28),
 
                       SizedBox(
