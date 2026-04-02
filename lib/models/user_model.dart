@@ -12,19 +12,20 @@ class UserModel {
   final int tripsCompleted;
   final int bazarPurchases;
 
-    const UserModel({
+  const UserModel({
     required this.id,
     required this.fullName,
     required this.email,
     required this.studentCode,
     required this.role,
-    this.faculty = '',
+    required this.faculty,
     this.description = '',
     this.rating = 0.0,
     this.tripsCompleted = 0,
     this.bazarPurchases = 0,
   });
 
+  // Crear desde Firestore
   factory UserModel.fromMap(Map<String, dynamic> map) => UserModel(
         id: map['id'] ?? '',
         fullName: map['fullName'] ?? '',
@@ -38,6 +39,7 @@ class UserModel {
         bazarPurchases: map['bazarPurchases'] ?? 0,
       );
 
+  // Guardar en Firestore
   Map<String, dynamic> toMap() => {
         'id': id,
         'fullName': fullName,
@@ -52,6 +54,7 @@ class UserModel {
         'createdAt': FieldValue.serverTimestamp(),
       };
 
+  // Iniciales para el avatar
   String get initials {
     final parts = fullName.trim().split(' ');
     if (parts.length >= 2) {
@@ -60,6 +63,7 @@ class UserModel {
     return fullName.isNotEmpty ? fullName[0].toUpperCase() : '?';
   }
 
+  // Primer nombre para el saludo
   String get firstName {
     return fullName.trim().split(' ').first;
   }

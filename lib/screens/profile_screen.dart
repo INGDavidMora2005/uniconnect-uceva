@@ -194,14 +194,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         width: double.infinity,
                         height: 48,
                         child: ElevatedButton(
-                          onPressed: () {
-                           Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                             builder: (context) => const EditProfileScreen(),
-                             ),
-                            );
-                          },
+                          onPressed: () async {
+  final updated = await Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (context) => const EditProfileScreen(),
+    ),
+  );
+
+  if (updated == true) {
+    _loadUser();
+  }
+},
                           style: ElevatedButton.styleFrom(
                             backgroundColor: AppColors.accentGreen,
                             foregroundColor: Colors.white,

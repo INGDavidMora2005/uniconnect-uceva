@@ -22,6 +22,22 @@
           }
         },
         {
+          "client_id": "26604708677-mafehgl9n4rtt982t6pmqgj6oasiuh9p.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.uceva.uniconnect_app",
+            "certificate_hash": "88270ac5562fd34afe48a4243d099f07af5ba143"
+          }
+        },
+        {
+          "client_id": "26604708677-q4h83lfpo4frap554jp8i1osi2brtuhj.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.uceva.uniconnect_app",
+            "certificate_hash": "0331dd7e20c58cf1f36479c690388e8813c9d1b9"
+          }
+        },
+        {
           "client_id": "26604708677-f5vmd2mf0omaogetpn46vqr55fk698bk.apps.googleusercontent.com",
           "client_type": 3
         }
