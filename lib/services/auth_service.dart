@@ -25,8 +25,6 @@ class AuthService {
         password: password,
       );
 
-
-
       return 'Inicio de sesión exitoso.';
     } on FirebaseAuthException catch (e) {
       if (e.code == 'user-not-found') {
