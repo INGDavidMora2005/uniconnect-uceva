@@ -12,13 +12,15 @@ class EditProfileScreen extends StatefulWidget {
 class _EditProfileScreenState extends State<EditProfileScreen> {
   final _formKey = GlobalKey<FormState>();
 
-  final TextEditingController _nameController = TextEditingController();
+  final TextEditingController _nameController        = TextEditingController();
   final TextEditingController _descriptionController = TextEditingController();
-  String? _selectedFaculty;
 
+  String? _selectedFaculty;
   String? _selectedRole;
   bool _loading = true;
+  bool _saving  = false;
 
+  // ── Listas de opciones ─────────────────────────────────────
   final List<String> _roles = [
     'Estudiante',
     'Docente',
@@ -27,13 +29,13 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   ];
 
   final List<String> _faculties = [
-  'Facultad de Ingeniería',
-  'Facultad de Ciencias Sociales',
-  'Facultad de Ciencias de la Salud',
-  'Facultad de Ciencias Básicas',
-  'Facultad de Ciencias de la Educación',
-  'Facultad de Ciencias de la Comunicación',
-];
+    'Facultad de Ingeniería',
+    'Facultad de Ciencias Sociales',
+    'Facultad de Ciencias de la Salud',
+    'Facultad de Ciencias Básicas',
+    'Facultad de Ciencias de la Educación',
+    'Facultad de Ciencias de la Comunicación',
+  ];
 
   @override
   void initState() {
@@ -43,28 +45,44 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
   Future<void> _loadUserData() async {
     final user = await AuthService().getUserData();
-
     if (user != null) {
-      _nameController.text = user.fullName;
-      if (_faculties.contains(user.faculty)) {
-  _selectedFaculty = user.faculty;
-} else {
-  _selectedFaculty = null;
-}
-      _selectedRole = user.role;
+      _nameController.text        = user.fullName;
+      _descriptionController.text = user.description;
 
-      // Solo si tu modelo ya tiene description
-      try {
-        _descriptionController.text = user.description;
-      } catch (_) {
-        _descriptionController.text = '';
-      }
+      // Validar que el rol y facultad existan en las listas
+      _selectedRole = _roles.contains(user.role) ? user.role : null;
+      _selectedFaculty = _faculties.contains(user.faculty) ? user.faculty : null;
     }
+    if (!mounted) return;
+    setState(() => _loading = false);
+  }
+
+  Future<void> _saveProfile() async {
+    if (!_formKey.currentState!.validate()) return;
+    setState(() => _saving = true);
+
+    final result = await AuthService().updateProfile(
+      fullName:    _nameController.text.trim(),
+      role:        _selectedRole ?? '',
+      faculty:     _selectedFaculty ?? '',
+      description: _descriptionController.text.trim(),
+    );
 
     if (!mounted) return;
-    setState(() {
-      _loading = false;
-    });
+    setState(() => _saving = false);
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(result),
+        backgroundColor: result == 'Perfil actualizado correctamente.'
+            ? AppColors.accentGreen
+            : Colors.redAccent,
+      ),
+    );
+
+    if (result == 'Perfil actualizado correctamente.') {
+      Navigator.pop(context, true);
+    }
   }
 
   @override
@@ -74,221 +92,17 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     super.dispose();
   }
 
-  Future<void> _saveProfile() async {
-    if (_formKey.currentState!.validate()) {
-      final success = await AuthService().updateProfile(
-        fullName: _nameController.text.trim(),
-        role: _selectedRole!,
-        faculty: _selectedFaculty ?? '',
-        description: _descriptionController.text.trim(),
-      );
-
-      if (!mounted) return;
-
-      if (success) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Perfil actualizado correctamente'),
-          ),
-        );
-
-        Navigator.pop(context, true);
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Error al actualizar el perfil'),
-          ),
-        );
-      }
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.backgroundApp,
-      appBar: AppBar(
-        title: const Text('Editar Perfil'),
-        backgroundColor: AppColors.primaryGreen,
-        foregroundColor: Colors.white,
-        elevation: 0,
-      ),
-      body: SafeArea(
-        child: _loading
-            ? const Center(
-                child: CircularProgressIndicator(
-                  color: AppColors.accentGreen,
-                ),
-              )
-            : SingleChildScrollView(
-                padding: const EdgeInsets.all(20),
-                child: Form(
-                  key: _formKey,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Center(
-                        child: Column(
-                          children: [
-                            const CircleAvatar(
-                              radius: 40,
-                              backgroundColor: AppColors.accentGreen,
-                              child: Icon(
-                                Icons.person,
-                                color: Colors.white,
-                                size: 40,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            TextButton(
-                              onPressed: () {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text('Cambio de foto pendiente'),
-                                  ),
-                                );
-                              },
-                              child: const Text('Cambiar foto'),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 24),
-
-                      const Text(
-                        'Nombre completo',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.textDark,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      TextFormField(
-                        controller: _nameController,
-                        decoration:
-                            _inputDecoration('Ingresa tu nombre completo'),
-                        validator: (value) {
-                          if (value == null || value.trim().isEmpty) {
-                            return 'El nombre es obligatorio';
-                          }
-                          return null;
-                        },
-                      ),
-                      const SizedBox(height: 16),
-
-                      const Text(
-                        'Descripción breve',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.textDark,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      TextFormField(
-                        controller: _descriptionController,
-                        maxLines: 3,
-                        decoration:
-                            _inputDecoration('Escribe una breve descripción'),
-                      ),
-                      const SizedBox(height: 16),
-
-                      const Text(
-                        'Rol',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.textDark,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      DropdownButtonFormField<String>(
-                        initialValue: _selectedRole,
-                        items: _roles.map((role) {
-                          return DropdownMenuItem<String>(
-                            value: role,
-                            child: Text(role),
-                          );
-                        }).toList(),
-                        decoration: _inputDecoration('Selecciona tu rol'),
-                        validator: (value) {
-                          if (value == null || value.isEmpty) {
-                            return 'El rol es obligatorio';
-                          }
-                          return null;
-                        },
-                        onChanged: (value) {
-                          setState(() {
-                            _selectedRole = value;
-                          });
-                        },
-                      ),
-                      const SizedBox(height: 16),
-
-                      const Text(
-  'Facultad',
-  style: TextStyle(
-    fontWeight: FontWeight.w600,
-    color: AppColors.textDark,
-  ),
-),
-const SizedBox(height: 8),
-DropdownButtonFormField<String>(
-  initialValue: _selectedFaculty,
-  items: _faculties.map((faculty) {
-    return DropdownMenuItem<String>(
-      value: faculty,
-      child: Text(faculty),
-    );
-  }).toList(),
-  decoration: _inputDecoration('Selecciona tu facultad'),
-  validator: (value) {
-    if (value == null || value.isEmpty) {
-      return 'La facultad es obligatoria';
-    }
-    return null;
-  },
-  onChanged: (value) {
-    setState(() {
-      _selectedFaculty = value;
-    });
-  },
-),
-                      const SizedBox(height: 28),
-
-                      SizedBox(
-                        width: double.infinity,
-                        height: 48,
-                        child: ElevatedButton(
-                          onPressed: _saveProfile,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.accentGreen,
-                            foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                          ),
-                          child: const Text(
-                            'Guardar cambios',
-                            style: TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-      ),
-    );
-  }
-
   InputDecoration _inputDecoration(String hintText) {
     return InputDecoration(
       hintText: hintText,
+      hintStyle: const TextStyle(
+        color: AppColors.textPlaceholder,
+        fontSize: 14,
+      ),
       filled: true,
       fillColor: Colors.white,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      contentPadding:
+          const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
         borderSide: const BorderSide(color: AppColors.borderDefault),
@@ -299,7 +113,201 @@ DropdownButtonFormField<String>(
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: AppColors.accentGreen),
+        borderSide:
+            const BorderSide(color: AppColors.accentGreen, width: 1.5),
+      ),
+      errorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: Colors.redAccent),
+      ),
+      focusedErrorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: Colors.redAccent, width: 1.5),
+      ),
+    );
+  }
+
+  Widget _sectionLabel(String text) => Padding(
+    padding: const EdgeInsets.only(bottom: 8),
+    child: Text(
+      text,
+      style: const TextStyle(
+        fontSize: 13,
+        fontWeight: FontWeight.w600,
+        color: AppColors.textDark,
+      ),
+    ),
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppColors.backgroundApp,
+      appBar: AppBar(
+        backgroundColor: AppColors.primaryGreen,
+        foregroundColor: Colors.white,
+        elevation: 0,
+        title: const Text(
+          'Editar Perfil',
+          style: TextStyle(fontWeight: FontWeight.w600),
+        ),
+      ),
+      body: SafeArea(
+        child: _loading
+            ? const Center(
+                child: CircularProgressIndicator(
+                  color: AppColors.accentGreen,
+                ),
+              )
+            : SingleChildScrollView(
+                padding:
+                    const EdgeInsets.fromLTRB(20, 20, 20, 28),
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+
+                      // ── Avatar ───────────────────────────────
+                      Center(
+                        child: Column(
+                          children: [
+                            const CircleAvatar(
+                              radius: 38,
+                              backgroundColor: AppColors.accentGreen,
+                              child: Icon(
+                                Icons.person,
+                                size: 34,
+                                color: Colors.white,
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            TextButton(
+                              onPressed: () {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content:
+                                        Text('Cambio de foto próximamente'),
+                                  ),
+                                );
+                              },
+                              child: const Text(
+                                'Cambiar foto',
+                                style: TextStyle(
+                                  color: AppColors.primaryGreen,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+
+                      // ── Nombre ───────────────────────────────
+                      _sectionLabel('Nombre completo'),
+                      TextFormField(
+                        controller: _nameController,
+                        decoration: _inputDecoration(
+                            'Ingresa tu nombre completo'),
+                        validator: (v) {
+                          if (v == null || v.trim().isEmpty) {
+                            return 'El nombre es obligatorio';
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 16),
+
+                      // ── Descripción ──────────────────────────
+                      _sectionLabel('Descripción breve'),
+                      TextFormField(
+                        controller: _descriptionController,
+                        maxLines: 3,
+                        decoration: _inputDecoration(
+                            'Escribe una breve descripción'),
+                      ),
+                      const SizedBox(height: 16),
+
+                      // ── Rol ──────────────────────────────────
+                      _sectionLabel('Rol'),
+                      DropdownButtonFormField<String>(
+                        value: _selectedRole,
+                        decoration: _inputDecoration('Selecciona tu rol'),
+                        items: _roles
+                            .map((r) => DropdownMenuItem(
+                                  value: r,
+                                  child: Text(r),
+                                ))
+                            .toList(),
+                        validator: (v) => v == null || v.isEmpty
+                            ? 'El rol es obligatorio'
+                            : null,
+                        onChanged: (v) =>
+                            setState(() => _selectedRole = v),
+                      ),
+                      const SizedBox(height: 16),
+
+                      // ── Facultad ─────────────────────────────
+                      _sectionLabel('Facultad'),
+                      DropdownButtonFormField<String>(
+                        value: _selectedFaculty,
+                        dropdownColor: Colors.white,
+                        decoration:
+                            _inputDecoration('Selecciona tu facultad'),
+                        items: _faculties
+                            .map((f) => DropdownMenuItem(
+                                  value: f,
+                                  child: Text(
+                                    f,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ))
+                            .toList(),
+                        validator: (v) => v == null || v.isEmpty
+                            ? 'La facultad es obligatoria'
+                            : null,
+                        onChanged: (v) =>
+                            setState(() => _selectedFaculty = v),
+                      ),
+                      const SizedBox(height: 28),
+
+                      // ── Botón Guardar ────────────────────────
+                      SizedBox(
+                        width: double.infinity,
+                        height: 50,
+                        child: ElevatedButton(
+                          onPressed: _saving ? null : _saveProfile,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.accentGreen,
+                            foregroundColor: Colors.white,
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          child: _saving
+                              ? const SizedBox(
+                                  height: 22,
+                                  width: 22,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2.5,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : const Text(
+                                  'Guardar cambios',
+                                  style: TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
       ),
     );
   }
