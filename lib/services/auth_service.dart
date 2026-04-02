@@ -221,6 +221,33 @@ class AuthService {
     }
   }
 
+    // ── ACTUALIZAR PERFIL ─────────────────────────────────────
+  Future<String> updateProfile({
+    required String fullName,
+    required String role,
+    required String faculty,
+    required String description,
+  }) async {
+    try {
+      final uid = _auth.currentUser?.uid;
+      if (uid == null) {
+        return 'No hay un usuario autenticado.';
+      }
+
+      await _db.collection('users').doc(uid).set({
+        'fullName': fullName,
+        'role': role,
+        'faculty': faculty,
+        'description': description,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+
+      return 'Perfil actualizado correctamente.';
+    } catch (e) {
+      return 'Error al actualizar el perfil: ${e.toString()}';
+    }
+  }
+
   // ── LOGOUT ────────────────────────────────────────────────
   Future<void> logout() async {
     await _auth.signOut();
