@@ -25,7 +25,6 @@ class AuthService {
         password: password,
       );
 
-      // Verificar si el email está confirmado
       if (!credential.user!.emailVerified) {
         await _auth.signOut();
         return 'Debes verificar tu email antes de iniciar sesión. Revisa tu bandeja de entrada.';
@@ -49,7 +48,7 @@ class AuthService {
     }
   }
 
-  // ── LOGIN CON GOOGLE ───────────────────────────────────────
+  // ── LOGIN CON GOOGLE ──────────────────────────────────────
   Future<String> loginWithGoogle() async {
     try {
       final GoogleSignInAccount? googleUser = await GoogleSignIn().signIn();
@@ -57,7 +56,13 @@ class AuthService {
         return 'Inicio de sesión cancelado.';
       }
 
-      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+      if (!googleUser.email.endsWith('@uceva.edu.co')) {
+        await GoogleSignIn().signOut();
+        return 'Solo se permiten emails @uceva.edu.co.';
+      }
+
+      final GoogleSignInAuthentication googleAuth =
+          await googleUser.authentication;
       final AuthCredential credential = GoogleAuthProvider.credential(
         accessToken: googleAuth.accessToken,
         idToken: googleAuth.idToken,
@@ -65,11 +70,10 @@ class AuthService {
 
       final userCredential = await _auth.signInWithCredential(credential);
 
-      // Verificar si el email está confirmado
       if (!userCredential.user!.emailVerified) {
         await _auth.signOut();
         await GoogleSignIn().signOut();
-        return 'Debes verificar tu email antes de iniciar sesión. Revisa tu bandeja de entrada.';
+        return 'Debes verificar tu email antes de iniciar sesión.';
       }
 
       return 'Inicio de sesión exitoso.';
@@ -94,30 +98,30 @@ class AuthService {
     required String faculty,
   }) async {
     try {
-      // Verificar que el código estudiantil sea único
-      final studentCodeDoc = await _db.collection('studentCodes').doc(studentCode).get();
+      final studentCodeDoc =
+          await _db.collection('studentCodes').doc(studentCode).get();
       if (studentCodeDoc.exists) {
         return 'Este código estudiantil ya está registrado.';
       }
 
-      // 1. Crear usuario en Firebase Auth
       final credential = await _auth.createUserWithEmailAndPassword(
         email: email,
         password: password,
       );
 
-      // 2. Guardar datos del usuario en Firestore
       await _db.collection('users').doc(credential.user!.uid).set({
-        'fullName':    fullName,
-        'studentCode': studentCode,
-        'email':       email,
-        'role':        role,
-        'faculty':     faculty,
-        'rating':      0.0,
-        'createdAt':   FieldValue.serverTimestamp(),
+        'fullName':       fullName,
+        'studentCode':    studentCode,
+        'email':          email,
+        'role':           role,
+        'faculty':        faculty,
+        'description':    '',
+        'rating':         0.0,
+        'tripsCompleted': 0,
+        'bazarPurchases': 0,
+        'createdAt':      FieldValue.serverTimestamp(),
       });
 
-      // Crear registro en studentCodes para unicidad
       await _db.collection('studentCodes').doc(studentCode).set({
         'uid': credential.user!.uid,
       });
@@ -145,50 +149,80 @@ class AuthService {
     required String faculty,
   }) async {
     try {
+      if (_auth.currentUser != null) {
+        await _auth.signOut();
+      }
+
+      try {
+        await GoogleSignIn().disconnect();
+      } catch (e) {
+        // Ignorar si no hay sesión activa de Google
+      }
+
       final GoogleSignInAccount? googleUser = await GoogleSignIn().signIn();
       if (googleUser == null) {
         return 'Registro cancelado por el usuario.';
       }
 
-      // Validar dominio @uceva.edu.co
       if (!googleUser.email.endsWith('@uceva.edu.co')) {
         await GoogleSignIn().signOut();
         return 'Solo se permiten emails @uceva.edu.co.';
       }
 
-      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+      final GoogleSignInAuthentication googleAuth =
+          await googleUser.authentication;
       final AuthCredential credential = GoogleAuthProvider.credential(
         accessToken: googleAuth.accessToken,
         idToken: googleAuth.idToken,
       );
 
-      final UserCredential userCredential = await _auth.signInWithCredential(credential);
+      final UserCredential userCredential =
+          await _auth.signInWithCredential(credential);
 
-      // Verificar que el código estudiantil sea único
-      final studentCodeDoc = await _db.collection('studentCodes').doc(studentCode).get();
+      final existingUserDoc = await _db
+          .collection('users')
+          .doc(userCredential.user!.uid)
+          .get();
+
+      if (existingUserDoc.exists) {
+        final existingStudentCode =
+            existingUserDoc.data()?['studentCode'];
+        if (existingStudentCode != studentCode) {
+          await _auth.signOut();
+          await GoogleSignIn().signOut();
+          return 'Este email ya está registrado con un código estudiantil diferente.';
+        }
+        return 'Ya tienes una cuenta registrada con este email y código estudiantil.';
+      }
+
+      final studentCodeDoc =
+          await _db.collection('studentCodes').doc(studentCode).get();
       if (studentCodeDoc.exists) {
         await _auth.signOut();
         await GoogleSignIn().signOut();
         return 'Este código estudiantil ya está registrado.';
       }
 
-      // Guardar datos adicionales en Firestore
-      await _db.collection('users').doc(userCredential.user!.uid).set({
-        'fullName':    googleUser.displayName ?? '',
-        'studentCode': studentCode,
-        'email':       googleUser.email,
-        'role':        role,
-        'faculty':     faculty,
-        'rating':      0.0,
-        'createdAt':   FieldValue.serverTimestamp(),
+      await _db
+          .collection('users')
+          .doc(userCredential.user!.uid)
+          .set({
+        'fullName':       googleUser.displayName ?? '',
+        'studentCode':    studentCode,
+        'email':          googleUser.email,
+        'role':           role,
+        'faculty':        faculty,
+        'description':    '',
+        'rating':         0.0,
+        'tripsCompleted': 0,
+        'bazarPurchases': 0,
+        'createdAt':      FieldValue.serverTimestamp(),
       });
 
-      // Crear registro en studentCodes para unicidad
       await _db.collection('studentCodes').doc(studentCode).set({
         'uid': userCredential.user!.uid,
       });
 
-      // Enviar email de verificación adicional
       await userCredential.user!.sendEmailVerification();
 
       return 'Cuenta creada exitosamente. Revisa tu email para verificar la cuenta.';
@@ -221,7 +255,7 @@ class AuthService {
     }
   }
 
-    // ── ACTUALIZAR PERFIL ─────────────────────────────────────
+  // ── ACTUALIZAR PERFIL ─────────────────────────────────────
   Future<String> updateProfile({
     required String fullName,
     required String role,
@@ -230,17 +264,14 @@ class AuthService {
   }) async {
     try {
       final uid = _auth.currentUser?.uid;
-      if (uid == null) {
-        return 'No hay un usuario autenticado.';
-      }
+      if (uid == null) return 'No hay sesión activa.';
 
-      await _db.collection('users').doc(uid).set({
-        'fullName': fullName,
-        'role': role,
-        'faculty': faculty,
+      await _db.collection('users').doc(uid).update({
+        'fullName':    fullName,
+        'role':        role,
+        'faculty':     faculty,
         'description': description,
-        'updatedAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
+      });
 
       return 'Perfil actualizado correctamente.';
     } catch (e) {
