@@ -37,6 +37,8 @@ El objetivo es reducir costos de transporte, facilitar el intercambio de recurso
 | **Mapas** | Google Maps Platform |
 | **Control de versiones** | Git + GitHub |
 | **Gestión de tareas** | Jira |
+| **Diseño colaborativo** | Figma |
+| **Integraciones** | Figma ↔ Jira sync |
 
 ---
 
@@ -65,6 +67,27 @@ El proyecto se gestiona con metodología **Scrum** en Jira:
 3. Publicar y buscar productos en el Bazar UCEVA
 4. Sistema de calificaciones y reputación
 5. Moderación básica de usuarios y publicaciones
+
+---
+
+## 🔗 Integraciones Figma ↔ Jira
+
+La aplicación incluye integraciones bidireccionales entre Figma y Jira para sincronizar diseños y tareas:
+
+### Configuración
+1. Ve a la pantalla de Integraciones en la app
+2. Conecta tu cuenta de Jira con URL base, email y API token
+3. Conecta tu cuenta de Figma con access token
+4. Una vez conectadas, puedes sincronizar issues de Jira con archivos de Figma
+
+### Funcionalidades
+- **Sync Jira → Figma**: Los cambios en issues se reflejan como comentarios en Figma
+- **Sync Figma → Jira**: Las actualizaciones de archivos se sincronizan con issues relacionados
+- **Sincronización bidireccional**: Mantén consistencia entre diseño y desarrollo
+- **Almacenamiento seguro**: Credenciales encriptadas localmente
+
+### Webhooks (Backend requerido)
+Para sincronización en tiempo real, configura Firebase Functions siguiendo `WEBHOOK_SETUP.md`
 
 ---
 
