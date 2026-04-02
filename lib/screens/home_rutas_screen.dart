@@ -3,9 +3,11 @@ import '../theme/app_theme.dart';
 import '../models/route_model.dart';
 import '../models/user_model.dart';
 import '../services/auth_service.dart';
+import '../services/route_service.dart';
 import '../widgets/route_card.dart';
 import '../widgets/bottom_nav_bar.dart';
 import 'profile_screen.dart';
+import 'publicar_ruta_screen.dart';
 
 class HomeRutasScreen extends StatefulWidget {
   const HomeRutasScreen({super.key});
@@ -22,51 +24,6 @@ class _HomeRutasScreenState extends State<HomeRutasScreen> {
 
   final List<String> _filters = ['Todas', 'Mañana', 'Tarde', 'Noche'];
 
-  final List<RouteModel> _routes = [
-    RouteModel(
-      id: '1',
-      origin: 'Tuluá Centro',
-      destination: 'UCEVA',
-      date: 'Hoy',
-      time: '7:00 AM',
-      price: 3000,
-      availableSeats: 2,
-      totalSeats: 4,
-      driverName: 'David M.',
-      driverInitials: 'DM',
-      driverRating: 4.8,
-      meetingPoint: 'Parque Boyacá',
-    ),
-    RouteModel(
-      id: '2',
-      origin: 'Buga',
-      destination: 'UCEVA',
-      date: 'Hoy',
-      time: '7:30 AM',
-      price: 4000,
-      availableSeats: 3,
-      totalSeats: 4,
-      driverName: 'Juan Pablo D.',
-      driverInitials: 'JP',
-      driverRating: 4.6,
-      meetingPoint: 'Parque Boyacá',
-    ),
-    RouteModel(
-      id: '3',
-      origin: 'Andalucía',
-      destination: 'UCEVA',
-      date: 'Hoy',
-      time: '8:30 AM',
-      price: 4000,
-      availableSeats: 0,
-      totalSeats: 4,
-      driverName: 'Juan Pablo D.',
-      driverInitials: 'JP',
-      driverRating: 4.6,
-      meetingPoint: 'Parque Central',
-    ),
-  ];
-
   @override
   void initState() {
     super.initState();
@@ -78,13 +35,11 @@ class _HomeRutasScreenState extends State<HomeRutasScreen> {
     setState(() => _user = user);
   }
 
-  // Solo el primer nombre
   String get _firstName {
     if (_user == null) return '...';
     return _user!.fullName.trim().split(' ').first;
   }
 
-  // Iniciales del usuario
   String get _initials {
     if (_user == null) return '?';
     final parts = _user!.fullName.trim().split(' ');
@@ -94,26 +49,22 @@ class _HomeRutasScreenState extends State<HomeRutasScreen> {
     return parts[0][0].toUpperCase();
   }
 
-  List<RouteModel> get _filteredRoutes {
+  List<RouteModel> _applyFilters(List<RouteModel> routes) {
     String query = _searchController.text.toLowerCase();
-    return _routes.where((r) {
+    return routes.where((r) {
       bool matchesSearch = query.isEmpty ||
           r.origin.toLowerCase().contains(query) ||
           r.destination.toLowerCase().contains(query);
       if (!matchesSearch) return false;
       if (_selectedFilter == 0) return true;
-      if (_selectedFilter == 1) {
-        int hour = int.tryParse(r.time.split(':')[0]) ?? 0;
-        return hour >= 5 && hour < 12;
-      }
-      if (_selectedFilter == 2) {
-        int hour = int.tryParse(r.time.split(':')[0]) ?? 0;
-        return hour >= 12 && hour < 18;
-      }
-      if (_selectedFilter == 3) {
-        int hour = int.tryParse(r.time.split(':')[0]) ?? 0;
-        return hour >= 18 || hour < 5;
-      }
+      final timeParts = r.time.split(':');
+      int hour = int.tryParse(timeParts[0]) ?? 0;
+      final isPM = r.time.toUpperCase().contains('PM');
+      if (isPM && hour != 12) hour += 12;
+      if (!isPM && hour == 12) hour = 0;
+      if (_selectedFilter == 1) return hour >= 5 && hour < 12;
+      if (_selectedFilter == 2) return hour >= 12 && hour < 18;
+      if (_selectedFilter == 3) return hour >= 18 || hour < 5;
       return true;
     }).toList();
   }
@@ -154,7 +105,6 @@ class _HomeRutasScreenState extends State<HomeRutasScreen> {
                   ),
                 ],
               ),
-              // Avatar → navega al perfil
               GestureDetector(
                 onTap: () => setState(() => _currentNavIndex = 3),
                 child: CircleAvatar(
@@ -218,8 +168,7 @@ class _HomeRutasScreenState extends State<HomeRutasScreen> {
                     children: List.generate(_filters.length, (i) {
                       final selected = _selectedFilter == i;
                       return GestureDetector(
-                        onTap: () =>
-                            setState(() => _selectedFilter = i),
+                        onTap: () => setState(() => _selectedFilter = i),
                         child: Container(
                           margin: const EdgeInsets.only(right: 8),
                           padding: const EdgeInsets.symmetric(
@@ -280,31 +229,94 @@ class _HomeRutasScreenState extends State<HomeRutasScreen> {
                 ),
                 const SizedBox(height: 8),
 
-                // Lista de rutas
-                _filteredRoutes.isEmpty
-                    ? const Center(
+                // ── Lista desde Firestore en tiempo real ─────
+                StreamBuilder<List<RouteModel>>(
+                  stream: RouteService().getAvailableRoutes(),
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState ==
+                        ConnectionState.waiting) {
+                      return const Center(
                         child: Padding(
                           padding: EdgeInsets.symmetric(vertical: 40),
-                          child: Text(
-                            'No hay rutas disponibles',
-                            style: TextStyle(
-                              color: AppColors.textLight,
-                              fontSize: 14,
-                            ),
+                          child: CircularProgressIndicator(
+                            color: AppColors.accentGreen,
                           ),
                         ),
-                      )
-                    : ListView.builder(
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        itemCount: _filteredRoutes.length,
-                        itemBuilder: (_, i) => RouteCard(
-                          route: _filteredRoutes[i],
-                          onTap: () {
-                            // TODO: navegar a detalle de ruta
-                          },
+                      );
+                    }
+
+                    if (snapshot.hasError) {
+                      return Center(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 40),
+                          child: Column(
+                            children: [
+                              const Icon(Icons.error_outline,
+                                  color: Colors.redAccent, size: 40),
+                              const SizedBox(height: 8),
+                              Text(
+                                'Error: ${snapshot.error}',
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                  color: AppColors.textLight,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
+                      );
+                    }
+
+                    final allRoutes = snapshot.data ?? [];
+                    final filtered = _applyFilters(allRoutes);
+
+                    if (filtered.isEmpty) {
+                      return const Center(
+                        child: Padding(
+                          padding: EdgeInsets.symmetric(vertical: 40),
+                          child: Column(
+                            children: [
+                              Icon(
+                                Icons.directions_car_outlined,
+                                size: 48,
+                                color: AppColors.borderDefault,
+                              ),
+                              SizedBox(height: 12),
+                              Text(
+                                'No hay rutas disponibles',
+                                style: TextStyle(
+                                  color: AppColors.textLight,
+                                  fontSize: 14,
+                                ),
+                              ),
+                              SizedBox(height: 4),
+                              Text(
+                                '¡Sé el primero en publicar una!',
+                                style: TextStyle(
+                                  color: AppColors.textPlaceholder,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    }
+
+                    return ListView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: filtered.length,
+                      itemBuilder: (_, i) => RouteCard(
+                        route: filtered[i],
+                        onTap: () {
+                          // TODO: navegar a detalle de ruta
+                        },
                       ),
+                    );
+                  },
+                ),
 
                 const SizedBox(height: 20),
 
@@ -313,8 +325,13 @@ class _HomeRutasScreenState extends State<HomeRutasScreen> {
                   width: double.infinity,
                   height: 48,
                   child: ElevatedButton.icon(
-                    onPressed: () {
-                      // TODO: navegar a PublicarRutaScreen
+                    onPressed: () async {
+                      await Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const PublicarRutaScreen(),
+                        ),
+                      );
                     },
                     icon: const Icon(Icons.add, color: Colors.white),
                     label: const Text(
@@ -351,10 +368,10 @@ class _HomeRutasScreenState extends State<HomeRutasScreen> {
         child: IndexedStack(
           index: _currentNavIndex,
           children: [
-            _buildRutasContent(), // Index 0: Rutas
-            const Center(child: Text('Bazar - Próximamente')), // Index 1: Bazar
-            const Center(child: Text('Notificaciones - Próximamente')), // Index 2: Notificaciones
-            const ProfileScreen(showBottomNav: false), // Index 3: Perfil
+            _buildRutasContent(),
+            const Center(child: Text('Bazar - Próximamente')),
+            const Center(child: Text('Notificaciones - Próximamente')),
+            const ProfileScreen(showBottomNav: false),
           ],
         ),
       ),
