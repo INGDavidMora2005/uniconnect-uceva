@@ -3,6 +3,7 @@ import '../theme/app_theme.dart';
 import '../widgets/bottom_nav_bar.dart';
 import '../services/auth_service.dart';
 import '../models/user_model.dart';
+import 'edit_profile_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
    const ProfileScreen({super.key, this.showBottomNav = true});
@@ -193,9 +194,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         width: double.infinity,
                         height: 48,
                         child: ElevatedButton(
-                          onPressed: () {
-                            // TODO: navegar a editar perfil
-                          },
+                          onPressed: () async {
+  final updated = await Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (context) => const EditProfileScreen(),
+    ),
+  );
+
+  if (updated == true) {
+    _loadUser();
+  }
+},
                           style: ElevatedButton.styleFrom(
                             backgroundColor: AppColors.accentGreen,
                             foregroundColor: Colors.white,
