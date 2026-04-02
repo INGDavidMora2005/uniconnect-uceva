@@ -7,6 +7,7 @@ class UserModel {
   final String studentCode;
   final String role;
   final String faculty;
+  final String description;
   final double rating;
   final int tripsCompleted;
   final int bazarPurchases;
@@ -18,6 +19,7 @@ class UserModel {
     required this.studentCode,
     required this.role,
     required this.faculty,
+    this.description = '',
     this.rating = 0.0,
     this.tripsCompleted = 0,
     this.bazarPurchases = 0,
@@ -25,30 +27,32 @@ class UserModel {
 
   // Crear desde Firestore
   factory UserModel.fromMap(Map<String, dynamic> map) => UserModel(
-    id:             map['id'] ?? '',
-    fullName:       map['fullName'] ?? '',
-    email:          map['email'] ?? '',
-    studentCode:    map['studentCode'] ?? '',
-    role:           map['role'] ?? '',
-    faculty:        map['faculty'] ?? '',
-    rating:         (map['rating'] ?? 0.0).toDouble(),
-    tripsCompleted: map['tripsCompleted'] ?? 0,
-    bazarPurchases: map['bazarPurchases'] ?? 0,
-  );
+        id: map['id'] ?? '',
+        fullName: map['fullName'] ?? '',
+        email: map['email'] ?? '',
+        studentCode: map['studentCode'] ?? '',
+        role: map['role'] ?? '',
+        faculty: map['faculty'] ?? '',
+        description: map['description'] ?? '',
+        rating: (map['rating'] ?? 0.0).toDouble(),
+        tripsCompleted: map['tripsCompleted'] ?? 0,
+        bazarPurchases: map['bazarPurchases'] ?? 0,
+      );
 
   // Guardar en Firestore
   Map<String, dynamic> toMap() => {
-    'id':             id,
-    'fullName':       fullName,
-    'email':          email,
-    'studentCode':    studentCode,
-    'role':           role,
-    'faculty':        faculty,
-    'rating':         rating,
-    'tripsCompleted': tripsCompleted,
-    'bazarPurchases': bazarPurchases,
-    'createdAt':      FieldValue.serverTimestamp(),
-  };
+        'id': id,
+        'fullName': fullName,
+        'email': email,
+        'studentCode': studentCode,
+        'role': role,
+        'faculty': faculty,
+        'description': description,
+        'rating': rating,
+        'tripsCompleted': tripsCompleted,
+        'bazarPurchases': bazarPurchases,
+        'createdAt': FieldValue.serverTimestamp(),
+      };
 
   // Iniciales para el avatar
   String get initials {
