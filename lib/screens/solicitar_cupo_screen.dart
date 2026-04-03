@@ -18,11 +18,8 @@ class _SolicitarCupoScreenState extends State<SolicitarCupoScreen> {
   final TextEditingController _messageController = TextEditingController();
   bool _loading = false;
 
-  // Verde del AppBar / header
   static const Color _appBarGreen = Color(0xFF1A5C40);
-  // Verde de la tarjeta — más claro que el AppBar
   static const Color _headerGreen = Color(0xFF256B4A);
-  // Verde medio para el avatar
   static const Color _avatarGreen = Color(0xFF2D9E6B);
 
   @override
@@ -35,7 +32,9 @@ class _SolicitarCupoScreenState extends State<SolicitarCupoScreen> {
     setState(() => _loading = true);
 
     final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
-    final result = await RouteService().requestSeat(
+
+    // ✅ Ahora usa requestSeatDelegated (flujo completo con notificaciones)
+    final result = await RouteService().requestSeatDelegated(
       routeId: widget.route.id,
       passengerId: uid,
       message: _messageController.text.trim(),
@@ -164,10 +163,8 @@ class _SolicitarCupoScreenState extends State<SolicitarCupoScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // ── Tarjeta resumen de la ruta ─────────────────
-              // Figma: Rectangle 19 — 353×140px, mismos chips y conductor
               Container(
                 width: double.infinity,
-                // Altura mínima alineada con Figma (140px del Rectangle 19)
                 constraints: const BoxConstraints(minHeight: 140),
                 padding: const EdgeInsets.all(18),
                 decoration: BoxDecoration(
@@ -194,7 +191,6 @@ class _SolicitarCupoScreenState extends State<SolicitarCupoScreen> {
                       ),
                     ),
                     const SizedBox(height: 14),
-                    // Chips: Hoy · hora · cupos  (Figma: Frame 10, 3 Rectangle outline)
                     Row(
                       children: [
                         _chip('Hoy'),
@@ -208,7 +204,6 @@ class _SolicitarCupoScreenState extends State<SolicitarCupoScreen> {
                       ],
                     ),
                     const SizedBox(height: 16),
-                    // Conductor: avatar + nombre + rating (Figma: Frame 9)
                     Row(
                       children: [
                         CircleAvatar(
@@ -253,7 +248,6 @@ class _SolicitarCupoScreenState extends State<SolicitarCupoScreen> {
               const SizedBox(height: 16),
 
               // ── Detalles del viaje ──────────────────────────
-              // Figma: Rectangle 24 — 353×150px
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
@@ -312,7 +306,6 @@ class _SolicitarCupoScreenState extends State<SolicitarCupoScreen> {
               const SizedBox(height: 18),
 
               // ── Mensaje opcional ────────────────────────────
-              // Figma: label texto + Rectangle 23 (72px alto)
               const Text(
                 'Mensaje para el conductor (Opcional)',
                 style: TextStyle(
@@ -323,7 +316,7 @@ class _SolicitarCupoScreenState extends State<SolicitarCupoScreen> {
               ),
               const SizedBox(height: 8),
               Container(
-                height: 72, // Alineado con Figma: Rectangle 23 = 72px
+                height: 72,
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(12),
@@ -352,10 +345,10 @@ class _SolicitarCupoScreenState extends State<SolicitarCupoScreen> {
               const SizedBox(height: 14),
 
               // ── Aviso info ──────────────────────────────────
-              // Figma: Rectangle 29 — 353×100px, ícono ℹ️ emoji, texto a la derecha
               Container(
-                height: 100, // Alineado con Figma: Rectangle 29 = 100px
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+                height: 100,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
                 decoration: BoxDecoration(
                   color: const Color(0xFFE8F5EE),
                   borderRadius: BorderRadius.circular(12),
@@ -363,7 +356,6 @@ class _SolicitarCupoScreenState extends State<SolicitarCupoScreen> {
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    // Figma usa el emoji ℹ️, no un ícono de Material
                     const Text('ℹ️', style: TextStyle(fontSize: 20)),
                     const SizedBox(width: 10),
                     const Expanded(
@@ -382,10 +374,9 @@ class _SolicitarCupoScreenState extends State<SolicitarCupoScreen> {
               const SizedBox(height: 24),
 
               // ── Botón confirmar ─────────────────────────────
-              // Figma: Rectangle 27 — 353×48px
               SizedBox(
                 width: double.infinity,
-                height: 48, // Figma: 48px (era 52px en el código anterior)
+                height: 48,
                 child: ElevatedButton(
                   onPressed: _loading ? null : _handleConfirm,
                   style: ElevatedButton.styleFrom(
@@ -419,10 +410,9 @@ class _SolicitarCupoScreenState extends State<SolicitarCupoScreen> {
               const SizedBox(height: 10),
 
               // ── Cancelar ────────────────────────────────────
-              // Figma: Rectangle 12 — botón con fondo (outline), 353×48px
               SizedBox(
                 width: double.infinity,
-                height: 48, // Figma: 48px
+                height: 48,
                 child: OutlinedButton(
                   onPressed: () => Navigator.pop(context),
                   style: OutlinedButton.styleFrom(
@@ -452,7 +442,7 @@ class _SolicitarCupoScreenState extends State<SolicitarCupoScreen> {
     );
   }
 
-  // ── Helpers ────────────────────────────────────────────────
+  // ── Helpers ──────────────────────────────────────────────
 
   Widget _chip(String label) {
     return Container(
