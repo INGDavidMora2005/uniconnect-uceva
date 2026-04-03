@@ -3,10 +3,12 @@ import 'package:firebase_core/firebase_core.dart';
 import 'theme/app_theme.dart';
 import 'screens/splash_screen.dart';
 import 'screens/login_screen.dart';
+import 'services/notification_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp();
+  await NotificationService().init(); // ← inicializa FCM
   runApp(const UniConnectApp());
 }
 
