@@ -24,13 +24,9 @@ class RouteService {
         .collection('routes')
         .where('status', isEqualTo: 'Activa')
         .snapshots()
-        .map((snapshot) {
-          final routes = snapshot.docs
-              .map((doc) => RouteModel.fromFirestore(doc))
-              .toList();
-          // Ordenar localmente por fecha de creación (más recientes primero)
-          return routes;
-        });
+        .map((snapshot) => snapshot.docs
+            .map((doc) => RouteModel.fromFirestore(doc))
+            .toList());
   }
 
   // ── OBTENER MIS RUTAS ─────────────────────────────────────
@@ -42,5 +38,39 @@ class RouteService {
         .map((snapshot) => snapshot.docs
             .map((doc) => RouteModel.fromFirestore(doc))
             .toList());
+  }
+
+  // ── FINALIZAR RUTA → borra de Firestore ───────────────────
+  Future<String> finalizeRoute(String routeId) async {
+    try {
+      await _db.collection('routes').doc(routeId).delete();
+      return 'ok';
+    } catch (e) {
+      return 'Error al finalizar la ruta: ${e.toString()}';
+    }
+  }
+
+  // ── SOLICITAR CUPO ────────────────────────────────────────
+  Future<String> requestSeat({
+    required String routeId,
+    required String passengerId,
+    String message = '',
+  }) async {
+    try {
+      // Guarda la solicitud en subcolección requests
+      await _db
+          .collection('routes')
+          .doc(routeId)
+          .collection('requests')
+          .add({
+        'passengerId': passengerId,
+        'message': message,
+        'status': 'Pendiente', // Pendiente | Aceptada | Rechazada
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+      return 'ok';
+    } catch (e) {
+      return 'Error al enviar la solicitud: ${e.toString()}';
+    }
   }
 }

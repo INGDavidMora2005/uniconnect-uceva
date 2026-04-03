@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../theme/app_theme.dart';
 import '../models/route_model.dart';
 import '../models/user_model.dart';
@@ -8,6 +9,7 @@ import '../widgets/route_card.dart';
 import '../widgets/bottom_nav_bar.dart';
 import 'profile_screen.dart';
 import 'publicar_ruta_screen.dart';
+import 'notifications_screen.dart';
 
 class HomeRutasScreen extends StatefulWidget {
   const HomeRutasScreen({super.key});
@@ -48,6 +50,8 @@ class _HomeRutasScreenState extends State<HomeRutasScreen> {
     }
     return parts[0][0].toUpperCase();
   }
+
+  String? get _currentUid => FirebaseAuth.instance.currentUser?.uid;
 
   List<RouteModel> _applyFilters(List<RouteModel> routes) {
     String query = _searchController.text.toLowerCase();
@@ -203,7 +207,60 @@ class _HomeRutasScreenState extends State<HomeRutasScreen> {
                 ),
                 const SizedBox(height: 20),
 
-                // Título + Ver todas
+                // ── Mis rutas (solo si es conductor) ────────
+                StreamBuilder<List<RouteModel>>(
+                  stream: RouteService().getAvailableRoutes(),
+                  builder: (context, snapshot) {
+                    final allRoutes = snapshot.data ?? [];
+                    final myRoutes = allRoutes
+                        .where((r) => r.driverId == _currentUid)
+                        .toList();
+
+                    if (myRoutes.isEmpty) return const SizedBox.shrink();
+
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text(
+                              'Mis rutas',
+                              style: TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.textDark,
+                              ),
+                            ),
+                            TextButton(
+                              onPressed: () {},
+                              child: const Text(
+                                'Ver todas',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: AppColors.accentGreen,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        ListView.builder(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          itemCount: myRoutes.length,
+                          itemBuilder: (_, i) => RouteCard(
+                            route: myRoutes[i],
+                            onTap: () {},
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                      ],
+                    );
+                  },
+                ),
+
+                // ── Título Rutas disponibles + Ver todas ────
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -229,12 +286,11 @@ class _HomeRutasScreenState extends State<HomeRutasScreen> {
                 ),
                 const SizedBox(height: 8),
 
-                // ── Lista desde Firestore en tiempo real ─────
+                // ── Lista rutas disponibles (de otros) ──────
                 StreamBuilder<List<RouteModel>>(
                   stream: RouteService().getAvailableRoutes(),
                   builder: (context, snapshot) {
-                    if (snapshot.connectionState ==
-                        ConnectionState.waiting) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
                       return const Center(
                         child: Padding(
                           padding: EdgeInsets.symmetric(vertical: 40),
@@ -269,7 +325,13 @@ class _HomeRutasScreenState extends State<HomeRutasScreen> {
                     }
 
                     final allRoutes = snapshot.data ?? [];
-                    final filtered = _applyFilters(allRoutes);
+                    // Rutas de otros conductores activas (excluye las propias)
+                    final otherRoutes = allRoutes
+                        .where((r) =>
+                            r.driverId != _currentUid &&
+                            r.status == 'Activa')
+                        .toList();
+                    final filtered = _applyFilters(otherRoutes);
 
                     if (filtered.isEmpty) {
                       return const Center(
@@ -311,7 +373,7 @@ class _HomeRutasScreenState extends State<HomeRutasScreen> {
                       itemBuilder: (_, i) => RouteCard(
                         route: filtered[i],
                         onTap: () {
-                          // TODO: navegar a detalle de ruta
+                          // TODO: abrir detalle de ruta con opción de reservar cupo
                         },
                       ),
                     );
@@ -370,7 +432,7 @@ class _HomeRutasScreenState extends State<HomeRutasScreen> {
           children: [
             _buildRutasContent(),
             const Center(child: Text('Bazar - Próximamente')),
-            const Center(child: Text('Notificaciones - Próximamente')),
+            const NotificationsScreen(),
             const ProfileScreen(showBottomNav: false),
           ],
         ),
