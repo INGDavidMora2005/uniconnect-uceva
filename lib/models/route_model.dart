@@ -1,4 +1,15 @@
+import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+
+// ── Constantes de estado ───────────────────────────────────────
+// Úsalas siempre en lugar de strings literales para evitar typos.
+class RouteStatus {
+  static const String activa      = 'Activa';
+  static const String disponible  = 'Disponible';
+  static const String enCurso     = 'En curso';
+  static const String llena       = 'Llena';
+  static const String finalizada  = 'Finalizada';
+}
 
 class RouteModel {
   final String id;
@@ -32,18 +43,59 @@ class RouteModel {
     required this.meetingPoint,
     this.note,
     this.driverId,
-    this.status = 'Activa',
+    this.status = RouteStatus.activa,
   });
 
-  bool get isFull => availableSeats == 0;
+  // ── Helpers de estado ────────────────────────────────────────
 
+  bool get isFull => availableSeats <= 0;
+
+  /// Etiqueta legible para el badge de estado.
+  String get statusLabel {
+    if (isFull && status == RouteStatus.activa) return 'Llena';
+    switch (status) {
+      case RouteStatus.enCurso:
+        return 'En curso';
+      case RouteStatus.finalizada:
+        return 'Finalizada';
+      case RouteStatus.llena:
+        return 'Llena';
+      case RouteStatus.disponible:
+        return 'Disponible';
+      case RouteStatus.activa:
+      default:
+        return 'Disponible';
+    }
+  }
+
+  /// Color del badge de estado.
+  Color get statusColor {
+    if (isFull && status == RouteStatus.activa) return const Color(0xFFE53E3E);
+    switch (status) {
+      case RouteStatus.enCurso:
+        return const Color(0xFF3182CE);   // azul
+      case RouteStatus.finalizada:
+        return const Color(0xFF718096);   // gris
+      case RouteStatus.llena:
+        return const Color(0xFFE53E3E);   // rojo
+      case RouteStatus.disponible:
+      case RouteStatus.activa:
+      default:
+        return const Color(0xFF38A169);   // verde
+    }
+  }
+
+  /// Color de fondo del badge (versión suave).
+  Color get statusBackgroundColor => statusColor.withOpacity(0.12);
+
+  // ── Precio formateado ────────────────────────────────────────
   String get priceFormatted =>
       '\$${price.toStringAsFixed(0).replaceAllMapped(
         RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
         (m) => '${m[1]}.',
       )}';
 
-  // ── Guardar en Firestore ─
+  // ── Serialización ────────────────────────────────────────────
   Map<String, dynamic> toMap() => {
     'origin':         origin,
     'destination':    destination,
@@ -58,13 +110,21 @@ class RouteModel {
     'meetingPoint':   meetingPoint,
     'note':           note ?? '',
     'driverId':       driverId ?? '',
-    'status':         status,
+    // Si todos los cupos están ocupados, guardar como Llena automáticamente
+    'status':         isFull ? RouteStatus.llena : status,
     'createdAt':      FieldValue.serverTimestamp(),
   };
 
-  // ── Leer desde Firestore ───────────────────────────────────
   factory RouteModel.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
+    final seats = data['availableSeats'] ?? 0;
+    // Sincronizar status con cupos: si no hay cupos, forzar Llena
+    String statusFromDb = data['status'] ?? RouteStatus.activa;
+    if (seats <= 0 &&
+        statusFromDb != RouteStatus.enCurso &&
+        statusFromDb != RouteStatus.finalizada) {
+      statusFromDb = RouteStatus.llena;
+    }
     return RouteModel(
       id:             doc.id,
       origin:         data['origin'] ?? '',
@@ -72,7 +132,7 @@ class RouteModel {
       date:           data['date'] ?? '',
       time:           data['time'] ?? '',
       price:          (data['price'] ?? 0).toDouble(),
-      availableSeats: data['availableSeats'] ?? 0,
+      availableSeats: seats as int,
       totalSeats:     data['totalSeats'] ?? 4,
       driverName:     data['driverName'] ?? '',
       driverInitials: data['driverInitials'] ?? '',
@@ -80,7 +140,44 @@ class RouteModel {
       meetingPoint:   data['meetingPoint'] ?? '',
       note:           data['note'],
       driverId:       data['driverId'],
-      status:         data['status'] ?? 'Activa',
+      status:         statusFromDb,
+    );
+  }
+
+  /// Crea una copia con campos modificados.
+  RouteModel copyWith({
+    String? id,
+    String? origin,
+    String? destination,
+    String? date,
+    String? time,
+    double? price,
+    int? availableSeats,
+    int? totalSeats,
+    String? driverName,
+    String? driverInitials,
+    double? driverRating,
+    String? meetingPoint,
+    String? note,
+    String? driverId,
+    String? status,
+  }) {
+    return RouteModel(
+      id:             id ?? this.id,
+      origin:         origin ?? this.origin,
+      destination:    destination ?? this.destination,
+      date:           date ?? this.date,
+      time:           time ?? this.time,
+      price:          price ?? this.price,
+      availableSeats: availableSeats ?? this.availableSeats,
+      totalSeats:     totalSeats ?? this.totalSeats,
+      driverName:     driverName ?? this.driverName,
+      driverInitials: driverInitials ?? this.driverInitials,
+      driverRating:   driverRating ?? this.driverRating,
+      meetingPoint:   meetingPoint ?? this.meetingPoint,
+      note:           note ?? this.note,
+      driverId:       driverId ?? this.driverId,
+      status:         status ?? this.status,
     );
   }
 }

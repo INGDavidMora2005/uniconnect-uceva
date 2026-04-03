@@ -10,6 +10,7 @@ import '../widgets/bottom_nav_bar.dart';
 import 'profile_screen.dart';
 import 'publicar_ruta_screen.dart';
 import 'notifications_screen.dart';
+import 'bazar_screen.dart';
 
 class HomeRutasScreen extends StatefulWidget {
   const HomeRutasScreen({super.key});
@@ -56,7 +57,8 @@ class _HomeRutasScreenState extends State<HomeRutasScreen> {
   List<RouteModel> _applyFilters(List<RouteModel> routes) {
     String query = _searchController.text.toLowerCase();
     return routes.where((r) {
-      bool matchesSearch = query.isEmpty ||
+      bool matchesSearch =
+          query.isEmpty ||
           r.origin.toLowerCase().contains(query) ||
           r.destination.toLowerCase().contains(query);
       if (!matchesSearch) return false;
@@ -82,9 +84,8 @@ class _HomeRutasScreenState extends State<HomeRutasScreen> {
   Widget _buildRutasContent() {
     return Column(
       children: [
-        // ── Header ──────────────────────────────────────────
         Container(
-          color: AppColors.backgroundWhite,
+          color: AppColors.primaryGreen,
           padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -97,14 +98,22 @@ class _HomeRutasScreenState extends State<HomeRutasScreen> {
                     style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
-                      color: AppColors.textDark,
+                      color: Colors.white,
                     ),
                   ),
                   const Text(
                     '¿A dónde vas hoy?',
                     style: TextStyle(
                       fontSize: 13,
-                      color: AppColors.textLight,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                      shadows: [
+                        Shadow(
+                          color: Colors.black26,
+                          blurRadius: 2,
+                          offset: Offset(0, 1),
+                        ),
+                      ],
                     ),
                   ),
                 ],
@@ -127,15 +136,12 @@ class _HomeRutasScreenState extends State<HomeRutasScreen> {
             ],
           ),
         ),
-
-        // ── Contenido scrolleable ────────────────────────────
         Expanded(
           child: SingleChildScrollView(
             padding: const EdgeInsets.all(20),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Barra de búsqueda
                 TextField(
                   controller: _searchController,
                   onChanged: (_) => setState(() {}),
@@ -164,8 +170,6 @@ class _HomeRutasScreenState extends State<HomeRutasScreen> {
                   ),
                 ),
                 const SizedBox(height: 16),
-
-                // Filtros
                 SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
                   child: Row(
@@ -206,8 +210,6 @@ class _HomeRutasScreenState extends State<HomeRutasScreen> {
                   ),
                 ),
                 const SizedBox(height: 20),
-
-                // ── Mis rutas (solo si es conductor) ────────
                 StreamBuilder<List<RouteModel>>(
                   stream: RouteService().getAvailableRoutes(),
                   builder: (context, snapshot) {
@@ -249,18 +251,14 @@ class _HomeRutasScreenState extends State<HomeRutasScreen> {
                           shrinkWrap: true,
                           physics: const NeverScrollableScrollPhysics(),
                           itemCount: myRoutes.length,
-                          itemBuilder: (_, i) => RouteCard(
-                            route: myRoutes[i],
-                            onTap: () {},
-                          ),
+                          itemBuilder: (_, i) =>
+                              RouteCard(route: myRoutes[i], onTap: () {}),
                         ),
                         const SizedBox(height: 20),
                       ],
                     );
                   },
                 ),
-
-                // ── Título Rutas disponibles + Ver todas ────
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -285,8 +283,6 @@ class _HomeRutasScreenState extends State<HomeRutasScreen> {
                   ],
                 ),
                 const SizedBox(height: 8),
-
-                // ── Lista rutas disponibles (de otros) ──────
                 StreamBuilder<List<RouteModel>>(
                   stream: RouteService().getAvailableRoutes(),
                   builder: (context, snapshot) {
@@ -307,8 +303,11 @@ class _HomeRutasScreenState extends State<HomeRutasScreen> {
                           padding: const EdgeInsets.symmetric(vertical: 40),
                           child: Column(
                             children: [
-                              const Icon(Icons.error_outline,
-                                  color: Colors.redAccent, size: 40),
+                              const Icon(
+                                Icons.error_outline,
+                                color: Colors.redAccent,
+                                size: 40,
+                              ),
                               const SizedBox(height: 8),
                               Text(
                                 'Error: ${snapshot.error}',
@@ -325,11 +324,11 @@ class _HomeRutasScreenState extends State<HomeRutasScreen> {
                     }
 
                     final allRoutes = snapshot.data ?? [];
-                    // Rutas de otros conductores activas (excluye las propias)
                     final otherRoutes = allRoutes
-                        .where((r) =>
-                            r.driverId != _currentUid &&
-                            r.status == 'Activa')
+                        .where(
+                          (r) =>
+                              r.driverId != _currentUid && r.status == 'Activa',
+                        )
                         .toList();
                     final filtered = _applyFilters(otherRoutes);
 
@@ -370,19 +369,12 @@ class _HomeRutasScreenState extends State<HomeRutasScreen> {
                       shrinkWrap: true,
                       physics: const NeverScrollableScrollPhysics(),
                       itemCount: filtered.length,
-                      itemBuilder: (_, i) => RouteCard(
-                        route: filtered[i],
-                        onTap: () {
-                          // TODO: abrir detalle de ruta con opción de reservar cupo
-                        },
-                      ),
+                      itemBuilder: (_, i) =>
+                          RouteCard(route: filtered[i], onTap: () {}),
                     );
                   },
                 ),
-
                 const SizedBox(height: 20),
-
-                // Botón Publicar Ruta
                 SizedBox(
                   width: double.infinity,
                   height: 48,
@@ -431,7 +423,7 @@ class _HomeRutasScreenState extends State<HomeRutasScreen> {
           index: _currentNavIndex,
           children: [
             _buildRutasContent(),
-            const Center(child: Text('Bazar - Próximamente')),
+            const BazarScreen(),
             const NotificationsScreen(),
             const ProfileScreen(showBottomNav: false),
           ],
