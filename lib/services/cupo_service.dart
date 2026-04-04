@@ -45,7 +45,7 @@ class CupoService {
         time:          time,
         createdAt:     DateTime.now(),
       );
-      await _db.collection('cupo_requests').add(request.toMap());
+      final requestRef = await _db.collection('cupo_requests').add(request.toMap());
 
       await NotificationService().saveNotification(
         toUserId: driverId,
@@ -53,6 +53,7 @@ class CupoService {
         body:     '$passengerName solicitó un cupo en la ruta $origin → $destination · $time',
         type:     'cupo_request',
         extra: {
+          'requestId':     requestRef.id,
           'routeId':       routeId,
           'passengerId':   passengerId,
           'passengerName': passengerName,
