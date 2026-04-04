@@ -236,74 +236,74 @@ class _RouteCardState extends State<RouteCard> {
                 ),
               ],
             ),
-            if (_isFinalized) ...[
-              const SizedBox(height: 12),
-              const Divider(height: 1),
-              const SizedBox(height: 10),
-              SizedBox(
-                width: double.infinity,
-                height: 36,
-                child: OutlinedButton.icon(
-                  onPressed: widget.onTap,
-                  icon: const Icon(Icons.star_border_rounded, size: 16, color: AppColors.accentGreen),
-                  label: const Text(
-                    'Calificar',
-                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.accentGreen),
-                  ),
-                  style: OutlinedButton.styleFrom(
-                    side: const BorderSide(color: AppColors.accentGreen, width: 1.5),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                  ),
-                ),
-              ),
-            ] else if (_isDriver && _isActive) ...[
-              const SizedBox(height: 12),
-              const Divider(height: 1),
-              const SizedBox(height: 10),
-              SizedBox(
-                width: double.infinity,
-                height: 36,
-                child: _finalizing
-                    ? const Center(
-                        child: SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.accentGreen),
-                        ),
-                      )
-                    : OutlinedButton.icon(
-                        onPressed: _handleFinalize,
-                        icon: const Icon(Icons.flag_rounded, size: 16, color: AppColors.accentGreen),
-                        label: const Text(
-                          'Finalizar ruta',
-                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.accentGreen),
-                        ),
-                        style: OutlinedButton.styleFrom(
-                          side: const BorderSide(color: AppColors.accentGreen, width: 1.5),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                        ),
-                      ),
-              ),
-            ] else if (!_isDriver && _isActive && !_isFull) ...[
-              const SizedBox(height: 12),
-              const Divider(height: 1),
-              const SizedBox(height: 10),
-              SizedBox(
-                width: double.infinity,
-                height: 36,
-                child: OutlinedButton(
-                  onPressed: _handleRequestSeat,
-                  style: OutlinedButton.styleFrom(
-                    side: const BorderSide(color: AppColors.accentGreen, width: 1.5),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                  ),
-                  child: const Text(
-                    'Solicitar cupo',
-                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.accentGreen),
+              if (_isFinalized) ...[
+                const SizedBox(height: 12),
+                const Divider(height: 1),
+                const SizedBox(height: 10),
+                SizedBox(
+                  width: double.infinity,
+                  height: 36,
+                  child: OutlinedButton.icon(
+                    onPressed: widget.onTap,
+                    icon: const Icon(Icons.star_border_rounded, size: 16, color: AppColors.accentGreen),
+                    label: const Text(
+                      'Calificar',
+                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.accentGreen),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      side: const BorderSide(color: AppColors.accentGreen, width: 1.5),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
                   ),
                 ),
-              ),
-            ],
+              ] else if (_isDriver && _isActive) ...[
+                const SizedBox(height: 12),
+                const Divider(height: 1),
+                const SizedBox(height: 10),
+                SizedBox(
+                  width: double.infinity,
+                  height: 36,
+                  child: _finalizing
+                      ? const Center(
+                          child: SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.accentGreen),
+                          ),
+                        )
+                      : OutlinedButton.icon(
+                          onPressed: _handleFinalize,
+                          icon: const Icon(Icons.flag_rounded, size: 16, color: AppColors.accentGreen),
+                          label: const Text(
+                            'Finalizar ruta',
+                            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.accentGreen),
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            side: const BorderSide(color: AppColors.accentGreen, width: 1.5),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          ),
+                        ),
+                ),
+              ] else if (!_isDriver && _isActive && !_isFull) ...[
+                const SizedBox(height: 12),
+                const Divider(height: 1),
+                const SizedBox(height: 10),
+                SizedBox(
+                  width: double.infinity,
+                  height: 36,
+                  child: OutlinedButton(
+                    onPressed: _handleRequestSeat,
+                    style: OutlinedButton.styleFrom(
+                      side: const BorderSide(color: AppColors.accentGreen, width: 1.5),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                    child: const Text(
+                      'Solicitar cupo',
+                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.accentGreen),
+                    ),
+                  ),
+                ),
+              ],
           ],
         ),
       ),
