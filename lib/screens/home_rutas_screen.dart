@@ -23,6 +23,9 @@ class _HomeRutasScreenState extends State<HomeRutasScreen> {
   int _currentNavIndex = 0;
   int _selectedFilter = 0;
   final TextEditingController _searchController = TextEditingController();
+  final TextEditingController _originController = TextEditingController();
+  final TextEditingController _destinationController = TextEditingController();
+  final TextEditingController _timeController = TextEditingController();
   UserModel? _user;
 
   final List<String> _filters = ['Todas', 'Mañana', 'Tarde', 'Noche'];
@@ -55,13 +58,19 @@ class _HomeRutasScreenState extends State<HomeRutasScreen> {
   String? get _currentUid => FirebaseAuth.instance.currentUser?.uid;
 
   List<RouteModel> _applyFilters(List<RouteModel> routes) {
+    String originFilter = _originController.text.toLowerCase().trim();
+    String destinationFilter = _destinationController.text.toLowerCase().trim();
+    String timeFilter = _timeController.text.toLowerCase().trim();
     String query = _searchController.text.toLowerCase();
     return routes.where((r) {
+      bool matchesOrigin = originFilter.isEmpty || r.origin.toLowerCase().contains(originFilter);
+      bool matchesDestination = destinationFilter.isEmpty || r.destination.toLowerCase().contains(destinationFilter);
+      bool matchesTime = timeFilter.isEmpty || r.time.toLowerCase().contains(timeFilter);
       bool matchesSearch =
           query.isEmpty ||
           r.origin.toLowerCase().contains(query) ||
           r.destination.toLowerCase().contains(query);
-      if (!matchesSearch) return false;
+      if (!matchesOrigin || !matchesDestination || !matchesTime || !matchesSearch) return false;
       if (_selectedFilter == 0) return true;
       final timeParts = r.time.split(':');
       int hour = int.tryParse(timeParts[0]) ?? 0;
@@ -78,6 +87,9 @@ class _HomeRutasScreenState extends State<HomeRutasScreen> {
   @override
   void dispose() {
     _searchController.dispose();
+    _originController.dispose();
+    _destinationController.dispose();
+    _timeController.dispose();
     super.dispose();
   }
 
@@ -168,6 +180,64 @@ class _HomeRutasScreenState extends State<HomeRutasScreen> {
                           )
                         : null,
                   ),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _originController,
+                        onChanged: (_) => setState(() {}),
+                        style: const TextStyle(
+                          fontSize: 14,
+                          color: AppColors.textDark,
+                        ),
+                        decoration: const InputDecoration(
+                          hintText: 'Origen',
+                          prefixIcon: Icon(
+                            Icons.location_on,
+                            color: AppColors.textPlaceholder,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: TextField(
+                        controller: _destinationController,
+                        onChanged: (_) => setState(() {}),
+                        style: const TextStyle(
+                          fontSize: 14,
+                          color: AppColors.textDark,
+                        ),
+                        decoration: const InputDecoration(
+                          hintText: 'Destino',
+                          prefixIcon: Icon(
+                            Icons.flag,
+                            color: AppColors.textPlaceholder,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: TextField(
+                        controller: _timeController,
+                        onChanged: (_) => setState(() {}),
+                        style: const TextStyle(
+                          fontSize: 14,
+                          color: AppColors.textDark,
+                        ),
+                        decoration: const InputDecoration(
+                          hintText: 'Hora (ej. 10:00 AM)',
+                          prefixIcon: Icon(
+                            Icons.access_time,
+                            color: AppColors.textPlaceholder,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 16),
                 SingleChildScrollView(
@@ -345,7 +415,7 @@ class _HomeRutasScreenState extends State<HomeRutasScreen> {
                               ),
                               SizedBox(height: 12),
                               Text(
-                                'No hay rutas disponibles',
+                                'No hay rutas disponibles para tu búsqueda',
                                 style: TextStyle(
                                   color: AppColors.textLight,
                                   fontSize: 14,

@@ -142,6 +142,16 @@ class CupoService {
     }
   }
 
+  Future<bool> hasPendingOrAcceptedRequest(String passengerId, String routeId) async {
+    final query = await _db
+        .collection('cupo_requests')
+        .where('passengerId', isEqualTo: passengerId)
+        .where('routeId', isEqualTo: routeId)
+        .where('status', whereIn: ['pending', 'accepted'])
+        .get();
+    return query.docs.isNotEmpty;
+  }
+
   Stream<QuerySnapshot> pendingRequestsStream(String driverId) {
     return _db
         .collection('cupo_requests')
