@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../services/cupo_service.dart';
 
 class NotificationsScreen extends StatefulWidget {
   const NotificationsScreen({super.key});
@@ -95,12 +96,16 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                       child: AnimatedContainer(
                         duration: const Duration(milliseconds: 200),
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 7),
+                          horizontal: 16,
+                          vertical: 7,
+                        ),
                         decoration: BoxDecoration(
                           color: active ? _accentGreen : Colors.transparent,
                           borderRadius: BorderRadius.circular(20),
                           border: Border.all(
-                            color: active ? _accentGreen : const Color(0xFFCDD5D0),
+                            color: active
+                                ? _accentGreen
+                                : const Color(0xFFCDD5D0),
                           ),
                         ),
                         child: Text(
@@ -108,7 +113,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                           style: TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.w600,
-                            color: active ? Colors.white : const Color(0xFF6B7C74),
+                            color: active
+                                ? Colors.white
+                                : const Color(0xFF6B7C74),
                           ),
                         ),
                       ),
@@ -128,14 +135,19 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            const Icon(Icons.error_outline,
-                                color: Colors.redAccent, size: 40),
+                            const Icon(
+                              Icons.error_outline,
+                              color: Colors.redAccent,
+                              size: 40,
+                            ),
                             const SizedBox(height: 8),
                             Text(
                               'Error: ${snap.error}',
                               textAlign: TextAlign.center,
                               style: const TextStyle(
-                                  color: Colors.redAccent, fontSize: 12),
+                                color: Colors.redAccent,
+                                fontSize: 12,
+                              ),
                             ),
                           ],
                         ),
@@ -171,8 +183,11 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(Icons.notifications_off_outlined,
-                              size: 56, color: Colors.grey.shade300),
+                          Icon(
+                            Icons.notifications_off_outlined,
+                            size: 56,
+                            color: Colors.grey.shade300,
+                          ),
                           const SizedBox(height: 12),
                           Text(
                             'Sin notificaciones',
@@ -190,17 +205,77 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                     padding: const EdgeInsets.symmetric(vertical: 12),
                     itemCount: docs.length,
                     itemBuilder: (context, i) {
-                      final doc  = docs[i];
+                      final doc = docs[i];
                       final data = doc.data() as Map<String, dynamic>;
                       final type = data['type'] ?? '';
                       final isRead = data['read'] ?? false;
 
                       return _NotifCard(
-                        data:   data,
-                        docId:  doc.id,
+                        data: data,
+                        docId: doc.id,
                         onRead: (type == 'cupo_request' && !isRead)
                             ? null
                             : () => _markRead(doc.id),
+                        onRespond: (type == 'cupo_request' && !isRead)
+                            ? (accepted) async {
+                                final requestId = data['requestId'] ?? '';
+                                final routeId = data['routeId'] ?? '';
+                                final passengerId = data['passengerId'] ?? '';
+                                final passengerName =
+                                    data['passengerName'] ?? '';
+                                final origin = data['origin'] ?? '';
+                                final destination = data['destination'] ?? '';
+
+                                if (requestId.isEmpty ||
+                                    routeId.isEmpty ||
+                                    passengerId.isEmpty) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text(
+                                        'Faltan datos para responder la solicitud',
+                                      ),
+                                    ),
+                                  );
+                                  return;
+                                }
+
+                                try {
+                                  await CupoService().respondToRequest(
+                                    requestId: requestId,
+                                    routeId: routeId,
+                                    passengerId: passengerId,
+                                    passengerName: passengerName,
+                                    origin: origin,
+                                    destination: destination,
+                                    accepted: accepted,
+                                  );
+
+                                  await _markRead(doc.id);
+
+                                  if (!context.mounted) return;
+
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        accepted
+                                            ? 'Solicitud aceptada correctamente'
+                                            : 'Solicitud rechazada correctamente',
+                                      ),
+                                    ),
+                                  );
+                                } catch (e) {
+                                  if (!context.mounted) return;
+
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        'Error al responder solicitud: $e',
+                                      ),
+                                    ),
+                                  );
+                                }
+                              }
+                            : null,
                       );
                     },
                   );
@@ -218,11 +293,13 @@ class _NotifCard extends StatelessWidget {
   final Map<String, dynamic> data;
   final String docId;
   final VoidCallback? onRead;
+  final Future<void> Function(bool accepted)? onRespond;
 
   const _NotifCard({
     required this.data,
     required this.docId,
     required this.onRead,
+    required this.onRespond,
   });
 
   static const _accentGreen = Color(0xFF2D9E6B);
@@ -252,9 +329,10 @@ class _NotifCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final type   = data['type'] ?? '';
+    final type = data['type'] ?? '';
     final isRead = data['read'] ?? false;
     final unread = !isRead;
+    final showActions = type == 'cupo_request' && unread && onRespond != null;
 
     return GestureDetector(
       onTap: onRead,
@@ -335,6 +413,43 @@ class _NotifCard extends StatelessWidget {
                       color: Color(0xFFAFB8B3),
                     ),
                   ),
+                  if (showActions) ...[
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () => onRespond!(false),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: Colors.redAccent,
+                              side: const BorderSide(
+                                color: Colors.redAccent,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                            ),
+                            child: const Text('Rechazar'),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: () => onRespond!(true),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: _accentGreen,
+                              foregroundColor: Colors.white,
+                              elevation: 0,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                            ),
+                            child: const Text('Aceptar'),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ],
               ),
             ),
