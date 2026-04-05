@@ -4,56 +4,56 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 class NotificationService {
-  static final NotificationService _instance = NotificationService._internal();
+  static final NotificationService _instance =
+      NotificationService._internal();
   factory NotificationService() => _instance;
   NotificationService._internal();
 
   final FirebaseMessaging _fcm = FirebaseMessaging.instance;
-  final FlutterLocalNotificationsPlugin _local = FlutterLocalNotificationsPlugin();
+  final FlutterLocalNotificationsPlugin _local =
+      FlutterLocalNotificationsPlugin();
+
+  static const _channelId   = 'uniconnect_channel';
+  static const _channelName = 'UniConnect';
 
   Future<void> init() async {
-    // Pedir permisos
     await _fcm.requestPermission(alert: true, badge: true, sound: true);
 
-    // Configurar notificaciones locales (para cuando la app está en primer plano)
-    const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
-    const iosSettings = DarwinInitializationSettings();
-    await _local.initialize(
-      const InitializationSettings(android: androidSettings, iOS: iosSettings),
+    const initSettings = InitializationSettings(
+      android: AndroidInitializationSettings('@mipmap/ic_launcher'),
+      iOS: DarwinInitializationSettings(),
+    );
+    await _local.initialize(initSettings);
+
+    // ✅ En v18 se instancia directamente, sin resolvePlatformSpecificImplementation
+    final androidPlugin = AndroidFlutterLocalNotificationsPlugin();
+    await androidPlugin.createNotificationChannel(
+      const AndroidNotificationChannel(
+        _channelId,
+        _channelName,
+        description: 'Notificaciones de UniConnect',
+        importance: Importance.high,
+      ),
     );
 
-    // Canal Android
-    const channel = AndroidNotificationChannel(
-      'uniconnect_channel',
-      'UniConnect',
-      description: 'Notificaciones de UniConnect',
-      importance: Importance.high,
-    );
-    await _local
-        .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
-        ?.createNotificationChannel(channel);
-
-    // Guardar token FCM en Firestore
     await _saveToken();
 
-    // Escuchar mensajes en primer plano
     FirebaseMessaging.onMessage.listen((message) {
       final notification = message.notification;
-      if (notification != null) {
-        _local.show(
-          notification.hashCode,
-          notification.title,
-          notification.body,
-          const NotificationDetails(
-            android: AndroidNotificationDetails(
-              'uniconnect_channel',
-              'UniConnect',
-              importance: Importance.high,
-              priority: Priority.high,
-            ),
+      if (notification == null) return;
+      _local.show(
+        notification.hashCode,
+        notification.title,
+        notification.body,
+        const NotificationDetails(
+          android: AndroidNotificationDetails(
+            _channelId,
+            _channelName,
+            importance: Importance.high,
+            priority: Priority.high,
           ),
-        );
-      }
+        ),
+      );
     });
   }
 
@@ -68,17 +68,14 @@ class NotificationService {
         .set({'fcmToken': token}, SetOptions(merge: true));
   }
 
-  /// Guarda en Firestore la notificación para que el destinatario la vea
   Future<void> saveNotification({
     required String toUserId,
     required String title,
     required String body,
-    required String type, // 'cupo_request', 'cupo_accepted', 'cupo_rejected'
+    required String type,
     Map<String, dynamic> extra = const {},
   }) async {
-    await FirebaseFirestore.instance
-        .collection('notifications')
-        .add({
+    await FirebaseFirestore.instance.collection('notifications').add({
       'toUserId':  toUserId,
       'title':     title,
       'body':      body,
@@ -87,5 +84,17 @@ class NotificationService {
       'createdAt': FieldValue.serverTimestamp(),
       ...extra,
     });
+  }
+
+  Future<void> deleteAllNotifications(String userId) async {
+    final snap = await FirebaseFirestore.instance
+        .collection('notifications')
+        .where('toUserId', isEqualTo: userId)
+        .get();
+    final batch = FirebaseFirestore.instance.batch();
+    for (final doc in snap.docs) {
+      batch.delete(doc.reference);
+    }
+    await batch.commit();
   }
 }
