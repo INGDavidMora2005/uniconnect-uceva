@@ -4,16 +4,20 @@ import '../theme/app_theme.dart';
 import '../models/route_model.dart';
 import '../services/route_service.dart';
 import '../services/cupo_service.dart';
+import '../services/rating_service.dart';
 import '../screens/solicitar_cupo_screen.dart';
+import '../screens/calificar_screen.dart';
 
 class RouteCard extends StatefulWidget {
   final RouteModel route;
   final VoidCallback onTap;
+  final VoidCallback? onRefreshRejected;
 
   const RouteCard({
     super.key,
     required this.route,
     required this.onTap,
+    this.onRefreshRejected,
   });
 
   @override
@@ -22,27 +26,29 @@ class RouteCard extends StatefulWidget {
 
 class _RouteCardState extends State<RouteCard> {
   bool _finalizing = false;
-  Future<bool>? _hasRequestFuture;
+  Future<String>? _requestStatusFuture;
 
   @override
   void initState() {
     super.initState();
-    _loadRequestStatus();
+    _loadStatus();
   }
 
-  Future<void> _loadRequestStatus() async {
+  void _loadStatus() {
     final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid != null) {
-      _hasRequestFuture = CupoService().hasPendingOrAcceptedRequest(uid, widget.route.id);
+    if (uid != null && !_isDriver) {
+      _requestStatusFuture = CupoService().getRequestStatus(
+        uid,
+        widget.route.id,
+      );
     }
   }
 
   bool get _isDriver =>
       FirebaseAuth.instance.currentUser?.uid == widget.route.driverId;
-
-  bool get _isFinalized => widget.route.status == 'Finalizada';
-  bool get _isActive => widget.route.status == 'Activa';
+  bool get _isFinalized => widget.route.status == RouteStatus.finalizada;
   bool get _isFull => widget.route.isFull;
+  bool get _canDriverFinalize => _isDriver && !_isFinalized;
 
   Future<void> _handleFinalize() async {
     final confirm = await showDialog<bool>(
@@ -54,7 +60,7 @@ class _RouteCardState extends State<RouteCard> {
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
         content: const Text(
-          '¿Confirmas que esta ruta ya terminó? Esta acción no se puede deshacer.',
+          '¿Confirmas que esta ruta ya terminó? Se notificará a los pasajeros para que califiquen.',
         ),
         actions: [
           TextButton(
@@ -68,6 +74,7 @@ class _RouteCardState extends State<RouteCard> {
             onPressed: () => Navigator.pop(context, true),
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.accentGreen,
+              elevation: 0,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(8),
               ),
@@ -82,17 +89,23 @@ class _RouteCardState extends State<RouteCard> {
     );
 
     if (confirm != true) return;
-
     setState(() => _finalizing = true);
     final result = await RouteService().finalizeRoute(widget.route.id);
     if (!mounted) return;
     setState(() => _finalizing = false);
 
-    if (result != 'ok') {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(result), backgroundColor: Colors.redAccent),
-      );
-    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          result == 'ok'
+              ? '✅ Ruta finalizada. Se notificó a los pasajeros.'
+              : result,
+        ),
+        backgroundColor: result == 'ok'
+            ? const Color(0xFF1A5C40)
+            : Colors.redAccent,
+      ),
+    );
   }
 
   void _handleRequestSeat() {
@@ -101,7 +114,11 @@ class _RouteCardState extends State<RouteCard> {
       MaterialPageRoute(
         builder: (_) => SolicitarCupoScreen(route: widget.route),
       ),
-    );
+    ).then((_) {
+      // Recargar estado y rutas rechazadas al volver
+      setState(() => _loadStatus());
+      widget.onRefreshRejected?.call();
+    });
   }
 
   Widget _buildStatusBadge() {
@@ -113,8 +130,8 @@ class _RouteCardState extends State<RouteCard> {
       label = 'FINALIZADA';
       bgColor = Colors.red.shade400;
       textColor = Colors.white;
-    } else if (_isDriver && _isActive) {
-      label = 'EN CURSO';
+    } else if (_isDriver) {
+      label = widget.route.status.toUpperCase();
       bgColor = AppColors.accentGreen;
       textColor = Colors.white;
     } else if (_isFull) {
@@ -182,7 +199,10 @@ class _RouteCardState extends State<RouteCard> {
                 ),
                 if (!_isFinalized)
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 4,
+                    ),
                     decoration: BoxDecoration(
                       color: _isFull
                           ? Colors.red.withOpacity(0.1)
@@ -190,7 +210,9 @@ class _RouteCardState extends State<RouteCard> {
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Text(
-                      _isFull ? 'Lleno' : '${widget.route.availableSeats} Cupos',
+                      _isFull
+                          ? 'Lleno'
+                          : '${widget.route.availableSeats} Cupos',
                       style: TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.w600,
@@ -230,12 +252,18 @@ class _RouteCardState extends State<RouteCard> {
                       _isDriver
                           ? '${widget.route.driverName} (tú)'
                           : widget.route.driverName,
-                      style: const TextStyle(fontSize: 12, color: AppColors.textMedium),
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: AppColors.textMedium,
+                      ),
                     ),
                   ],
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: AppColors.backgroundApp,
                     borderRadius: BorderRadius.circular(20),
@@ -251,103 +279,188 @@ class _RouteCardState extends State<RouteCard> {
                 ),
               ],
             ),
-              if (_isFinalized) ...[
-                const SizedBox(height: 12),
-                const Divider(height: 1),
-                const SizedBox(height: 10),
-                SizedBox(
-                  width: double.infinity,
-                  height: 36,
-                  child: OutlinedButton.icon(
-                    onPressed: widget.onTap,
-                    icon: const Icon(Icons.star_border_rounded, size: 16, color: AppColors.accentGreen),
-                    label: const Text(
-                      'Calificar',
-                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.accentGreen),
-                    ),
-                    style: OutlinedButton.styleFrom(
-                      side: const BorderSide(color: AppColors.accentGreen, width: 1.5),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                    ),
-                  ),
-                ),
-              ] else if (_isDriver && _isActive) ...[
-                const SizedBox(height: 12),
-                const Divider(height: 1),
-                const SizedBox(height: 10),
-                SizedBox(
-                  width: double.infinity,
-                  height: 36,
-                  child: _finalizing
-                      ? const Center(
-                          child: SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.accentGreen),
-                          ),
-                        )
-                      : OutlinedButton.icon(
-                          onPressed: _handleFinalize,
-                          icon: const Icon(Icons.flag_rounded, size: 16, color: AppColors.accentGreen),
-                          label: const Text(
-                            'Finalizar ruta',
-                            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.accentGreen),
-                          ),
-                          style: OutlinedButton.styleFrom(
-                            side: const BorderSide(color: AppColors.accentGreen, width: 1.5),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+
+            const SizedBox(height: 12),
+            const Divider(height: 1),
+            const SizedBox(height: 10),
+
+            // ── CONDUCTOR: Finalizar ───────────────────────
+            if (_canDriverFinalize)
+              SizedBox(
+                width: double.infinity,
+                height: 36,
+                child: _finalizing
+                    ? const Center(
+                        child: SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: AppColors.accentGreen,
                           ),
                         ),
-                ),
-              ] else if (!_isDriver && _isActive) ...[
-                const SizedBox(height: 12),
-                const Divider(height: 1),
-                const SizedBox(height: 10),
-                SizedBox(
-                  width: double.infinity,
-                  height: 36,
-                  child: _isFull
-                      ? OutlinedButton(
-                          onPressed: null,
-                          style: OutlinedButton.styleFrom(
-                            side: const BorderSide(color: Colors.grey, width: 1.5),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      )
+                    : OutlinedButton.icon(
+                        onPressed: _handleFinalize,
+                        icon: const Icon(
+                          Icons.flag_rounded,
+                          size: 16,
+                          color: AppColors.accentGreen,
+                        ),
+                        label: const Text(
+                          'Finalizar ruta',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.accentGreen,
                           ),
-                          child: const Text(
-                            'Sin cupos disponibles',
-                            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.grey),
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          side: const BorderSide(
+                            color: AppColors.accentGreen,
+                            width: 1.5,
                           ),
-                        )
-                      : FutureBuilder<bool>(
-                          future: _hasRequestFuture,
-                          builder: (context, snapshot) {
-                            final hasRequest = snapshot.hasData && snapshot.data!;
-                            final isLoading = snapshot.connectionState == ConnectionState.waiting;
-                            return OutlinedButton(
-                              onPressed: isLoading || hasRequest ? null : _handleRequestSeat,
-                              style: OutlinedButton.styleFrom(
-                                side: BorderSide(color: hasRequest ? Colors.grey : AppColors.accentGreen, width: 1.5),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                      ),
+              )
+            // ── PASAJERO: según estado de solicitud ────────
+            else if (!_isDriver && !_isFinalized)
+              FutureBuilder<String>(
+                future: _requestStatusFuture,
+                builder: (context, snapshot) {
+                  final status = snapshot.data ?? '';
+                  final loading =
+                      snapshot.connectionState == ConnectionState.waiting;
+
+                  // Cupo confirmado
+                  if (status == 'accepted') {
+                    return Container(
+                      width: double.infinity,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: AppColors.accentGreen.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: AppColors.accentGreen,
+                          width: 1.5,
+                        ),
+                      ),
+                      child: const Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.check_circle_rounded,
+                            size: 16,
+                            color: AppColors.accentGreen,
+                          ),
+                          SizedBox(width: 6),
+                          Text(
+                            'Cupo confirmado',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.accentGreen,
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }
+
+                  // Solicitud pendiente
+                  if (status == 'pending') {
+                    return SizedBox(
+                      width: double.infinity,
+                      height: 36,
+                      child: OutlinedButton(
+                        onPressed: null,
+                        style: OutlinedButton.styleFrom(
+                          side: const BorderSide(
+                            color: Colors.grey,
+                            width: 1.5,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        child: const Text(
+                          'Solicitud enviada',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.grey,
+                          ),
+                        ),
+                      ),
+                    );
+                  }
+
+                  // Sin cupos
+                  if (_isFull) {
+                    return SizedBox(
+                      width: double.infinity,
+                      height: 36,
+                      child: OutlinedButton(
+                        onPressed: null,
+                        style: OutlinedButton.styleFrom(
+                          side: const BorderSide(
+                            color: Colors.grey,
+                            width: 1.5,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        child: const Text(
+                          'Sin cupos disponibles',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.grey,
+                          ),
+                        ),
+                      ),
+                    );
+                  }
+
+                  // Disponible para solicitar
+                  return SizedBox(
+                    width: double.infinity,
+                    height: 36,
+                    child: loading
+                        ? const Center(
+                            child: SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            ),
+                          )
+                        : OutlinedButton(
+                            onPressed: _handleRequestSeat,
+                            style: OutlinedButton.styleFrom(
+                              side: const BorderSide(
+                                color: AppColors.accentGreen,
+                                width: 1.5,
                               ),
-                              child: isLoading
-                                  ? const SizedBox(
-                                      width: 20,
-                                      height: 20,
-                                      child: CircularProgressIndicator(strokeWidth: 2),
-                                    )
-                                  : Text(
-                                      hasRequest ? 'Solicitud enviada' : 'Solicitar cupo',
-                                      style: TextStyle(
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.w600,
-                                        color: hasRequest ? Colors.grey : AppColors.accentGreen,
-                                      ),
-                                    ),
-                            );
-                          },
-                        ),
-                ),
-              ],
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                            ),
+                            child: const Text(
+                              'Solicitar cupo',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.accentGreen,
+                              ),
+                            ),
+                          ),
+                  );
+                },
+              ),
           ],
         ),
       ),
