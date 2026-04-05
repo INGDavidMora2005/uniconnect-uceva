@@ -20,11 +20,11 @@ class CupoService {
           .collection('cupo_requests')
           .where('routeId', isEqualTo: routeId)
           .where('passengerId', isEqualTo: passengerId)
-          .where('status', isEqualTo: 'pending')
+          .where('status', whereIn: ['pending', 'accepted'])
           .get();
 
       if (existing.docs.isNotEmpty) {
-        return 'Ya tienes una solicitud pendiente para esta ruta.';
+        return 'Ya tienes una solicitud pendiente o aceptada para esta ruta.';
       }
 
       final routeDoc = await _db.collection('routes').doc(routeId).get();
@@ -33,33 +33,36 @@ class CupoService {
       if (seats <= 0) return 'Ya no hay cupos disponibles.';
 
       final request = CupoRequestModel(
-        id:            '',
-        routeId:       routeId,
-        passengerId:   passengerId,
+        id: '',
+        routeId: routeId,
+        passengerId: passengerId,
         passengerName: passengerName,
-        driverId:      driverId,
-        message:       message,
-        status:        'pending',
-        origin:        origin,
-        destination:   destination,
-        time:          time,
-        createdAt:     DateTime.now(),
+        driverId: driverId,
+        message: message,
+        status: 'pending',
+        origin: origin,
+        destination: destination,
+        time: time,
+        createdAt: DateTime.now(),
       );
-      final requestRef = await _db.collection('cupo_requests').add(request.toMap());
+      final requestRef = await _db
+          .collection('cupo_requests')
+          .add(request.toMap());
 
       await NotificationService().saveNotification(
         toUserId: driverId,
-        title:    'Solicitud de cupo recibida',
-        body:     '$passengerName solicitó un cupo en la ruta $origin → $destination · $time',
-        type:     'cupo_request',
+        title: 'Solicitud de cupo recibida',
+        body:
+            '$passengerName solicitó un cupo en la ruta $origin → $destination · $time',
+        type: 'cupo_request',
         extra: {
-          'requestId':     requestRef.id,
-          'routeId':       routeId,
-          'passengerId':   passengerId,
+          'requestId': requestRef.id,
+          'routeId': routeId,
+          'passengerId': passengerId,
           'passengerName': passengerName,
-          'origin':        origin,
-          'destination':   destination,
-          'time':          time,
+          'origin': origin,
+          'destination': destination,
+          'time': time,
         },
       );
 
@@ -79,21 +82,14 @@ class CupoService {
     required bool accepted,
   }) async {
     try {
-      final batch = _db.batch();
       final requestRef = _db.collection('cupo_requests').doc(requestId);
-      final routeRef   = _db.collection('routes').doc(routeId);
+      final routeRef = _db.collection('routes').doc(routeId);
 
-      batch.update(requestRef, {'status': accepted ? 'accepted' : 'rejected'});
-
-      if (accepted) {
-        batch.update(routeRef, {
-          'availableSeats': FieldValue.increment(-1),
-        });
-      }
-
-      await batch.commit();
+      await requestRef.update({'status': accepted ? 'accepted' : 'rejected'});
 
       if (accepted) {
+        await routeRef.update({'availableSeats': FieldValue.increment(-1)});
+
         final updatedRoute = await routeRef.get();
         final seatsLeft = (updatedRoute.data()?['availableSeats'] ?? 0) as int;
 
@@ -111,12 +107,13 @@ class CupoService {
             await doc.reference.update({'status': 'rejected'});
             await NotificationService().saveNotification(
               toUserId: data['passengerId'] ?? '',
-              title:    'Ruta sin cupos disponibles',
-              body:     'Lo sentimos, la ruta $origin → $destination se llenó antes de que tu solicitud fuera procesada.',
-              type:     'cupo_rejected',
+              title: 'Ruta sin cupos disponibles',
+              body:
+                  'Lo sentimos, la ruta $origin → $destination se llenó antes de que tu solicitud fuera procesada.',
+              type: 'cupo_rejected',
               extra: {
-                'routeId':     routeId,
-                'origin':      origin,
+                'routeId': routeId,
+                'origin': origin,
                 'destination': destination,
               },
             );
@@ -126,14 +123,14 @@ class CupoService {
 
       await NotificationService().saveNotification(
         toUserId: passengerId,
-        title:    accepted ? '¡Cupo aceptado!' : 'Solicitud rechazada',
-        body:     accepted
+        title: accepted ? '¡Cupo aceptado!' : 'Solicitud rechazada',
+        body: accepted
             ? 'Tu solicitud en la ruta $origin → $destination fue aceptada. ¡Buen viaje!'
             : 'Tu solicitud en la ruta $origin → $destination fue rechazada por el conductor.',
-        type:  accepted ? 'cupo_accepted' : 'cupo_rejected',
+        type: accepted ? 'cupo_accepted' : 'cupo_rejected',
         extra: {
-          'routeId':     routeId,
-          'origin':      origin,
+          'routeId': routeId,
+          'origin': origin,
           'destination': destination,
         },
       );
@@ -142,12 +139,59 @@ class CupoService {
     }
   }
 
-  Future<bool> hasPendingOrAcceptedRequest(String passengerId, String routeId) async {
+  /// Retorna el status de la solicitud del pasajero en una ruta
+  /// Retorna: 'accepted', 'pending', 'rejected' o '' si no existe
+  Future<String> getRequestStatus(String passengerId, String routeId) async {
+    try {
+      final query = await _db
+          .collection('cupo_requests')
+          .where('passengerId', isEqualTo: passengerId)
+          .where('routeId', isEqualTo: routeId)
+          .get();
+      if (query.docs.isEmpty) return '';
+      // Priorizar accepted > pending > rejected
+      final statuses = query.docs
+          .map((d) => d.data()['status'] as String)
+          .toList();
+      if (statuses.contains('accepted')) return 'accepted';
+      if (statuses.contains('pending')) return 'pending';
+      return 'rejected';
+    } catch (e) {
+      return '';
+    }
+  }
+
+  Future<void> deleteRequestsByRoute(String routeId) async {
+    try {
+      final snap = await _db
+          .collection('cupo_requests')
+          .where('routeId', isEqualTo: routeId)
+          .get();
+      for (final doc in snap.docs) {
+        await doc.reference.delete();
+      }
+    } catch (_) {}
+  }
+
+  Future<bool> hasPendingOrAcceptedRequest(
+    String passengerId,
+    String routeId,
+  ) async {
     final query = await _db
         .collection('cupo_requests')
         .where('passengerId', isEqualTo: passengerId)
         .where('routeId', isEqualTo: routeId)
         .where('status', whereIn: ['pending', 'accepted'])
+        .get();
+    return query.docs.isNotEmpty;
+  }
+
+  Future<bool> hasRejectedRequest(String passengerId, String routeId) async {
+    final query = await _db
+        .collection('cupo_requests')
+        .where('passengerId', isEqualTo: passengerId)
+        .where('routeId', isEqualTo: routeId)
+        .where('status', isEqualTo: 'rejected')
         .get();
     return query.docs.isNotEmpty;
   }
