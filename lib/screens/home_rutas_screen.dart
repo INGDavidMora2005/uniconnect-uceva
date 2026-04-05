@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../theme/app_theme.dart';
 import '../models/route_model.dart';
 import '../models/user_model.dart';
@@ -11,6 +12,7 @@ import 'profile_screen.dart';
 import 'publicar_ruta_screen.dart';
 import 'notifications_screen.dart';
 import 'bazar_screen.dart';
+import 'calificar_screen.dart';
 
 class HomeRutasScreen extends StatefulWidget {
   const HomeRutasScreen({super.key});
@@ -28,17 +30,39 @@ class _HomeRutasScreenState extends State<HomeRutasScreen> {
   final TextEditingController _timeController = TextEditingController();
   UserModel? _user;
 
+  // IDs de rutas rechazadas para este pasajero
+  Set<String> _rejectedRouteIds = {};
+
   final List<String> _filters = ['Todas', 'Mañana', 'Tarde', 'Noche'];
 
   @override
   void initState() {
     super.initState();
     _loadUser();
+    _loadRejectedRoutes();
   }
 
   Future<void> _loadUser() async {
     final user = await AuthService().getUserData();
-    setState(() => _user = user);
+    if (mounted) setState(() => _user = user);
+  }
+
+  /// Carga los routeIds donde el pasajero fue rechazado
+  Future<void> _loadRejectedRoutes() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+    final snap = await FirebaseFirestore.instance
+        .collection('cupo_requests')
+        .where('passengerId', isEqualTo: uid)
+        .where('status', isEqualTo: 'rejected')
+        .get();
+    if (mounted) {
+      setState(() {
+        _rejectedRouteIds = snap.docs
+            .map((d) => d.data()['routeId'] as String)
+            .toSet();
+      });
+    }
   }
 
   String get _firstName {
@@ -58,25 +82,37 @@ class _HomeRutasScreenState extends State<HomeRutasScreen> {
   String? get _currentUid => FirebaseAuth.instance.currentUser?.uid;
 
   List<RouteModel> _applyFilters(List<RouteModel> routes) {
-    String originFilter = _originController.text.toLowerCase().trim();
-    String destinationFilter = _destinationController.text.toLowerCase().trim();
-    String timeFilter = _timeController.text.toLowerCase().trim();
-    String query = _searchController.text.toLowerCase();
+    final originFilter = _originController.text.toLowerCase().trim();
+    final destinationFilter = _destinationController.text.toLowerCase().trim();
+    final timeFilter = _timeController.text.toLowerCase().trim();
+    final query = _searchController.text.toLowerCase();
+
     return routes.where((r) {
-      bool matchesOrigin = originFilter.isEmpty || r.origin.toLowerCase().contains(originFilter);
-      bool matchesDestination = destinationFilter.isEmpty || r.destination.toLowerCase().contains(destinationFilter);
-      bool matchesTime = timeFilter.isEmpty || r.time.toLowerCase().contains(timeFilter);
-      bool matchesSearch =
+      final matchesOrigin =
+          originFilter.isEmpty || r.origin.toLowerCase().contains(originFilter);
+      final matchesDestination =
+          destinationFilter.isEmpty ||
+          r.destination.toLowerCase().contains(destinationFilter);
+      final matchesTime =
+          timeFilter.isEmpty || r.time.toLowerCase().contains(timeFilter);
+      final matchesSearch =
           query.isEmpty ||
           r.origin.toLowerCase().contains(query) ||
           r.destination.toLowerCase().contains(query);
-      if (!matchesOrigin || !matchesDestination || !matchesTime || !matchesSearch) return false;
+
+      if (!matchesOrigin ||
+          !matchesDestination ||
+          !matchesTime ||
+          !matchesSearch)
+        return false;
       if (_selectedFilter == 0) return true;
+
       final timeParts = r.time.split(':');
       int hour = int.tryParse(timeParts[0]) ?? 0;
       final isPM = r.time.toUpperCase().contains('PM');
       if (isPM && hour != 12) hour += 12;
       if (!isPM && hour == 12) hour = 0;
+
       if (_selectedFilter == 1) return hour >= 5 && hour < 12;
       if (_selectedFilter == 2) return hour >= 12 && hour < 18;
       if (_selectedFilter == 3) return hour >= 18 || hour < 5;
@@ -93,9 +129,29 @@ class _HomeRutasScreenState extends State<HomeRutasScreen> {
     super.dispose();
   }
 
+  RouteModel _routeFromNotifData(Map<String, dynamic> data) {
+    return RouteModel(
+      id: data['routeId'] ?? '',
+      origin: data['origin'] ?? '',
+      destination: data['destination'] ?? '',
+      date: data['date'] ?? '',
+      time: data['time'] ?? '',
+      price: (data['price'] ?? 0.0).toDouble(),
+      availableSeats: 0,
+      totalSeats: (data['totalSeats'] ?? 4) as int,
+      driverName: data['driverName'] ?? '',
+      driverInitials: data['driverInitials'] ?? '',
+      driverRating: (data['driverRating'] ?? 0.0).toDouble(),
+      meetingPoint: data['meetingPoint'] ?? '',
+      driverId: data['driverId'] ?? '',
+      status: RouteStatus.finalizada,
+    );
+  }
+
   Widget _buildRutasContent() {
     return Column(
       children: [
+        // ── Header ────────────────────────────────────────
         Container(
           color: AppColors.primaryGreen,
           padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
@@ -148,12 +204,14 @@ class _HomeRutasScreenState extends State<HomeRutasScreen> {
             ],
           ),
         ),
+
         Expanded(
           child: SingleChildScrollView(
             padding: const EdgeInsets.all(20),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                // ── Buscador ──────────────────────────────
                 TextField(
                   controller: _searchController,
                   onChanged: (_) => setState(() {}),
@@ -182,6 +240,8 @@ class _HomeRutasScreenState extends State<HomeRutasScreen> {
                   ),
                 ),
                 const SizedBox(height: 12),
+
+                // ── Filtros ───────────────────────────────
                 Row(
                   children: [
                     Expanded(
@@ -240,6 +300,8 @@ class _HomeRutasScreenState extends State<HomeRutasScreen> {
                   ],
                 ),
                 const SizedBox(height: 16),
+
+                // ── Chips de turno ────────────────────────
                 SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
                   child: Row(
@@ -280,6 +342,8 @@ class _HomeRutasScreenState extends State<HomeRutasScreen> {
                   ),
                 ),
                 const SizedBox(height: 20),
+
+                // ── Mis rutas ─────────────────────────────
                 StreamBuilder<List<RouteModel>>(
                   stream: RouteService().getAvailableRoutes(),
                   builder: (context, snapshot) {
@@ -287,7 +351,6 @@ class _HomeRutasScreenState extends State<HomeRutasScreen> {
                     final myRoutes = allRoutes
                         .where((r) => r.driverId == _currentUid)
                         .toList();
-
                     if (myRoutes.isEmpty) return const SizedBox.shrink();
 
                     return Column(
@@ -329,6 +392,8 @@ class _HomeRutasScreenState extends State<HomeRutasScreen> {
                     );
                   },
                 ),
+
+                // ── Rutas disponibles ─────────────────────
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -353,6 +418,7 @@ class _HomeRutasScreenState extends State<HomeRutasScreen> {
                   ],
                 ),
                 const SizedBox(height: 8),
+
                 StreamBuilder<List<RouteModel>>(
                   stream: RouteService().getAvailableRoutes(),
                   builder: (context, snapshot) {
@@ -394,12 +460,18 @@ class _HomeRutasScreenState extends State<HomeRutasScreen> {
                     }
 
                     final allRoutes = snapshot.data ?? [];
-                    final otherRoutes = allRoutes
-                        .where(
-                          (r) =>
-                              r.driverId != _currentUid && r.status == 'Activa',
-                        )
-                        .toList();
+
+                    final otherRoutes = allRoutes.where((r) {
+                      if (r.driverId == _currentUid) return false;
+                      if (r.status != RouteStatus.activa &&
+                          r.status != RouteStatus.disponible &&
+                          r.status != RouteStatus.llena)
+                        return false;
+                      // Ocultar rutas donde el pasajero fue rechazado
+                      if (_rejectedRouteIds.contains(r.id)) return false;
+                      return true;
+                    }).toList();
+
                     final filtered = _applyFilters(otherRoutes);
 
                     if (filtered.isEmpty) {
@@ -439,12 +511,18 @@ class _HomeRutasScreenState extends State<HomeRutasScreen> {
                       shrinkWrap: true,
                       physics: const NeverScrollableScrollPhysics(),
                       itemCount: filtered.length,
-                      itemBuilder: (_, i) =>
-                          RouteCard(route: filtered[i], onTap: () {}),
+                      itemBuilder: (_, i) => RouteCard(
+                        route: filtered[i],
+                        onTap: () {},
+                        //  Recargar rutas rechazadas al volver
+                        onRefreshRejected: _loadRejectedRoutes,
+                      ),
                     );
                   },
                 ),
                 const SizedBox(height: 20),
+
+                // ── Botón publicar ruta ───────────────────
                 SizedBox(
                   width: double.infinity,
                   height: 48,
@@ -494,7 +572,17 @@ class _HomeRutasScreenState extends State<HomeRutasScreen> {
           children: [
             _buildRutasContent(),
             const BazarScreen(),
-            const NotificationsScreen(),
+            NotificationsScreen(
+              onRateTrip: (data) {
+                final route = _routeFromNotifData(data);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => CalificarScreen(route: route),
+                  ),
+                );
+              },
+            ),
             const ProfileScreen(showBottomNav: false),
           ],
         ),

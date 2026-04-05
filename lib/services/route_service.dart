@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/route_model.dart';
 import '../services/cupo_service.dart';
+import '../services/notification_service.dart';
 
 class RouteService {
   static final RouteService _instance = RouteService._internal();
@@ -63,11 +64,78 @@ class RouteService {
   Future<String> startRoute(String routeId) =>
       updateRouteStatus(routeId, RouteStatus.enCurso);
 
-  Future<String> finalizeRoute(String routeId) =>
-    deleteRoute(routeId);
+  /// Finaliza la ruta:
+  /// 1. Notifica a pasajeros aceptados para calificar
+  /// 2. Suma +1 a tripsCompleted del conductor
+  /// 3. Borra cupo_requests
+  /// 4. Borra la ruta
+  Future<String> finalizeRoute(String routeId) async {
+    try {
+      // 1. Obtener datos de la ruta
+      final routeDoc = await _db.collection('routes').doc(routeId).get();
+      if (!routeDoc.exists) return 'La ruta no existe.';
+      final routeData = routeDoc.data() ?? {};
+      final origin = (routeData['origin'] as String?) ?? '';
+      final destination = (routeData['destination'] as String?) ?? '';
+      final time = (routeData['time'] as String?) ?? '';
+      final date = (routeData['date'] as String?) ?? '';
+      final driverId = (routeData['driverId'] as String?) ?? '';
+
+      // 2. Buscar pasajeros aceptados y notificarlos
+      final acceptedRequests = await _db
+          .collection('cupo_requests')
+          .where('routeId', isEqualTo: routeId)
+          .where('status', isEqualTo: 'accepted')
+          .get();
+
+      for (final doc in acceptedRequests.docs) {
+        final data = doc.data();
+        final passengerId = (data['passengerId'] as String?) ?? '';
+        if (passengerId.isEmpty) continue;
+
+        await NotificationService().saveNotification(
+          toUserId: passengerId,
+          title: '¿Cómo fue tu viaje?',
+          body:
+              'Califica tu experiencia en la ruta $origin → $destination · $date $time',
+          type: 'rate_trip',
+          extra: {
+            'routeId': routeId,
+            'origin': origin,
+            'destination': destination,
+            'time': time,
+            'date': date,
+            'driverName': (routeData['driverName'] as String?) ?? '',
+            'driverInitials': (routeData['driverInitials'] as String?) ?? '',
+            'driverRating': (routeData['driverRating'] ?? 0.0),
+            'driverId': driverId,
+            'price': (routeData['price'] ?? 0.0),
+            'totalSeats': (routeData['totalSeats'] ?? 4),
+            'meetingPoint': (routeData['meetingPoint'] as String?) ?? '',
+          },
+        );
+      }
+
+      // 3. Sumar +1 a tripsCompleted del conductor
+      if (driverId.isNotEmpty) {
+        await _db.collection('users').doc(driverId).update({
+          'tripsCompleted': FieldValue.increment(1),
+        });
+      }
+
+      // 4. Borrar cupo_requests y la ruta
+      await CupoService().deleteRequestsByRoute(routeId);
+      await _db.collection('routes').doc(routeId).delete();
+
+      return 'ok';
+    } catch (e) {
+      return 'Error al finalizar la ruta: $e';
+    }
+  }
 
   Future<String> deleteRoute(String routeId) async {
     try {
+      await CupoService().deleteRequestsByRoute(routeId);
       await _db.collection('routes').doc(routeId).delete();
       return 'ok';
     } catch (e) {
@@ -99,6 +167,14 @@ class RouteService {
       }
       if (routeStatus == RouteStatus.llena) {
         return 'Esta ruta ya no tiene cupos disponibles.';
+      }
+
+      final wasRejected = await CupoService().hasRejectedRequest(
+        passengerId,
+        routeId,
+      );
+      if (wasRejected) {
+        return 'Tu solicitud fue rechazada para esta ruta.';
       }
 
       final result = await CupoService().requestSeat(
