@@ -12,13 +12,13 @@ class EditProfileScreen extends StatefulWidget {
 class _EditProfileScreenState extends State<EditProfileScreen> {
   final _formKey = GlobalKey<FormState>();
 
-  final TextEditingController _nameController        = TextEditingController();
+  final TextEditingController _nameController = TextEditingController();
   final TextEditingController _descriptionController = TextEditingController();
 
   String? _selectedFaculty;
   String? _selectedRole;
   bool _loading = true;
-  bool _saving  = false;
+  bool _saving = false;
 
   // ── Listas de opciones ─────────────────────────────────────
   final List<String> _roles = [
@@ -46,12 +46,14 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   Future<void> _loadUserData() async {
     final user = await AuthService().getUserData();
     if (user != null) {
-      _nameController.text        = user.fullName;
+      _nameController.text = user.fullName;
       _descriptionController.text = user.description;
 
       // Validar que el rol y facultad existan en las listas
       _selectedRole = _roles.contains(user.role) ? user.role : null;
-      _selectedFaculty = _faculties.contains(user.faculty) ? user.faculty : null;
+      _selectedFaculty = _faculties.contains(user.faculty)
+          ? user.faculty
+          : null;
     }
     if (!mounted) return;
     setState(() => _loading = false);
@@ -62,9 +64,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     setState(() => _saving = true);
 
     final result = await AuthService().updateProfile(
-      fullName:    _nameController.text.trim(),
-      role:        _selectedRole ?? '',
-      faculty:     _selectedFaculty ?? '',
+      fullName: _nameController.text.trim(),
+      role: _selectedRole ?? '',
+      faculty: _selectedFaculty ?? '',
       description: _descriptionController.text.trim(),
     );
 
@@ -101,8 +103,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       ),
       filled: true,
       fillColor: Colors.white,
-      contentPadding:
-          const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
         borderSide: const BorderSide(color: AppColors.borderDefault),
@@ -113,8 +114,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide:
-            const BorderSide(color: AppColors.accentGreen, width: 1.5),
+        borderSide: const BorderSide(color: AppColors.accentGreen, width: 1.5),
       ),
       errorBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
@@ -155,19 +155,23 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       body: SafeArea(
         child: _loading
             ? const Center(
-                child: CircularProgressIndicator(
-                  color: AppColors.accentGreen,
-                ),
+                child: CircularProgressIndicator(color: AppColors.accentGreen),
               )
             : SingleChildScrollView(
-                padding:
-                    const EdgeInsets.fromLTRB(20, 20, 20, 28),
+                padding: EdgeInsets.fromLTRB(
+                  20,
+                  20,
+                  20,
+                  20 +
+                      MediaQuery.of(
+                        context,
+                      ).viewInsets.bottom, // Ajustado para insets del teclado
+                ),
                 child: Form(
                   key: _formKey,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-
                       // ── Avatar ───────────────────────────────
                       Center(
                         child: Column(
@@ -181,13 +185,14 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                                 color: Colors.white,
                               ),
                             ),
-                            const SizedBox(height: 10),
+                            const SizedBox(height: 8),
                             TextButton(
                               onPressed: () {
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   const SnackBar(
-                                    content:
-                                        Text('Cambio de foto próximamente'),
+                                    content: Text(
+                                      'Cambio de foto próximamente',
+                                    ),
                                   ),
                                 );
                               },
@@ -202,14 +207,15 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                           ],
                         ),
                       ),
-                      const SizedBox(height: 20),
+                      const SizedBox(height: 16),
 
                       // ── Nombre ───────────────────────────────
                       _sectionLabel('Nombre completo'),
                       TextFormField(
                         controller: _nameController,
                         decoration: _inputDecoration(
-                            'Ingresa tu nombre completo'),
+                          'Ingresa tu nombre completo',
+                        ),
                         validator: (v) {
                           if (v == null || v.trim().isEmpty) {
                             return 'El nombre es obligatorio';
@@ -225,9 +231,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                         controller: _descriptionController,
                         maxLines: 3,
                         decoration: _inputDecoration(
-                            'Escribe una breve descripción'),
+                          'Escribe una breve descripción',
+                        ),
                       ),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 12),
 
                       // ── Rol ──────────────────────────────────
                       _sectionLabel('Rol'),
@@ -235,42 +242,38 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                         value: _selectedRole,
                         decoration: _inputDecoration('Selecciona tu rol'),
                         items: _roles
-                            .map((r) => DropdownMenuItem(
-                                  value: r,
-                                  child: Text(r),
-                                ))
+                            .map(
+                              (r) => DropdownMenuItem(value: r, child: Text(r)),
+                            )
                             .toList(),
                         validator: (v) => v == null || v.isEmpty
                             ? 'El rol es obligatorio'
                             : null,
-                        onChanged: (v) =>
-                            setState(() => _selectedRole = v),
+                        onChanged: (v) => setState(() => _selectedRole = v),
                       ),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 12),
 
                       // ── Facultad ─────────────────────────────
                       _sectionLabel('Facultad'),
                       DropdownButtonFormField<String>(
                         value: _selectedFaculty,
+                        isExpanded: true,
                         dropdownColor: Colors.white,
-                        decoration:
-                            _inputDecoration('Selecciona tu facultad'),
+                        decoration: _inputDecoration('Selecciona tu facultad'),
                         items: _faculties
-                            .map((f) => DropdownMenuItem(
-                                  value: f,
-                                  child: Text(
-                                    f,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ))
+                            .map(
+                              (f) => DropdownMenuItem(
+                                value: f,
+                                child: Text(f, overflow: TextOverflow.ellipsis),
+                              ),
+                            )
                             .toList(),
                         validator: (v) => v == null || v.isEmpty
-                            ? 'La facultad es obligatoria'
+                            ? 'La facultad es obligatorio'
                             : null,
-                        onChanged: (v) =>
-                            setState(() => _selectedFaculty = v),
+                        onChanged: (v) => setState(() => _selectedFaculty = v),
                       ),
-                      const SizedBox(height: 28),
+                      const SizedBox(height: 20),
 
                       // ── Botón Guardar ────────────────────────
                       SizedBox(

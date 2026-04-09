@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../theme/app_theme.dart';
 import '../models/route_model.dart';
 import '../models/user_model.dart';
@@ -8,6 +10,9 @@ import '../widgets/route_card.dart';
 import '../widgets/bottom_nav_bar.dart';
 import 'profile_screen.dart';
 import 'publicar_ruta_screen.dart';
+import 'notifications_screen.dart';
+import 'bazar_screen.dart';
+import 'calificar_screen.dart';
 
 class HomeRutasScreen extends StatefulWidget {
   const HomeRutasScreen({super.key});
@@ -20,7 +25,13 @@ class _HomeRutasScreenState extends State<HomeRutasScreen> {
   int _currentNavIndex = 0;
   int _selectedFilter = 0;
   final TextEditingController _searchController = TextEditingController();
+  final TextEditingController _originController = TextEditingController();
+  final TextEditingController _destinationController = TextEditingController();
+  final TextEditingController _timeController = TextEditingController();
   UserModel? _user;
+
+  // IDs de rutas rechazadas para este pasajero
+  Set<String> _rejectedRouteIds = {};
 
   final List<String> _filters = ['Todas', 'Mañana', 'Tarde', 'Noche'];
 
@@ -28,11 +39,30 @@ class _HomeRutasScreenState extends State<HomeRutasScreen> {
   void initState() {
     super.initState();
     _loadUser();
+    _loadRejectedRoutes();
   }
 
   Future<void> _loadUser() async {
     final user = await AuthService().getUserData();
-    setState(() => _user = user);
+    if (mounted) setState(() => _user = user);
+  }
+
+  /// Carga los routeIds donde el pasajero fue rechazado
+  Future<void> _loadRejectedRoutes() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+    final snap = await FirebaseFirestore.instance
+        .collection('cupo_requests')
+        .where('passengerId', isEqualTo: uid)
+        .where('status', isEqualTo: 'rejected')
+        .get();
+    if (mounted) {
+      setState(() {
+        _rejectedRouteIds = snap.docs
+            .map((d) => d.data()['routeId'] as String)
+            .toSet();
+      });
+    }
   }
 
   String get _firstName {
@@ -49,19 +79,40 @@ class _HomeRutasScreenState extends State<HomeRutasScreen> {
     return parts[0][0].toUpperCase();
   }
 
+  String? get _currentUid => FirebaseAuth.instance.currentUser?.uid;
+
   List<RouteModel> _applyFilters(List<RouteModel> routes) {
-    String query = _searchController.text.toLowerCase();
+    final originFilter = _originController.text.toLowerCase().trim();
+    final destinationFilter = _destinationController.text.toLowerCase().trim();
+    final timeFilter = _timeController.text.toLowerCase().trim();
+    final query = _searchController.text.toLowerCase();
+
     return routes.where((r) {
-      bool matchesSearch = query.isEmpty ||
+      final matchesOrigin =
+          originFilter.isEmpty || r.origin.toLowerCase().contains(originFilter);
+      final matchesDestination =
+          destinationFilter.isEmpty ||
+          r.destination.toLowerCase().contains(destinationFilter);
+      final matchesTime =
+          timeFilter.isEmpty || r.time.toLowerCase().contains(timeFilter);
+      final matchesSearch =
+          query.isEmpty ||
           r.origin.toLowerCase().contains(query) ||
           r.destination.toLowerCase().contains(query);
-      if (!matchesSearch) return false;
+
+      if (!matchesOrigin ||
+          !matchesDestination ||
+          !matchesTime ||
+          !matchesSearch)
+        return false;
       if (_selectedFilter == 0) return true;
+
       final timeParts = r.time.split(':');
       int hour = int.tryParse(timeParts[0]) ?? 0;
       final isPM = r.time.toUpperCase().contains('PM');
       if (isPM && hour != 12) hour += 12;
       if (!isPM && hour == 12) hour = 0;
+
       if (_selectedFilter == 1) return hour >= 5 && hour < 12;
       if (_selectedFilter == 2) return hour >= 12 && hour < 18;
       if (_selectedFilter == 3) return hour >= 18 || hour < 5;
@@ -72,15 +123,37 @@ class _HomeRutasScreenState extends State<HomeRutasScreen> {
   @override
   void dispose() {
     _searchController.dispose();
+    _originController.dispose();
+    _destinationController.dispose();
+    _timeController.dispose();
     super.dispose();
+  }
+
+  RouteModel _routeFromNotifData(Map<String, dynamic> data) {
+    return RouteModel(
+      id: data['routeId'] ?? '',
+      origin: data['origin'] ?? '',
+      destination: data['destination'] ?? '',
+      date: data['date'] ?? '',
+      time: data['time'] ?? '',
+      price: (data['price'] ?? 0.0).toDouble(),
+      availableSeats: 0,
+      totalSeats: (data['totalSeats'] ?? 4) as int,
+      driverName: data['driverName'] ?? '',
+      driverInitials: data['driverInitials'] ?? '',
+      driverRating: (data['driverRating'] ?? 0.0).toDouble(),
+      meetingPoint: data['meetingPoint'] ?? '',
+      driverId: data['driverId'] ?? '',
+      status: RouteStatus.finalizada,
+    );
   }
 
   Widget _buildRutasContent() {
     return Column(
       children: [
-        // ── Header ──────────────────────────────────────────
+        // ── Header ────────────────────────────────────────
         Container(
-          color: AppColors.backgroundWhite,
+          color: AppColors.primaryGreen,
           padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -93,14 +166,22 @@ class _HomeRutasScreenState extends State<HomeRutasScreen> {
                     style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
-                      color: AppColors.textDark,
+                      color: Colors.white,
                     ),
                   ),
                   const Text(
                     '¿A dónde vas hoy?',
                     style: TextStyle(
                       fontSize: 13,
-                      color: AppColors.textLight,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                      shadows: [
+                        Shadow(
+                          color: Colors.black26,
+                          blurRadius: 2,
+                          offset: Offset(0, 1),
+                        ),
+                      ],
                     ),
                   ),
                 ],
@@ -124,14 +205,13 @@ class _HomeRutasScreenState extends State<HomeRutasScreen> {
           ),
         ),
 
-        // ── Contenido scrolleable ────────────────────────────
         Expanded(
           child: SingleChildScrollView(
             padding: const EdgeInsets.all(20),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Barra de búsqueda
+                // ── Buscador ──────────────────────────────
                 TextField(
                   controller: _searchController,
                   onChanged: (_) => setState(() {}),
@@ -159,9 +239,69 @@ class _HomeRutasScreenState extends State<HomeRutasScreen> {
                         : null,
                   ),
                 ),
+                const SizedBox(height: 12),
+
+                // ── Filtros ───────────────────────────────
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _originController,
+                        onChanged: (_) => setState(() {}),
+                        style: const TextStyle(
+                          fontSize: 14,
+                          color: AppColors.textDark,
+                        ),
+                        decoration: const InputDecoration(
+                          hintText: 'Origen',
+                          prefixIcon: Icon(
+                            Icons.location_on,
+                            color: AppColors.textPlaceholder,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: TextField(
+                        controller: _destinationController,
+                        onChanged: (_) => setState(() {}),
+                        style: const TextStyle(
+                          fontSize: 14,
+                          color: AppColors.textDark,
+                        ),
+                        decoration: const InputDecoration(
+                          hintText: 'Destino',
+                          prefixIcon: Icon(
+                            Icons.flag,
+                            color: AppColors.textPlaceholder,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: TextField(
+                        controller: _timeController,
+                        onChanged: (_) => setState(() {}),
+                        style: const TextStyle(
+                          fontSize: 14,
+                          color: AppColors.textDark,
+                        ),
+                        decoration: const InputDecoration(
+                          hintText: 'Hora (ej. 10:00 AM)',
+                          prefixIcon: Icon(
+                            Icons.access_time,
+                            color: AppColors.textPlaceholder,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
                 const SizedBox(height: 16),
 
-                // Filtros
+                // ── Chips de turno ────────────────────────
                 SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
                   child: Row(
@@ -203,7 +343,57 @@ class _HomeRutasScreenState extends State<HomeRutasScreen> {
                 ),
                 const SizedBox(height: 20),
 
-                // Título + Ver todas
+                // ── Mis rutas ─────────────────────────────
+                StreamBuilder<List<RouteModel>>(
+                  stream: RouteService().getAvailableRoutes(),
+                  builder: (context, snapshot) {
+                    final allRoutes = snapshot.data ?? [];
+                    final myRoutes = allRoutes
+                        .where((r) => r.driverId == _currentUid)
+                        .toList();
+                    if (myRoutes.isEmpty) return const SizedBox.shrink();
+
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text(
+                              'Mis rutas',
+                              style: TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.textDark,
+                              ),
+                            ),
+                            TextButton(
+                              onPressed: () {},
+                              child: const Text(
+                                'Ver todas',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: AppColors.accentGreen,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        ListView.builder(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          itemCount: myRoutes.length,
+                          itemBuilder: (_, i) =>
+                              RouteCard(route: myRoutes[i], onTap: () {}),
+                        ),
+                        const SizedBox(height: 20),
+                      ],
+                    );
+                  },
+                ),
+
+                // ── Rutas disponibles ─────────────────────
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -229,12 +419,10 @@ class _HomeRutasScreenState extends State<HomeRutasScreen> {
                 ),
                 const SizedBox(height: 8),
 
-                // ── Lista desde Firestore en tiempo real ─────
                 StreamBuilder<List<RouteModel>>(
                   stream: RouteService().getAvailableRoutes(),
                   builder: (context, snapshot) {
-                    if (snapshot.connectionState ==
-                        ConnectionState.waiting) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
                       return const Center(
                         child: Padding(
                           padding: EdgeInsets.symmetric(vertical: 40),
@@ -251,8 +439,11 @@ class _HomeRutasScreenState extends State<HomeRutasScreen> {
                           padding: const EdgeInsets.symmetric(vertical: 40),
                           child: Column(
                             children: [
-                              const Icon(Icons.error_outline,
-                                  color: Colors.redAccent, size: 40),
+                              const Icon(
+                                Icons.error_outline,
+                                color: Colors.redAccent,
+                                size: 40,
+                              ),
                               const SizedBox(height: 8),
                               Text(
                                 'Error: ${snapshot.error}',
@@ -269,7 +460,19 @@ class _HomeRutasScreenState extends State<HomeRutasScreen> {
                     }
 
                     final allRoutes = snapshot.data ?? [];
-                    final filtered = _applyFilters(allRoutes);
+
+                    final otherRoutes = allRoutes.where((r) {
+                      if (r.driverId == _currentUid) return false;
+                      if (r.status != RouteStatus.activa &&
+                          r.status != RouteStatus.disponible &&
+                          r.status != RouteStatus.llena)
+                        return false;
+                      // Ocultar rutas donde el pasajero fue rechazado
+                      if (_rejectedRouteIds.contains(r.id)) return false;
+                      return true;
+                    }).toList();
+
+                    final filtered = _applyFilters(otherRoutes);
 
                     if (filtered.isEmpty) {
                       return const Center(
@@ -284,7 +487,7 @@ class _HomeRutasScreenState extends State<HomeRutasScreen> {
                               ),
                               SizedBox(height: 12),
                               Text(
-                                'No hay rutas disponibles',
+                                'No hay rutas disponibles para tu búsqueda',
                                 style: TextStyle(
                                   color: AppColors.textLight,
                                   fontSize: 14,
@@ -310,17 +513,16 @@ class _HomeRutasScreenState extends State<HomeRutasScreen> {
                       itemCount: filtered.length,
                       itemBuilder: (_, i) => RouteCard(
                         route: filtered[i],
-                        onTap: () {
-                          // TODO: navegar a detalle de ruta
-                        },
+                        onTap: () {},
+                        //  Recargar rutas rechazadas al volver
+                        onRefreshRejected: _loadRejectedRoutes,
                       ),
                     );
                   },
                 ),
-
                 const SizedBox(height: 20),
 
-                // Botón Publicar Ruta
+                // ── Botón publicar ruta ───────────────────
                 SizedBox(
                   width: double.infinity,
                   height: 48,
@@ -369,8 +571,18 @@ class _HomeRutasScreenState extends State<HomeRutasScreen> {
           index: _currentNavIndex,
           children: [
             _buildRutasContent(),
-            const Center(child: Text('Bazar - Próximamente')),
-            const Center(child: Text('Notificaciones - Próximamente')),
+            const BazarScreen(),
+            NotificationsScreen(
+              onRateTrip: (data) {
+                final route = _routeFromNotifData(data);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => CalificarScreen(route: route),
+                  ),
+                );
+              },
+            ),
             const ProfileScreen(showBottomNav: false),
           ],
         ),
