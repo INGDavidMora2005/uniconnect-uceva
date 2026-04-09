@@ -4,9 +4,8 @@ import '../theme/app_theme.dart';
 import '../models/route_model.dart';
 import '../services/route_service.dart';
 import '../services/cupo_service.dart';
-import '../services/rating_service.dart';
 import '../screens/solicitar_cupo_screen.dart';
-import '../screens/calificar_screen.dart';
+import '../screens/mapa_trayecto_screen.dart';
 
 class RouteCard extends StatefulWidget {
   final RouteModel route;
@@ -284,31 +283,31 @@ class _RouteCardState extends State<RouteCard> {
             const Divider(height: 1),
             const SizedBox(height: 10),
 
-            // ── CONDUCTOR: Finalizar ───────────────────────
+            // ── CONDUCTOR: Finalizar y Ver mapa ───────────────────────
             if (_canDriverFinalize)
-              SizedBox(
-                width: double.infinity,
-                height: 36,
-                child: _finalizing
-                    ? const Center(
-                        child: SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: AppColors.accentGreen,
+              Column(
+                children: [
+                  if (widget.route.status == RouteStatus.enCurso) ...[
+                    SizedBox(
+                      width: double.infinity,
+                      height: 36,
+                      child: OutlinedButton.icon(
+                        onPressed: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => MapaTrayectoScreen(
+                              route: widget.route,
+                              isDriver: true,
+                            ),
                           ),
                         ),
-                      )
-                    : OutlinedButton.icon(
-                        onPressed: _handleFinalize,
                         icon: const Icon(
-                          Icons.flag_rounded,
+                          Icons.my_location,
                           size: 16,
                           color: AppColors.accentGreen,
                         ),
                         label: const Text(
-                          'Finalizar ruta',
+                          'Ver mi ruta en mapa',
                           style: TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.w600,
@@ -325,6 +324,50 @@ class _RouteCardState extends State<RouteCard> {
                           ),
                         ),
                       ),
+                    ),
+                    const SizedBox(height: 8),
+                  ],
+                  SizedBox(
+                    width: double.infinity,
+                    height: 36,
+                    child: _finalizing
+                        ? const Center(
+                            child: SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: AppColors.accentGreen,
+                              ),
+                            ),
+                          )
+                        : OutlinedButton.icon(
+                            onPressed: _handleFinalize,
+                            icon: const Icon(
+                              Icons.flag_rounded,
+                              size: 16,
+                              color: AppColors.accentGreen,
+                            ),
+                            label: const Text(
+                              'Finalizar ruta',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.accentGreen,
+                              ),
+                            ),
+                            style: OutlinedButton.styleFrom(
+                              side: const BorderSide(
+                                color: AppColors.accentGreen,
+                                width: 1.5,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                            ),
+                          ),
+                  ),
+                ],
               )
             // ── PASAJERO: según estado de solicitud ────────
             else if (!_isDriver && !_isFinalized)
@@ -337,36 +380,80 @@ class _RouteCardState extends State<RouteCard> {
 
                   // Cupo confirmado
                   if (status == 'accepted') {
-                    return Container(
-                      width: double.infinity,
-                      height: 36,
-                      decoration: BoxDecoration(
-                        color: AppColors.accentGreen.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(
-                          color: AppColors.accentGreen,
-                          width: 1.5,
-                        ),
-                      ),
-                      child: const Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.check_circle_rounded,
-                            size: 16,
-                            color: AppColors.accentGreen,
-                          ),
-                          SizedBox(width: 6),
-                          Text(
-                            'Cupo confirmado',
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
+                    return Column(
+                      children: [
+                        Container(
+                          width: double.infinity,
+                          height: 36,
+                          decoration: BoxDecoration(
+                            color: AppColors.accentGreen.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
                               color: AppColors.accentGreen,
+                              width: 1.5,
+                            ),
+                          ),
+                          child: const Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.check_circle_rounded,
+                                size: 16,
+                                color: AppColors.accentGreen,
+                              ),
+                              SizedBox(width: 6),
+                              Text(
+                                'Cupo confirmado',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.accentGreen,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        if (widget.route.status == RouteStatus.enCurso) ...[
+                          const SizedBox(height: 8),
+                          SizedBox(
+                            width: double.infinity,
+                            height: 36,
+                            child: OutlinedButton.icon(
+                              onPressed: () => Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => MapaTrayectoScreen(
+                                    route: widget.route,
+                                    isDriver: false,
+                                  ),
+                                ),
+                              ),
+                              icon: const Icon(
+                                Icons.map_outlined,
+                                size: 16,
+                                color: AppColors.accentGreen,
+                              ),
+                              label: const Text(
+                                'Ver en mapa en vivo',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.accentGreen,
+                                ),
+                              ),
+                              style: OutlinedButton.styleFrom(
+                                side: const BorderSide(
+                                  color: AppColors.accentGreen,
+                                  width: 1.5,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                              ),
                             ),
                           ),
                         ],
-                      ),
+                      ],
                     );
                   }
 
