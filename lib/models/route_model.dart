@@ -4,11 +4,11 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 // ── Constantes de estado ───────────────────────────────────────
 // Úsalas siempre en lugar de strings literales para evitar typos.
 class RouteStatus {
-  static const String activa      = 'Activa';
-  static const String disponible  = 'Disponible';
-  static const String enCurso     = 'En curso';
-  static const String llena       = 'Llena';
-  static const String finalizada  = 'Finalizada';
+  static const String activa = 'Activa';
+  static const String disponible = 'Disponible';
+  static const String enCurso = 'En curso';
+  static const String llena = 'Llena';
+  static const String finalizada = 'Finalizada';
 }
 
 class RouteModel {
@@ -27,6 +27,10 @@ class RouteModel {
   final String? note;
   final String? driverId;
   final String status;
+  final double? originLat;
+  final double? originLng;
+  final double? destLat;
+  final double? destLng;
 
   const RouteModel({
     required this.id,
@@ -44,6 +48,10 @@ class RouteModel {
     this.note,
     this.driverId,
     this.status = RouteStatus.activa,
+    this.originLat,
+    this.originLng,
+    this.destLat,
+    this.destLng,
   });
 
   // ── Helpers de estado ────────────────────────────────────────
@@ -73,15 +81,15 @@ class RouteModel {
     if (isFull && status == RouteStatus.activa) return const Color(0xFFE53E3E);
     switch (status) {
       case RouteStatus.enCurso:
-        return const Color(0xFF3182CE);   // azul
+        return const Color(0xFF3182CE); // azul
       case RouteStatus.finalizada:
-        return const Color(0xFF718096);   // gris
+        return const Color(0xFF718096); // gris
       case RouteStatus.llena:
-        return const Color(0xFFE53E3E);   // rojo
+        return const Color(0xFFE53E3E); // rojo
       case RouteStatus.disponible:
       case RouteStatus.activa:
       default:
-        return const Color(0xFF38A169);   // verde
+        return const Color(0xFF38A169); // verde
     }
   }
 
@@ -90,29 +98,30 @@ class RouteModel {
 
   // ── Precio formateado ────────────────────────────────────────
   String get priceFormatted =>
-      '\$${price.toStringAsFixed(0).replaceAllMapped(
-        RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
-        (m) => '${m[1]}.',
-      )}';
+      '\$${price.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]}.')}';
 
   // ── Serialización ────────────────────────────────────────────
   Map<String, dynamic> toMap() => {
-    'origin':         origin,
-    'destination':    destination,
-    'date':           date,
-    'time':           time,
-    'price':          price,
+    'origin': origin,
+    'destination': destination,
+    'date': date,
+    'time': time,
+    'price': price,
     'availableSeats': availableSeats,
-    'totalSeats':     totalSeats,
-    'driverName':     driverName,
+    'totalSeats': totalSeats,
+    'driverName': driverName,
     'driverInitials': driverInitials,
-    'driverRating':   driverRating,
-    'meetingPoint':   meetingPoint,
-    'note':           note ?? '',
-    'driverId':       driverId ?? '',
+    'driverRating': driverRating,
+    'meetingPoint': meetingPoint,
+    'note': note ?? '',
+    'driverId': driverId ?? '',
     // Si todos los cupos están ocupados, guardar como Llena automáticamente
-    'status':         isFull ? RouteStatus.llena : status,
-    'createdAt':      FieldValue.serverTimestamp(),
+    'status': isFull ? RouteStatus.llena : status,
+    'originLat': originLat,
+    'originLng': originLng,
+    'destLat': destLat,
+    'destLng': destLng,
+    'createdAt': FieldValue.serverTimestamp(),
   };
 
   factory RouteModel.fromFirestore(DocumentSnapshot doc) {
@@ -126,21 +135,25 @@ class RouteModel {
       statusFromDb = RouteStatus.llena;
     }
     return RouteModel(
-      id:             doc.id,
-      origin:         data['origin'] ?? '',
-      destination:    data['destination'] ?? '',
-      date:           data['date'] ?? '',
-      time:           data['time'] ?? '',
-      price:          (data['price'] ?? 0).toDouble(),
+      id: doc.id,
+      origin: data['origin'] ?? '',
+      destination: data['destination'] ?? '',
+      date: data['date'] ?? '',
+      time: data['time'] ?? '',
+      price: (data['price'] ?? 0).toDouble(),
       availableSeats: seats as int,
-      totalSeats:     data['totalSeats'] ?? 4,
-      driverName:     data['driverName'] ?? '',
+      totalSeats: data['totalSeats'] ?? 4,
+      driverName: data['driverName'] ?? '',
       driverInitials: data['driverInitials'] ?? '',
-      driverRating:   (data['driverRating'] ?? 0.0).toDouble(),
-      meetingPoint:   data['meetingPoint'] ?? '',
-      note:           data['note'],
-      driverId:       data['driverId'],
-      status:         statusFromDb,
+      driverRating: (data['driverRating'] ?? 0.0).toDouble(),
+      meetingPoint: data['meetingPoint'] ?? '',
+      note: data['note'],
+      driverId: data['driverId'],
+      status: statusFromDb,
+      originLat: data['originLat']?.toDouble(),
+      originLng: data['originLng']?.toDouble(),
+      destLat: data['destLat']?.toDouble(),
+      destLng: data['destLng']?.toDouble(),
     );
   }
 
@@ -161,23 +174,31 @@ class RouteModel {
     String? note,
     String? driverId,
     String? status,
+    double? originLat,
+    double? originLng,
+    double? destLat,
+    double? destLng,
   }) {
     return RouteModel(
-      id:             id ?? this.id,
-      origin:         origin ?? this.origin,
-      destination:    destination ?? this.destination,
-      date:           date ?? this.date,
-      time:           time ?? this.time,
-      price:          price ?? this.price,
+      id: id ?? this.id,
+      origin: origin ?? this.origin,
+      destination: destination ?? this.destination,
+      date: date ?? this.date,
+      time: time ?? this.time,
+      price: price ?? this.price,
       availableSeats: availableSeats ?? this.availableSeats,
-      totalSeats:     totalSeats ?? this.totalSeats,
-      driverName:     driverName ?? this.driverName,
+      totalSeats: totalSeats ?? this.totalSeats,
+      driverName: driverName ?? this.driverName,
       driverInitials: driverInitials ?? this.driverInitials,
-      driverRating:   driverRating ?? this.driverRating,
-      meetingPoint:   meetingPoint ?? this.meetingPoint,
-      note:           note ?? this.note,
-      driverId:       driverId ?? this.driverId,
-      status:         status ?? this.status,
+      driverRating: driverRating ?? this.driverRating,
+      meetingPoint: meetingPoint ?? this.meetingPoint,
+      note: note ?? this.note,
+      driverId: driverId ?? this.driverId,
+      status: status ?? this.status,
+      originLat: originLat ?? this.originLat,
+      originLng: originLng ?? this.originLng,
+      destLat: destLat ?? this.destLat,
+      destLng: destLng ?? this.destLng,
     );
   }
 }
