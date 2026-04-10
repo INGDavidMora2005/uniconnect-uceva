@@ -6,6 +6,7 @@ import '../services/route_service.dart';
 import '../services/cupo_service.dart';
 import '../screens/solicitar_cupo_screen.dart';
 import '../screens/mapa_trayecto_screen.dart';
+import '../screens/route_details_screen.dart';
 
 class RouteCard extends StatefulWidget {
   final RouteModel route;
@@ -25,6 +26,7 @@ class RouteCard extends StatefulWidget {
 
 class _RouteCardState extends State<RouteCard> {
   bool _finalizing = false;
+  bool _starting = false;
   Future<String>? _requestStatusFuture;
 
   @override
@@ -47,7 +49,7 @@ class _RouteCardState extends State<RouteCard> {
       FirebaseAuth.instance.currentUser?.uid == widget.route.driverId;
   bool get _isFinalized => widget.route.status == RouteStatus.finalizada;
   bool get _isFull => widget.route.isFull;
-  bool get _canDriverFinalize => _isDriver && !_isFinalized;
+
 
   Future<void> _handleFinalize() async {
     final confirm = await showDialog<bool>(
@@ -107,6 +109,226 @@ class _RouteCardState extends State<RouteCard> {
     );
   }
 
+  Future<void> _handleStartRoute() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text(
+          'Iniciar ruta',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+        content: const Text(
+          '¿Confirmas que la ruta ya comenzó? Los pasajeros podrán ver tu ubicación en tiempo real.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text(
+              'Cancelar',
+              style: TextStyle(color: AppColors.textLight),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.accentGreen,
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+            child: const Text(
+              'Iniciar',
+              style: TextStyle(color: Colors.white),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+    setState(() => _starting = true);
+    final result = await RouteService().startRoute(widget.route.id);
+    if (!mounted) return;
+    setState(() => _starting = false);
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          result == 'ok'
+              ? '✅ Ruta iniciada. Los pasajeros pueden ver el mapa en vivo.'
+              : result,
+        ),
+        backgroundColor: result == 'ok'
+            ? const Color(0xFF1A5C40)
+            : Colors.redAccent,
+      ),
+    );
+  }
+
+  Widget _buildDriverActions() {
+    if (!_isDriver || _isFinalized) return const SizedBox.shrink();
+
+    if (widget.route.status == RouteStatus.enCurso) {
+      return Column(
+        children: [
+          SizedBox(
+            width: double.infinity,
+            height: 36,
+            child: OutlinedButton.icon(
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => MapaTrayectoScreen(
+                    route: widget.route,
+                    isDriver: true,
+                  ),
+                ),
+              ),
+              icon: const Icon(
+                Icons.my_location,
+                size: 16,
+                color: AppColors.accentGreen,
+              ),
+              label: const Text(
+                'Ver mi ruta en mapa',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.accentGreen,
+                ),
+              ),
+              style: OutlinedButton.styleFrom(
+                side: const BorderSide(
+                  color: AppColors.accentGreen,
+                  width: 1.5,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            width: double.infinity,
+            height: 36,
+            child: _finalizing
+                ? const Center(
+                    child: SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: AppColors.accentGreen,
+                      ),
+                    ),
+                  )
+                : OutlinedButton.icon(
+                    onPressed: _handleFinalize,
+                    icon: const Icon(
+                      Icons.flag_rounded,
+                      size: 16,
+                      color: AppColors.accentGreen,
+                    ),
+                    label: const Text(
+                      'Finalizar ruta',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.accentGreen,
+                      ),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      side: const BorderSide(
+                        color: AppColors.accentGreen,
+                        width: 1.5,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                  ),
+          ),
+        ],
+      );
+    } else {
+      return SizedBox(
+        width: double.infinity,
+        height: 36,
+        child: _starting
+            ? const Center(
+                child: SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: AppColors.accentGreen,
+                  ),
+                ),
+              )
+            : OutlinedButton.icon(
+                onPressed: _handleStartRoute,
+                icon: const Icon(
+                  Icons.play_arrow,
+                  size: 16,
+                  color: AppColors.accentGreen,
+                ),
+                label: const Text(
+                  'Iniciar ruta',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.accentGreen,
+                  ),
+                ),
+                style: OutlinedButton.styleFrom(
+                  side: const BorderSide(
+                    color: AppColors.accentGreen,
+                    width: 1.5,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+              ),
+      );
+    }
+  }
+
+  void _handleCardTap() {
+    // Para pasajeros con cupo confirmado, navegar a detalles
+    if (!_isDriver && _requestStatusFuture != null) {
+      // Verificar si el status es 'accepted' (esto es aproximado, ya que es async)
+      // Idealmente, usar un state para el status
+      // Por simplicidad, navegar siempre para pasajeros, y en detalles mostrar mapa si 'En curso'
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => RouteDetailsScreen(
+            route: widget.route,
+            isDriver: false,
+          ),
+        ),
+      );
+    } else if (_isDriver) {
+      // Para conductores, navegar a detalles
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => RouteDetailsScreen(
+            route: widget.route,
+            isDriver: true,
+          ),
+        ),
+      );
+    } else {
+      // Para otros casos, llamar el onTap original
+      widget.onTap();
+    }
+  }
+
   void _handleRequestSeat() {
     Navigator.push(
       context,
@@ -163,7 +385,9 @@ class _RouteCardState extends State<RouteCard> {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return InkWell(
+      onTap: _handleCardTap,
+      child: Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
         color: AppColors.backgroundWhite,
@@ -283,94 +507,9 @@ class _RouteCardState extends State<RouteCard> {
             const Divider(height: 1),
             const SizedBox(height: 10),
 
-            // ── CONDUCTOR: Finalizar y Ver mapa ───────────────────────
-            if (_canDriverFinalize)
-              Column(
-                children: [
-                  if (widget.route.status == RouteStatus.enCurso) ...[
-                    SizedBox(
-                      width: double.infinity,
-                      height: 36,
-                      child: OutlinedButton.icon(
-                        onPressed: () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => MapaTrayectoScreen(
-                              route: widget.route,
-                              isDriver: true,
-                            ),
-                          ),
-                        ),
-                        icon: const Icon(
-                          Icons.my_location,
-                          size: 16,
-                          color: AppColors.accentGreen,
-                        ),
-                        label: const Text(
-                          'Ver mi ruta en mapa',
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.accentGreen,
-                          ),
-                        ),
-                        style: OutlinedButton.styleFrom(
-                          side: const BorderSide(
-                            color: AppColors.accentGreen,
-                            width: 1.5,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                  ],
-                  SizedBox(
-                    width: double.infinity,
-                    height: 36,
-                    child: _finalizing
-                        ? const Center(
-                            child: SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: AppColors.accentGreen,
-                              ),
-                            ),
-                          )
-                        : OutlinedButton.icon(
-                            onPressed: _handleFinalize,
-                            icon: const Icon(
-                              Icons.flag_rounded,
-                              size: 16,
-                              color: AppColors.accentGreen,
-                            ),
-                            label: const Text(
-                              'Finalizar ruta',
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                                color: AppColors.accentGreen,
-                              ),
-                            ),
-                            style: OutlinedButton.styleFrom(
-                              side: const BorderSide(
-                                color: AppColors.accentGreen,
-                                width: 1.5,
-                              ),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                            ),
-                          ),
-                  ),
-                ],
-              )
+            _buildDriverActions(),
             // ── PASAJERO: según estado de solicitud ────────
-            else if (!_isDriver && !_isFinalized)
+            if (!_isDriver && !_isFinalized)
               FutureBuilder<String>(
                 future: _requestStatusFuture,
                 builder: (context, snapshot) {
@@ -551,6 +690,7 @@ class _RouteCardState extends State<RouteCard> {
           ],
         ),
       ),
+    ),
     );
   }
 }

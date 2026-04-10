@@ -10,11 +10,13 @@ import '../theme/app_theme.dart';
 class MapaTrayectoScreen extends StatefulWidget {
   final RouteModel route;
   final bool isDriver;
+  final bool isEmbedded;
 
   const MapaTrayectoScreen({
     super.key,
     required this.route,
     required this.isDriver,
+    this.isEmbedded = false,
   });
 
   @override
@@ -85,51 +87,52 @@ class _MapaTrayectoScreenState extends State<MapaTrayectoScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        backgroundColor: AppColors.primaryGreen,
-        title: Text(
-          '${widget.route.origin} → ${widget.route.destination}',
-          style: const TextStyle(color: Colors.white, fontSize: 16),
-        ),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
-        ),
-      ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : Stack(
-              children: [
-                FlutterMap(
-                  mapController: _mapController,
-                  options: MapOptions(
-                    initialCenter:
-                        _driverPosition ??
-                        _currentPosition ??
-                        const LatLng(0, 0),
-                    initialZoom: 15,
-                    minZoom: 10,
-                    maxZoom: 18,
-                  ),
-                  children: [
-                    TileLayer(
-                      urlTemplate:
-                          'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                      userAgentPackageName: 'com.example.uniconnect',
-                    ),
-                    MarkerLayer(markers: _buildMarkers()),
-                  ],
+    final body = _isLoading
+        ? const Center(child: CircularProgressIndicator())
+        : Stack(
+            children: [
+              FlutterMap(
+                mapController: _mapController,
+                options: MapOptions(
+                  initialCenter:
+                      _driverPosition ?? _currentPosition ?? const LatLng(0, 0),
+                  initialZoom: 15,
+                  minZoom: 10,
+                  maxZoom: 18,
                 ),
-                _buildDriverLocationStream(),
-              ],
+                children: [
+                  TileLayer(
+                    urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                    userAgentPackageName: 'com.example.uniconnect',
+                  ),
+                  MarkerLayer(markers: _buildMarkers()),
+                ],
+              ),
+              _buildDriverLocationStream(),
+            ],
+          );
+
+    return widget.isEmbedded
+        ? body
+        : Scaffold(
+            appBar: AppBar(
+              backgroundColor: AppColors.primaryGreen,
+              title: Text(
+                '${widget.route.origin} → ${widget.route.destination}',
+                style: const TextStyle(color: Colors.white, fontSize: 16),
+              ),
+              leading: IconButton(
+                icon: const Icon(Icons.arrow_back, color: Colors.white),
+                onPressed: () => Navigator.pop(context),
+              ),
             ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _centerOnDriver,
-        backgroundColor: AppColors.primaryGreen,
-        child: const Icon(Icons.my_location, color: Colors.white),
-      ),
-    );
+            body: body,
+            floatingActionButton: FloatingActionButton(
+              onPressed: _centerOnDriver,
+              backgroundColor: AppColors.primaryGreen,
+              child: const Icon(Icons.my_location, color: Colors.white),
+            ),
+          );
   }
 
   List<Marker> _buildMarkers() {
