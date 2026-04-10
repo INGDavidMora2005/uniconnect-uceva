@@ -522,6 +522,56 @@ class _HomeRutasScreenState extends State<HomeRutasScreen> {
                 ),
                 const SizedBox(height: 20),
 
+                // ── Mis viajes ─────────────────────────────
+                StreamBuilder<List<RouteModel>>(
+                  stream: _currentUid != null ? RouteService().getMyBookedRoutes(_currentUid!) : Stream.value([]),
+                  builder: (context, snapshot) {
+                    final bookedRoutes = snapshot.data ?? [];
+                    if (bookedRoutes.isEmpty) return const SizedBox.shrink();
+
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text(
+                              'Mis viajes',
+                              style: TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.textDark,
+                              ),
+                            ),
+                            TextButton(
+                              onPressed: () {},
+                              child: const Text(
+                                'Ver todas',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: AppColors.accentGreen,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        ListView.builder(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          itemCount: bookedRoutes.length,
+                          itemBuilder: (_, i) => RouteCard(
+                            route: bookedRoutes[i],
+                            onTap: () {},
+                            onRefreshRejected: _loadRejectedRoutes,
+                          ),
+                        ),
+                      ],
+                    );
+                  },
+                ),
+                const SizedBox(height: 20),
+
                 // ── Botón publicar ruta ───────────────────
                 SizedBox(
                   width: double.infinity,
