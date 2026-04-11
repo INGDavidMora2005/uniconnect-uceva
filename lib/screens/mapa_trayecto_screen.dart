@@ -50,6 +50,7 @@ class _MapaTrayectoScreenState extends State<MapaTrayectoScreen> {
           _mapController.move(_currentPosition!, 15);
         } else {
           _showError('No se pudo obtener la ubicación actual');
+          return;
         }
       } catch (e) {
         _showError(e.toString());
@@ -59,6 +60,9 @@ class _MapaTrayectoScreenState extends State<MapaTrayectoScreen> {
       final position = await LocationService().getCurrentPosition();
       if (position != null) {
         _currentPosition = LatLng(position.latitude, position.longitude);
+      } else {
+        _showError('No se pudo obtener la ubicación actual');
+        return;
       }
       // Centrar en origen si no hay driverLocation
       final center =
@@ -71,9 +75,11 @@ class _MapaTrayectoScreenState extends State<MapaTrayectoScreen> {
   }
 
   void _showError(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), backgroundColor: Colors.red),
-    );
+    if (!widget.isEmbedded) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message), backgroundColor: Colors.red),
+      );
+    }
     setState(() => _isLoading = false);
   }
 
