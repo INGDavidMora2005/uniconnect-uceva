@@ -47,12 +47,20 @@ class _MapaTrayectoScreenState extends State<MapaTrayectoScreen> {
             _driverPosition = _currentPosition;
             _isLoading = false;
           });
-          _mapController.move(_currentPosition!, 15);
+          WidgetsBinding.instance.addPostFrameCallback((_) => _mapController.move(_currentPosition!, 15));
         } else {
+          final center = widget.route.originLat != null && widget.route.originLng != null
+              ? LatLng(widget.route.originLat!, widget.route.originLng!)
+              : const LatLng(0, 0);
+          WidgetsBinding.instance.addPostFrameCallback((_) => _mapController.move(center, 15));
           _showError('No se pudo obtener la ubicación actual');
           return;
         }
       } catch (e) {
+        final center = widget.route.originLat != null && widget.route.originLng != null
+            ? LatLng(widget.route.originLat!, widget.route.originLng!)
+            : const LatLng(0, 0);
+        WidgetsBinding.instance.addPostFrameCallback((_) => _mapController.move(center, 15));
         _showError(e.toString());
       }
     } else {
@@ -60,16 +68,17 @@ class _MapaTrayectoScreenState extends State<MapaTrayectoScreen> {
       final position = await LocationService().getCurrentPosition();
       if (position != null) {
         _currentPosition = LatLng(position.latitude, position.longitude);
-      } else {
-        _showError('No se pudo obtener la ubicación actual');
-        return;
       }
       // Centrar en origen si no hay driverLocation
       final center =
           widget.route.originLat != null && widget.route.originLng != null
           ? LatLng(widget.route.originLat!, widget.route.originLng!)
           : _currentPosition ?? const LatLng(0, 0);
-      _mapController.move(center, 15);
+      WidgetsBinding.instance.addPostFrameCallback((_) => _mapController.move(center, 15));
+      if (position == null) {
+        _showError('No se pudo obtener la ubicación actual');
+        return;
+      }
       setState(() => _isLoading = false);
     }
   }
