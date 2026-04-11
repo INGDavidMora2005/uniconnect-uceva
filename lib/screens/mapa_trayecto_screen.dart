@@ -72,9 +72,8 @@ class _MapaTrayectoScreenState extends State<MapaTrayectoScreen> {
 
   Future<void> _initializeMap() async {
     if (widget.isDriver) {
-      // Conductor: iniciar sharing y obtener posición actual
+      // Conductor: obtener posición actual
       try {
-        await LocationService().startSharingLocation(widget.route.id);
         final position = await LocationService().getCurrentPosition();
         if (position != null) {
           setState(() {
@@ -277,7 +276,7 @@ class _MapaTrayectoScreenState extends State<MapaTrayectoScreen> {
       _mapController.move(_driverPosition!, 15);
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Ubicación del conductor no disponible')),
+        const SnackBar(content: Text('El conductor aún no ha iniciado la ruta')),
       );
     }
   }

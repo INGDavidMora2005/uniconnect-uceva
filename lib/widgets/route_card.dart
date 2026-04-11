@@ -4,6 +4,7 @@ import '../theme/app_theme.dart';
 import '../models/route_model.dart';
 import '../services/route_service.dart';
 import '../services/cupo_service.dart';
+import '../services/location_service.dart';
 import '../screens/solicitar_cupo_screen.dart';
 import '../screens/mapa_trayecto_screen.dart';
 import '../screens/route_details_screen.dart';
@@ -91,6 +92,7 @@ class _RouteCardState extends State<RouteCard> {
 
     if (confirm != true) return;
     setState(() => _finalizing = true);
+    await LocationService().stopSharingLocation(widget.route.id);
     final result = await RouteService().finalizeRoute(widget.route.id);
     if (!mounted) return;
     setState(() => _finalizing = false);
@@ -150,6 +152,9 @@ class _RouteCardState extends State<RouteCard> {
     if (confirm != true) return;
     setState(() => _starting = true);
     final result = await RouteService().startRoute(widget.route.id);
+    if (result == 'ok') {
+      await LocationService().startSharingLocation(widget.route.id);
+    }
     if (!mounted) return;
     setState(() => _starting = false);
 
