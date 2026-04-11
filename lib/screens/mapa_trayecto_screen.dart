@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
@@ -28,11 +29,45 @@ class _MapaTrayectoScreenState extends State<MapaTrayectoScreen> {
   LatLng? _currentPosition;
   LatLng? _driverPosition;
   bool _isLoading = true;
+  StreamSubscription<Position>? _positionSubscription;
+  StreamSubscription<DocumentSnapshot>? _driverLocationSubscription;
 
   @override
   void initState() {
     super.initState();
     _initializeMap();
+    _setupSubscriptions();
+  }
+
+  void _setupSubscriptions() {
+    if (widget.isDriver) {
+      _positionSubscription = Geolocator.getPositionStream(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+          distanceFilter: 10,
+        ),
+      ).listen((Position position) {
+        setState(() {
+          _driverPosition = LatLng(position.latitude, position.longitude);
+        });
+      });
+    } else {
+      _driverLocationSubscription = LocationService().getDriverLocationStream(widget.route.id).listen((DocumentSnapshot doc) {
+        if (doc.exists) {
+          final data = doc.data() as Map<String, dynamic>?;
+          final driverLocation = data?['driverLocation'];
+          if (driverLocation != null) {
+            final lat = driverLocation['lat'] as double?;
+            final lng = driverLocation['lng'] as double?;
+            if (lat != null && lng != null) {
+              setState(() {
+                _driverPosition = LatLng(lat, lng);
+              });
+            }
+          }
+        }
+      });
+    }
   }
 
   Future<void> _initializeMap() async {
@@ -97,6 +132,8 @@ class _MapaTrayectoScreenState extends State<MapaTrayectoScreen> {
     if (widget.isDriver) {
       LocationService().stopSharingLocation(widget.route.id);
     }
+    _positionSubscription?.cancel();
+    _driverLocationSubscription?.cancel();
     super.dispose();
   }
 
@@ -123,7 +160,6 @@ class _MapaTrayectoScreenState extends State<MapaTrayectoScreen> {
                   MarkerLayer(markers: _buildMarkers()),
                 ],
               ),
-              _buildDriverLocationStream(),
             ],
           );
 
@@ -246,45 +282,5 @@ class _MapaTrayectoScreenState extends State<MapaTrayectoScreen> {
     }
   }
 
-  Widget _buildDriverLocationStream() {
-    if (widget.isDriver) {
-      // Conductor: escuchar su propia ubicación
-      return StreamBuilder<Position>(
-        stream: Geolocator.getPositionStream(
-          locationSettings: const LocationSettings(
-            accuracy: LocationAccuracy.high,
-            distanceFilter: 10,
-          ),
-        ),
-        builder: (context, snapshot) {
-          if (snapshot.hasData) {
-            final position = snapshot.data!;
-            _driverPosition = LatLng(position.latitude, position.longitude);
-            setState(() {});
-          }
-          return const SizedBox.shrink();
-        },
-      );
-    } else {
-      // Pasajero: escuchar ubicación del conductor
-      return StreamBuilder<DocumentSnapshot>(
-        stream: LocationService().getDriverLocationStream(widget.route.id),
-        builder: (context, snapshot) {
-          if (snapshot.hasData && snapshot.data!.exists) {
-            final data = snapshot.data!.data() as Map<String, dynamic>?;
-            final driverLocation = data?['driverLocation'];
-            if (driverLocation != null) {
-              final lat = driverLocation['lat'] as double?;
-              final lng = driverLocation['lng'] as double?;
-              if (lat != null && lng != null) {
-                _driverPosition = LatLng(lat, lng);
-                setState(() {});
-              }
-            }
-          }
-          return const SizedBox.shrink();
-        },
-      );
-    }
-  }
+
 }
