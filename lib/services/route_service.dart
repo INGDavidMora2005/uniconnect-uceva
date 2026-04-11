@@ -52,6 +52,24 @@ class RouteService {
         });
   }
 
+  Stream<List<RouteModel>> getMyBookedRoutes(String passengerId) {
+    return _db
+        .collection('cupo_requests')
+        .where('passengerId', isEqualTo: passengerId)
+        .where('status', isEqualTo: 'accepted')
+        .snapshots()
+        .asyncMap((cupoSnap) async {
+          final routeIds = cupoSnap.docs.map((doc) => doc.data()['routeId'] as String).toSet();
+          if (routeIds.isEmpty) return [];
+
+          final routesSnap = await _db.collection('routes')
+              .where(FieldPath.documentId, whereIn: routeIds.toList())
+              .get();
+
+          return routesSnap.docs.map((doc) => RouteModel.fromFirestore(doc)).toList();
+        });
+  }
+
   Future<String> updateRouteStatus(String routeId, String newStatus) async {
     try {
       await _db.collection('routes').doc(routeId).update({'status': newStatus});

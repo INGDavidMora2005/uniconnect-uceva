@@ -24,6 +24,12 @@ dependencies:
   flutter_local_notifications: ^18.0.1
   dropdown_button2: ^3.0.0
 
+  # Mapas y ubicación ← NUEVO
+  flutter_map: ^7.0.2
+  latlong2: ^0.9.1
+  geolocator: ^13.0.2
+  permission_handler: ^11.3.1
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
