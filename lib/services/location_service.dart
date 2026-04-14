@@ -6,11 +6,12 @@ import 'package:firebase_auth/firebase_auth.dart';
 
 /// Servicio centralizado de ubicación.
 ///
-/// Correcciones aplicadas:
-/// ─ Fix #16: stopSharingLocation ya no crashea si la ruta fue eliminada.
-/// ─ Fix #19: Se expone [driverPositionStream] (broadcast) para que
-///   MapaTrayectoScreen escuche las posiciones del conductor sin abrir
-///   un segundo stream de GPS independiente.
+/// Responsabilidades:
+/// ─ Conductor: un único stream de GPS (broadcast) que alimenta tanto
+///   la UI del mapa como Firestore. Sin streams duplicados.
+/// ─ Pasajero: stream propio de GPS que sube su posición a Firestore
+///   mientras tiene el mapa abierto.
+/// ─ Ambos: stream de Firestore para escuchar el documento de la ruta.
 class LocationService {
   static final LocationService _instance = LocationService._internal();
   factory LocationService() => _instance;
@@ -18,21 +19,20 @@ class LocationService {
 
   final FirebaseFirestore _db = FirebaseFirestore.instance;
 
-  /// Stream real del GPS (privado). Solo se abre UNA vez.
-  StreamSubscription<Position>? _positionStreamSubscription;
-
-  /// StreamController broadcast: cualquier widget puede escuchar
-  /// la posición del conductor sin crear su propio stream de GPS.
-  final StreamController<Position> _positionController =
+  // ── Stream GPS del conductor ─────────────────────────────────────────
+  // Un único stream real; se expone como broadcast para que
+  // MapaTrayectoScreen lo escuche sin abrir un segundo GPS.
+  StreamSubscription<Position>? _driverGpsSub;
+  final StreamController<Position> _driverPositionCtrl =
       StreamController<Position>.broadcast();
 
-  /// Stream público de posición del conductor.
-  /// Úsalo en MapaTrayectoScreen (modo conductor) en lugar de
-  /// llamar a Geolocator.getPositionStream() directamente.
-  Stream<Position> get driverPositionStream => _positionController.stream;
+  Stream<Position> get driverPositionStream => _driverPositionCtrl.stream;
 
-  // ── Permisos ───────────────────────────────────────────────────────
+  // ── Streams GPS de pasajeros ─────────────────────────────────────────
+  // Clave: passengerId. Cada pasajero tiene su propio stream.
+  final Map<String, StreamSubscription<Position>> _passengerGpsSubs = {};
 
+  // ── Permisos ─────────────────────────────────────────────────────────
   Future<void> _requestPermissions() async {
     final status = await Permission.location.request();
     if (status.isDenied || status.isPermanentlyDenied) {
@@ -40,40 +40,40 @@ class LocationService {
     }
   }
 
-  // ── Compartir ubicación (conductor) ────────────────────────────────
+  // ════════════════════════════════════════════════════════════════════
+  // CONDUCTOR
+  // ════════════════════════════════════════════════════════════════════
 
+  /// Inicia el stream de GPS del conductor y sube posición a Firestore.
+  /// También emite posiciones al broadcast [driverPositionStream] para
+  /// que el mapa local no abra un segundo GPS.
   Future<void> startSharingLocation(String routeId) async {
     await _requestPermissions();
 
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) throw Exception('Usuario no autenticado');
 
-    // Verificar que quien llama sea el conductor de la ruta
     final routeDoc = await _db.collection('routes').doc(routeId).get();
     final routeData = routeDoc.data();
     if (routeData == null || routeData['driverId'] != user.uid) {
       throw Exception('Solo el conductor puede compartir ubicación');
     }
 
-    // Cancelar stream anterior si existía
-    await _positionStreamSubscription?.cancel();
+    await _driverGpsSub?.cancel();
 
-    const locationSettings = LocationSettings(
+    const settings = LocationSettings(
       accuracy: LocationAccuracy.high,
-      distanceFilter: 10, // Solo actualizar si se mueve > 10 metros
+      distanceFilter: 10,
     );
 
-    _positionStreamSubscription =
-        Geolocator.getPositionStream(
-          locationSettings: locationSettings,
-        ).listen((Position position) {
-          // 1. Emitir al broadcast para que el mapa local del conductor lo reciba
-          //    sin necesidad de un segundo stream de GPS.
-          if (!_positionController.isClosed) {
-            _positionController.add(position);
+    _driverGpsSub = Geolocator.getPositionStream(locationSettings: settings)
+        .listen((Position position) {
+          // 1. Emitir al broadcast (mapa local del conductor)
+          if (!_driverPositionCtrl.isClosed) {
+            _driverPositionCtrl.add(position);
           }
 
-          // 2. Subir a Firestore con timestamp para detectar desconexiones.
+          // 2. Subir a Firestore con timestamp para detección de staleness
           _db
               .collection('routes')
               .doc(routeId)
@@ -85,45 +85,113 @@ class LocationService {
                 },
               })
               .catchError((_) {
-                // Si la ruta fue eliminada mientras el conductor compartía,
-                // ignorar el error silenciosamente.
+                // Ignorar si el documento fue eliminado mientras tanto
               });
         });
   }
 
-  // ── Detener ubicación (conductor) ──────────────────────────────────
-
-  /// Fix #16: Ahora verifica que el documento exista antes de intentar
-  /// actualizar, evitando la excepción cuando la ruta ya fue eliminada.
+  /// Detiene el GPS del conductor y limpia su posición en Firestore.
+  /// No crashea si el documento de la ruta ya fue eliminado.
   Future<void> stopSharingLocation(String routeId) async {
-    await _positionStreamSubscription?.cancel();
-    _positionStreamSubscription = null;
+    await _driverGpsSub?.cancel();
+    _driverGpsSub = null;
 
     try {
       final doc = await _db.collection('routes').doc(routeId).get();
       if (doc.exists) {
         await doc.reference.update({'driverLocation': FieldValue.delete()});
       }
-      // Si el documento no existe, la ruta ya fue eliminada. No hay
-      // nada que limpiar, así que simplemente no hacemos nada.
     } on FirebaseException catch (_) {
-      // La ruta fue eliminada justo entre el get y el update.
-      // Ignorar — no es un estado incorrecto.
+      // Documento eliminado entre el get y el update — ignorar.
     } catch (_) {
-      // Cualquier otro error no debe propagar ni crashear la app.
+      // Cualquier otro error no debe propagar.
     }
   }
 
-  // ── Stream de Firestore (pasajero observa al conductor) ────────────
+  // ════════════════════════════════════════════════════════════════════
+  // PASAJERO
+  // ════════════════════════════════════════════════════════════════════
 
-  /// Retorna un stream en tiempo real del documento de la ruta.
-  /// El pasajero lo usa para ver la posición actualizada del conductor.
-  Stream<DocumentSnapshot> getDriverLocationStream(String routeId) {
+  /// El pasajero inicia su propio stream de GPS y sube su posición al
+  /// campo `passengerLocations.{passengerId}` del documento de la ruta.
+  /// El conductor puede leer ese campo en tiempo real para ver a todos
+  /// los pasajeros en el mapa.
+  Future<void> startSharingPassengerLocation({
+    required String routeId,
+    required String passengerId,
+    required String passengerName,
+    required String passengerInitials,
+  }) async {
+    await _requestPermissions();
+
+    // Cancelar suscripción previa si el pasajero reabrió el mapa
+    await _passengerGpsSubs[passengerId]?.cancel();
+
+    const settings = LocationSettings(
+      accuracy: LocationAccuracy.high,
+      distanceFilter: 15, // Solo actualizar si se movió > 15 m
+    );
+
+    _passengerGpsSubs[passengerId] =
+        Geolocator.getPositionStream(locationSettings: settings).listen((
+          Position position,
+        ) {
+          // Dot-notation de Firestore permite actualizar un solo campo
+          // del mapa sin sobreescribir los otros pasajeros.
+          _db
+              .collection('routes')
+              .doc(routeId)
+              .update({
+                'passengerLocations.$passengerId': {
+                  'lat': position.latitude,
+                  'lng': position.longitude,
+                  'updatedAt': FieldValue.serverTimestamp(),
+                  'name': passengerName,
+                  'initials': passengerInitials,
+                },
+              })
+              .catchError((_) {
+                // Ignorar si la ruta fue finalizada mientras el pasajero
+                // todavía tenía el mapa abierto.
+              });
+        });
+  }
+
+  /// El pasajero deja de compartir y elimina su entrada en Firestore.
+  Future<void> stopSharingPassengerLocation({
+    required String routeId,
+    required String passengerId,
+  }) async {
+    await _passengerGpsSubs[passengerId]?.cancel();
+    _passengerGpsSubs.remove(passengerId);
+
+    try {
+      final doc = await _db.collection('routes').doc(routeId).get();
+      if (doc.exists) {
+        await doc.reference.update({
+          'passengerLocations.$passengerId': FieldValue.delete(),
+        });
+      }
+    } on FirebaseException catch (_) {
+    } catch (_) {}
+  }
+
+  // ════════════════════════════════════════════════════════════════════
+  // COMPARTIDO
+  // ════════════════════════════════════════════════════════════════════
+
+  /// Stream del documento completo de la ruta.
+  /// ─ El pasajero lo usa para leer `driverLocation`.
+  /// ─ El conductor lo usa para leer `passengerLocations`.
+  Stream<DocumentSnapshot> getRouteStream(String routeId) {
     return _db.collection('routes').doc(routeId).snapshots();
   }
 
-  // ── Posición actual única ──────────────────────────────────────────
+  // Alias para compatibilidad con el código anterior
+  Stream<DocumentSnapshot> getDriverLocationStream(String routeId) =>
+      getRouteStream(routeId);
 
+  /// Obtiene la posición actual una sola vez (sin stream continuo).
   Future<Position?> getCurrentPosition() async {
     await _requestPermissions();
     try {
@@ -137,11 +205,13 @@ class LocationService {
     }
   }
 
-  // ── Limpieza del servicio ──────────────────────────────────────────
-
-  /// Llamar solo al destruir la app. No llamar desde pantallas individuales.
+  /// Libera todos los recursos. Llamar solo al destruir la app.
   void dispose() {
-    _positionStreamSubscription?.cancel();
-    _positionController.close();
+    _driverGpsSub?.cancel();
+    for (final sub in _passengerGpsSubs.values) {
+      sub.cancel();
+    }
+    _passengerGpsSubs.clear();
+    _driverPositionCtrl.close();
   }
 }
