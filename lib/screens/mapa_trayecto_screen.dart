@@ -6,24 +6,35 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:http/http.dart' as http;
+import 'package:geolocator/geolocator.dart';
 
 import '../models/route_model.dart';
 import '../services/location_service.dart';
 import '../theme/app_theme.dart';
 
-/// Pantalla de mapa en vivo para conductores y pasajeros.
+/// Pantalla de mapa en vivo.
 ///
-/// Correcciones aplicadas:
-/// ─ Fix #17: Se dibuja la ruta real entre origen y destino (polyline via OSRM).
-/// ─ Fix #18: El mapa hace fitBounds automático al cargar para encuadrar
-///   todos los puntos relevantes sin zoom manual.
-/// ─ Fix #19: El conductor ya NO abre un segundo stream de GPS propio.
-///   En su lugar escucha el broadcast stream de LocationService,
-///   que es el mismo que sube datos a Firestore.
-/// ─ Fix #20: Se muestra un badge "⚠️ Sin señal" si la posición del
-///   conductor no se actualizó en los últimos 30 segundos.
-/// ─ Fix #21: userAgentPackageName corregido al package real de la app.
+/// Cambios del plan implementados:
+/// ─ Cambio 1: El conductor ve los marcadores de todos sus pasajeros.
+///   El pasajero sube su posición a Firestore al abrir el mapa y la
+///   elimina al cerrarlo.
+/// ─ Cambio 2: Se traza una segunda polyline (azul) desde la posición
+///   actual del conductor hasta el pasajero más cercano, calculada
+///   con OSRM. Se recalcula cada vez que el conductor se mueve > 50 m.
+/// ─ Cambio 3: El botón que abre esta pantalla es el mismo para ambos
+///   roles (manejado en route_card.dart); aquí solo se adapta la UI
+///   interna según [isDriver].
+///
+/// Fixes de la versión anterior que se conservan:
+/// ─ Fix #16: stopSharingLocation no crashea si la ruta fue eliminada.
+/// ─ Fix #17: Polyline verde de la ruta publicada (origen → destino).
+/// ─ Fix #18: fitBounds automático al cargar.
+/// ─ Fix #19: El conductor no abre un segundo stream de GPS propio.
+/// ─ Fix #20: Badge "Sin señal" si la posición del conductor no se
+///   actualizó en los últimos 30 s.
+/// ─ Fix #21: userAgentPackageName correcto.
 class MapaTrayectoScreen extends StatefulWidget {
   final RouteModel route;
   final bool isDriver;
@@ -41,32 +52,51 @@ class MapaTrayectoScreen extends StatefulWidget {
 }
 
 class _MapaTrayectoScreenState extends State<MapaTrayectoScreen> {
-  // ── Estado del mapa ─────────────────────────────────────────────────
+  // ── Mapa ────────────────────────────────────────────────────────────
   final MapController _mapController = MapController();
   bool _isLoading = true;
   bool _boundsAlreadySet = false;
 
   // ── Posiciones ───────────────────────────────────────────────────────
-  LatLng? _driverPosition; // Posición del conductor (tiempo real)
-  LatLng? _myPosition; // Posición del pasajero (solo al inicio)
+  LatLng? _driverPosition;
+  LatLng? _myPosition; // Posición propia del pasajero
 
-  // ── Polyline ─────────────────────────────────────────────────────────
-  List<LatLng> _routePolyline = [];
+  /// Cambio 1 — mapa de posiciones de pasajeros (visible al conductor).
+  Map<String, LatLng> _passengerPositions = {};
+  Map<String, Map<String, String>> _passengerInfos = {};
+  // passengerInfos[uid] = {'name': '...', 'initials': '...'}
+
+  // ── Polylines ────────────────────────────────────────────────────────
+  List<LatLng> _routePolyline = []; // Verde: ruta publicada origen→destino
+  List<LatLng> _pickupPolyline = []; // Azul: conductor→pasajero más cercano
   bool _polylineLoading = false;
 
-  // ── Fix #20: Detección de conductor desconectado ─────────────────────
+  // ── Cambio 2 — control de recalculo del pickup ────────────────────────
+  bool _isCalculatingPickup = false;
+  LatLng? _lastPickupCalcPos; // Posición del conductor en el último cálculo
+  static const double _pickupRecalcThresholdM = 50.0; // metros
+
+  // ── Fix #20 — detección de conductor desconectado ────────────────────
   DateTime? _lastDriverUpdate;
-  Timer? _stalenessTimer; // Refresca el badge cada 5 s
+  Timer? _stalenessTimer;
 
   // ── Suscripciones ────────────────────────────────────────────────────
-  /// Fix #19: Para el conductor, escuchamos el broadcast de LocationService
-  /// (no abrimos un segundo Geolocator.getPositionStream).
-  StreamSubscription<dynamic>? _driverPositionSub;
+  /// Fix #19: El conductor escucha el broadcast de LocationService,
+  /// no abre su propio Geolocator.getPositionStream.
+  StreamSubscription<Position>? _driverBroadcastSub;
 
-  /// Para el pasajero, escuchamos Firestore.
-  StreamSubscription<DocumentSnapshot>? _firestoreSub;
+  /// El pasajero escucha el documento de la ruta para ver al conductor.
+  /// El conductor también escucha el documento para ver a los pasajeros.
+  StreamSubscription<DocumentSnapshot>? _routeDocSub;
 
-  // ── Puntos fijos de la ruta ───────────────────────────────────────────
+  // ── Usuario actual ────────────────────────────────────────────────────
+  String _myUid = '';
+
+  // ── Fallback geográfico ───────────────────────────────────────────────
+  // Cartago, Valle del Cauca
+  static const LatLng _fallbackCenter = LatLng(4.7390, -75.8983);
+
+  // ── Puntos fijos de la ruta publicada ─────────────────────────────────
   LatLng? get _originPoint =>
       widget.route.originLat != null && widget.route.originLng != null
       ? LatLng(widget.route.originLat!, widget.route.originLng!)
@@ -77,16 +107,17 @@ class _MapaTrayectoScreenState extends State<MapaTrayectoScreen> {
       ? LatLng(widget.route.destLat!, widget.route.destLng!)
       : null;
 
-  // ── Coordenada de referencia para Cartago, Valle (fallback) ──────────
-  static const LatLng _fallbackCenter = LatLng(4.7390, -75.8983);
+  // ════════════════════════════════════════════════════════════════════
+  // CICLO DE VIDA
+  // ════════════════════════════════════════════════════════════════════
 
-  // ────────────────────────────────────────────────────────────────────
   @override
   void initState() {
     super.initState();
+    _myUid = FirebaseAuth.instance.currentUser?.uid ?? '';
     _initialize();
 
-    // Fix #20: Timer para refrescar el badge de staleness
+    // Fix #20: Refrescar el badge de staleness cada 5 s (solo pasajeros)
     if (!widget.isDriver) {
       _stalenessTimer = Timer.periodic(const Duration(seconds: 5), (_) {
         if (mounted) setState(() {});
@@ -101,15 +132,15 @@ class _MapaTrayectoScreenState extends State<MapaTrayectoScreen> {
       await _initAsPassenger();
     }
 
-    // Cargar polyline si hay coordenadas disponibles
+    // Cargar polyline verde (ruta publicada) si hay coordenadas
     if (_originPoint != null && _destPoint != null) {
       _fetchRoutePolyline();
     }
   }
 
-  // ── Inicialización como CONDUCTOR ────────────────────────────────────
+  // ── Inicialización como CONDUCTOR ─────────────────────────────────────
   Future<void> _initAsDriver() async {
-    // Obtener posición inicial (una sola llamada)
+    // Posición inicial (una sola lectura)
     final position = await LocationService().getCurrentPosition();
     if (!mounted) return;
 
@@ -123,61 +154,302 @@ class _MapaTrayectoScreenState extends State<MapaTrayectoScreen> {
       _applyFallbackCenter();
     }
 
-    // Fix #19: Suscribirse al broadcast stream de LocationService
-    // (ya activo desde que el conductor presionó "Iniciar ruta").
-    // NO se crea un nuevo Geolocator.getPositionStream aquí.
-    _driverPositionSub = LocationService().driverPositionStream.listen((
-      position,
-    ) {
+    // Fix #19: Escuchar el broadcast en lugar de abrir un nuevo GPS
+    _driverBroadcastSub = LocationService().driverPositionStream.listen((pos) {
       if (!mounted) return;
       setState(() {
-        _driverPosition = LatLng(position.latitude, position.longitude);
+        _driverPosition = LatLng(pos.latitude, pos.longitude);
         _lastDriverUpdate = DateTime.now();
       });
+      // Cambio 2: recalcular pickup si el conductor se movió suficiente
+      _tryRecalculatePickupPolyline();
     });
+
+    // Cambio 1: Escuchar Firestore para ver posiciones de pasajeros
+    _routeDocSub = LocationService()
+        .getRouteStream(widget.route.id)
+        .listen(_onRouteDocUpdate);
   }
 
-  // ── Inicialización como PASAJERO ─────────────────────────────────────
+  // ── Inicialización como PASAJERO ──────────────────────────────────────
   Future<void> _initAsPassenger() async {
     // Posición propia del pasajero (una sola lectura)
     final position = await LocationService().getCurrentPosition();
     if (!mounted) return;
-
     if (position != null) {
       _myPosition = LatLng(position.latitude, position.longitude);
     }
 
     _applyFallbackCenter();
-    setState(() => _isLoading = false);
+    if (mounted) setState(() => _isLoading = false);
 
-    // Escuchar la posición del conductor en Firestore
-    _firestoreSub = LocationService()
-        .getDriverLocationStream(widget.route.id)
-        .listen((DocumentSnapshot doc) {
-          if (!doc.exists || !mounted) return;
+    // Cambio 1: Subir posición del pasajero a Firestore (solo en modo
+    // fullscreen y solo si la ruta está en curso)
+    if (!widget.isEmbedded && widget.route.status == RouteStatus.enCurso) {
+      _startPassengerLocationSharing();
+    }
 
-          final data = doc.data() as Map<String, dynamic>?;
-          final loc = data?['driverLocation'];
-          if (loc == null) return;
-
-          final lat = (loc['lat'] as num?)?.toDouble();
-          final lng = (loc['lng'] as num?)?.toDouble();
-          final updatedAt = loc['updatedAt'] as Timestamp?;
-
-          if (lat == null || lng == null) return;
-
-          setState(() {
-            _driverPosition = LatLng(lat, lng);
-            // Fix #20: timestamp de última actualización del conductor
-            _lastDriverUpdate = updatedAt?.toDate() ?? DateTime.now();
-          });
-
-          // Primera vez que aparece el conductor → encuadrar el mapa
-          if (!_boundsAlreadySet) _tryFitBounds();
-        });
+    // Escuchar el documento de la ruta para ver al conductor
+    _routeDocSub = LocationService()
+        .getRouteStream(widget.route.id)
+        .listen(_onRouteDocUpdate);
   }
 
-  // ── Fix #18: Encuadrar todos los puntos relevantes ───────────────────
+  // ── Handler compartido del documento de Firestore ─────────────────────
+  void _onRouteDocUpdate(DocumentSnapshot doc) {
+    if (!doc.exists || !mounted) return;
+    final data = doc.data() as Map<String, dynamic>?;
+    if (data == null) return;
+
+    if (widget.isDriver) {
+      // ── CONDUCTOR: leer posiciones de pasajeros ──────────────────────
+      final rawMap = data['passengerLocations'] as Map<String, dynamic>?;
+      final newPositions = <String, LatLng>{};
+      final newInfos = <String, Map<String, String>>{};
+
+      if (rawMap != null) {
+        for (final entry in rawMap.entries) {
+          final uid = entry.key;
+          final loc = entry.value as Map<String, dynamic>?;
+          if (loc == null) continue;
+          final lat = (loc['lat'] as num?)?.toDouble();
+          final lng = (loc['lng'] as num?)?.toDouble();
+          if (lat == null || lng == null) continue;
+          newPositions[uid] = LatLng(lat, lng);
+          newInfos[uid] = {
+            'name': (loc['name'] as String?) ?? 'Pasajero',
+            'initials': (loc['initials'] as String?) ?? 'P',
+          };
+        }
+      }
+
+      setState(() {
+        _passengerPositions = newPositions;
+        _passengerInfos = newInfos;
+      });
+
+      // Cambio 2: Recalcular pickup con las nuevas posiciones
+      _tryRecalculatePickupPolyline();
+    } else {
+      // ── PASAJERO: leer posición del conductor ────────────────────────
+      final driverLoc = data['driverLocation'] as Map<String, dynamic>?;
+      if (driverLoc == null) return;
+
+      final lat = (driverLoc['lat'] as num?)?.toDouble();
+      final lng = (driverLoc['lng'] as num?)?.toDouble();
+      final updatedAt = driverLoc['updatedAt'] as Timestamp?;
+
+      if (lat == null || lng == null) return;
+
+      setState(() {
+        _driverPosition = LatLng(lat, lng);
+        _lastDriverUpdate = updatedAt?.toDate() ?? DateTime.now();
+      });
+
+      if (!_boundsAlreadySet) _tryFitBounds();
+    }
+  }
+
+  // ── Cambio 1 — Subir posición del pasajero ────────────────────────────
+  Future<void> _startPassengerLocationSharing() async {
+    if (_myUid.isEmpty) return;
+    try {
+      // Obtener datos del usuario desde Firestore para nombre e iniciales
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(_myUid)
+          .get();
+      final name = (userDoc.data()?['fullName'] as String?) ?? 'Pasajero';
+      final parts = name.trim().split(' ');
+      final initials = parts.length >= 2
+          ? '${parts[0][0]}${parts[1][0]}'.toUpperCase()
+          : (parts[0].isNotEmpty ? parts[0][0].toUpperCase() : 'P');
+
+      await LocationService().startSharingPassengerLocation(
+        routeId: widget.route.id,
+        passengerId: _myUid,
+        passengerName: name,
+        passengerInitials: initials,
+      );
+    } catch (_) {
+      // La compartición de ubicación del pasajero es una mejora opcional;
+      // si falla, el mapa sigue funcionando.
+    }
+  }
+
+  // ════════════════════════════════════════════════════════════════════
+  // CAMBIO 2 — POLYLINE DE PICKUP (conductor → pasajero más cercano)
+  // ════════════════════════════════════════════════════════════════════
+
+  /// Distancia Haversine en metros entre dos puntos.
+  double _haversineDistance(LatLng a, LatLng b) {
+    const r = 6371000.0;
+    final lat1 = a.latitude * pi / 180;
+    final lat2 = b.latitude * pi / 180;
+    final dLat = (b.latitude - a.latitude) * pi / 180;
+    final dLng = (b.longitude - a.longitude) * pi / 180;
+    final h =
+        sin(dLat / 2) * sin(dLat / 2) +
+        cos(lat1) * cos(lat2) * sin(dLng / 2) * sin(dLng / 2);
+    return r * 2 * atan2(sqrt(h), sqrt(1 - h));
+  }
+
+  /// Retorna la posición del pasajero más cercano al conductor.
+  LatLng? _nearestPassenger() {
+    if (_driverPosition == null || _passengerPositions.isEmpty) return null;
+    LatLng? nearest;
+    double minDist = double.infinity;
+    for (final pos in _passengerPositions.values) {
+      final d = _haversineDistance(_driverPosition!, pos);
+      if (d < minDist) {
+        minDist = d;
+        nearest = pos;
+      }
+    }
+    return nearest;
+  }
+
+  /// Decide si hay que recalcular el pickup y lo lanza.
+  void _tryRecalculatePickupPolyline() {
+    if (!widget.isDriver) return;
+    if (_driverPosition == null) return;
+    if (_isCalculatingPickup) return;
+
+    if (_passengerPositions.isEmpty) {
+      if (mounted) setState(() => _pickupPolyline = []);
+      return;
+    }
+
+    // Solo recalcular si el conductor se movió más de 50 m
+    if (_lastPickupCalcPos != null) {
+      final moved = _haversineDistance(_driverPosition!, _lastPickupCalcPos!);
+      if (moved < _pickupRecalcThresholdM) return;
+    }
+
+    _lastPickupCalcPos = _driverPosition;
+    _fetchPickupPolyline();
+  }
+
+  /// Obtiene la polyline de pickup vía OSRM.
+  /// Fallback: línea recta si OSRM no responde.
+  Future<void> _fetchPickupPolyline() async {
+    if (_driverPosition == null || _passengerPositions.isEmpty) return;
+
+    final nearest = _nearestPassenger();
+    if (nearest == null) return;
+
+    if (mounted) setState(() => _isCalculatingPickup = true);
+
+    try {
+      final driver = _driverPosition!;
+      final uri = Uri.parse(
+        'https://router.project-osrm.org/route/v1/driving/'
+        '${driver.longitude},${driver.latitude};'
+        '${nearest.longitude},${nearest.latitude}'
+        '?overview=full&geometries=geojson',
+      );
+
+      final response = await http
+          .get(uri, headers: {'User-Agent': 'UniConnectUCEVA/1.0'})
+          .timeout(const Duration(seconds: 10));
+
+      if (!mounted) return;
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        final routes = data['routes'] as List?;
+        if (routes != null && routes.isNotEmpty) {
+          final coords = routes[0]['geometry']['coordinates'] as List;
+          final points = coords
+              .map(
+                (c) =>
+                    LatLng((c[1] as num).toDouble(), (c[0] as num).toDouble()),
+              )
+              .toList();
+          setState(() {
+            _pickupPolyline = points;
+            _isCalculatingPickup = false;
+          });
+          return;
+        }
+      }
+      _applyPickupFallback(nearest);
+    } catch (_) {
+      if (mounted) _applyPickupFallback(_nearestPassenger());
+    }
+  }
+
+  void _applyPickupFallback(LatLng? target) {
+    if (!mounted) return;
+    setState(() {
+      _pickupPolyline = (_driverPosition != null && target != null)
+          ? [_driverPosition!, target]
+          : [];
+      _isCalculatingPickup = false;
+    });
+  }
+
+  // ════════════════════════════════════════════════════════════════════
+  // FIX #17 — POLYLINE DE RUTA PUBLICADA (origen → destino)
+  // ════════════════════════════════════════════════════════════════════
+
+  Future<void> _fetchRoutePolyline() async {
+    if (_originPoint == null || _destPoint == null) return;
+    if (mounted) setState(() => _polylineLoading = true);
+
+    try {
+      final uri = Uri.parse(
+        'https://router.project-osrm.org/route/v1/driving/'
+        '${_originPoint!.longitude},${_originPoint!.latitude};'
+        '${_destPoint!.longitude},${_destPoint!.latitude}'
+        '?overview=full&geometries=geojson',
+      );
+
+      final response = await http
+          .get(uri, headers: {'User-Agent': 'UniConnectUCEVA/1.0'})
+          .timeout(const Duration(seconds: 12));
+
+      if (!mounted) return;
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        final routes = data['routes'] as List?;
+        if (routes != null && routes.isNotEmpty) {
+          final coords = routes[0]['geometry']['coordinates'] as List;
+          setState(() {
+            _routePolyline = coords
+                .map(
+                  (c) => LatLng(
+                    (c[1] as num).toDouble(),
+                    (c[0] as num).toDouble(),
+                  ),
+                )
+                .toList();
+            _polylineLoading = false;
+          });
+          return;
+        }
+      }
+      _applyRouteFallback();
+    } catch (_) {
+      if (mounted) _applyRouteFallback();
+    }
+  }
+
+  void _applyRouteFallback() {
+    if (!mounted) return;
+    setState(() {
+      _routePolyline = (_originPoint != null && _destPoint != null)
+          ? [_originPoint!, _destPoint!]
+          : [];
+      _polylineLoading = false;
+    });
+  }
+
+  // ════════════════════════════════════════════════════════════════════
+  // FIX #18 — FIT BOUNDS AUTOMÁTICO
+  // ════════════════════════════════════════════════════════════════════
+
   void _tryFitBounds() {
     final points = <LatLng>[
       if (_driverPosition != null) _driverPosition!,
@@ -201,26 +473,22 @@ class _MapaTrayectoScreenState extends State<MapaTrayectoScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       try {
-        // Calcular bounds manualmente para mayor compatibilidad
-        double minLat = points.map((p) => p.latitude).reduce(min);
-        double maxLat = points.map((p) => p.latitude).reduce(max);
-        double minLng = points.map((p) => p.longitude).reduce(min);
-        double maxLng = points.map((p) => p.longitude).reduce(max);
-
-        final bounds = LatLngBounds(
-          LatLng(minLat, minLng),
-          LatLng(maxLat, maxLng),
-        );
+        final minLat = points.map((p) => p.latitude).reduce(min);
+        final maxLat = points.map((p) => p.latitude).reduce(max);
+        final minLng = points.map((p) => p.longitude).reduce(min);
+        final maxLng = points.map((p) => p.longitude).reduce(max);
 
         _mapController.fitCamera(
           CameraFit.bounds(
-            bounds: bounds,
+            bounds: LatLngBounds(
+              LatLng(minLat, minLng),
+              LatLng(maxLat, maxLng),
+            ),
             padding: const EdgeInsets.fromLTRB(60, 80, 60, 100),
           ),
         );
         _boundsAlreadySet = true;
       } catch (_) {
-        // Si fitCamera falla (mapa aún no renderizado), centrar en driver
         if (_driverPosition != null) {
           _mapController.move(_driverPosition!, 14);
         }
@@ -237,71 +505,131 @@ class _MapaTrayectoScreenState extends State<MapaTrayectoScreen> {
     });
   }
 
-  // ── Fix #17: Obtener polyline de ruta usando OSRM (gratuito) ─────────
-  Future<void> _fetchRoutePolyline() async {
-    if (_originPoint == null || _destPoint == null) return;
+  // ════════════════════════════════════════════════════════════════════
+  // DISPOSE
+  // ════════════════════════════════════════════════════════════════════
 
-    if (mounted) setState(() => _polylineLoading = true);
+  @override
+  void dispose() {
+    _driverBroadcastSub?.cancel();
+    _routeDocSub?.cancel();
+    _stalenessTimer?.cancel();
 
-    try {
-      final origin = _originPoint!;
-      final dest = _destPoint!;
-
-      final uri = Uri.parse(
-        'https://router.project-osrm.org/route/v1/driving/'
-        '${origin.longitude},${origin.latitude};'
-        '${dest.longitude},${dest.latitude}'
-        '?overview=full&geometries=geojson',
+    // Cambio 1: dejar de compartir posición del pasajero al cerrar el mapa
+    if (!widget.isDriver && !widget.isEmbedded && _myUid.isNotEmpty) {
+      LocationService().stopSharingPassengerLocation(
+        routeId: widget.route.id,
+        passengerId: _myUid,
       );
+    }
 
-      final response = await http
-          .get(uri, headers: {'User-Agent': 'UniConnectUCEVA/1.0'})
-          .timeout(const Duration(seconds: 12));
+    super.dispose();
+  }
 
-      if (!mounted) return;
+  // ════════════════════════════════════════════════════════════════════
+  // MARCADORES
+  // ════════════════════════════════════════════════════════════════════
 
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body) as Map<String, dynamic>;
-        final routes = data['routes'] as List?;
+  List<Marker> _buildMarkers() {
+    final markers = <Marker>[];
 
-        if (routes != null && routes.isNotEmpty) {
-          final coordinates = routes[0]['geometry']['coordinates'] as List;
+    // ── Conductor ─────────────────────────────────────────────────────
+    if (_driverPosition != null) {
+      final isStale =
+          _lastDriverUpdate != null &&
+          DateTime.now().difference(_lastDriverUpdate!).inSeconds > 30;
 
-          final points = coordinates
-              .map(
-                (c) =>
-                    LatLng((c[1] as num).toDouble(), (c[0] as num).toDouble()),
-              )
-              .toList();
+      markers.add(
+        Marker(
+          point: _driverPosition!,
+          width: 46,
+          height: 58,
+          child: _MapPinWithTail(
+            icon: Icons.directions_car_rounded,
+            color: isStale ? Colors.orange.shade700 : AppColors.accentGreen,
+            tooltip: 'Conductor',
+          ),
+        ),
+      );
+    }
 
-          setState(() {
-            _routePolyline = points;
-            _polylineLoading = false;
-          });
-          return;
-        }
+    // ── Pasajero propio (solo visible en modo pasajero) ───────────────
+    if (_myPosition != null && !widget.isDriver) {
+      markers.add(
+        Marker(
+          point: _myPosition!,
+          width: 46,
+          height: 58,
+          child: const _MapPinWithTail(
+            icon: Icons.person_rounded,
+            color: AppColors.primaryGreen,
+            tooltip: 'Tú',
+          ),
+        ),
+      );
+    }
+
+    // ── Cambio 1: Pasajeros visibles al conductor ──────────────────────
+    if (widget.isDriver) {
+      for (final entry in _passengerPositions.entries) {
+        final uid = entry.key;
+        final pos = entry.value;
+        final info = _passengerInfos[uid] ?? {};
+        final name = info['name'] ?? 'Pasajero';
+        markers.add(
+          Marker(
+            point: pos,
+            width: 46,
+            height: 58,
+            child: _MapPinWithTail(
+              icon: Icons.person_pin_circle_rounded,
+              color: Colors.blue.shade700,
+              tooltip: name,
+            ),
+          ),
+        );
       }
-
-      // OSRM no respondió correctamente → fallback: línea recta
-      _applyPolylineFallback();
-    } catch (_) {
-      // Sin internet o timeout → fallback: línea recta
-      if (mounted) _applyPolylineFallback();
     }
+
+    // ── Origen ────────────────────────────────────────────────────────
+    if (_originPoint != null) {
+      markers.add(
+        Marker(
+          point: _originPoint!,
+          width: 46,
+          height: 58,
+          child: const _MapPinWithTail(
+            icon: Icons.trip_origin_rounded,
+            color: Colors.green,
+            tooltip: 'Origen',
+          ),
+        ),
+      );
+    }
+
+    // ── Destino ───────────────────────────────────────────────────────
+    if (_destPoint != null) {
+      markers.add(
+        Marker(
+          point: _destPoint!,
+          width: 46,
+          height: 58,
+          child: _MapPinWithTail(
+            icon: Icons.flag_rounded,
+            color: Colors.red.shade700,
+            tooltip: 'Destino',
+          ),
+        ),
+      );
+    }
+
+    return markers;
   }
 
-  void _applyPolylineFallback() {
-    if (_originPoint != null && _destPoint != null) {
-      setState(() {
-        _routePolyline = [_originPoint!, _destPoint!];
-        _polylineLoading = false;
-      });
-    } else {
-      setState(() => _polylineLoading = false);
-    }
-  }
+  // ════════════════════════════════════════════════════════════════════
+  // FIX #20 — BADGE ESTADO DEL CONDUCTOR
+  // ════════════════════════════════════════════════════════════════════
 
-  // ── Fix #20: Badge de estado del conductor ────────────────────────────
   Widget _buildDriverStatusBadge() {
     final Color bg;
     final Color fg;
@@ -348,80 +676,103 @@ class _MapaTrayectoScreenState extends State<MapaTrayectoScreen> {
     );
   }
 
-  // ── Marcadores ────────────────────────────────────────────────────────
-  List<Marker> _buildMarkers() {
-    final markers = <Marker>[];
+  // ════════════════════════════════════════════════════════════════════
+  // LEYENDA
+  // ════════════════════════════════════════════════════════════════════
 
-    // Conductor
-    if (_driverPosition != null) {
-      final isStale =
-          _lastDriverUpdate != null &&
-          DateTime.now().difference(_lastDriverUpdate!).inSeconds > 30;
-
-      markers.add(
-        Marker(
-          point: _driverPosition!,
-          width: 46,
-          height: 46,
-          child: _MapPin(
-            icon: Icons.directions_car_rounded,
-            color: isStale ? Colors.orange.shade700 : AppColors.accentGreen,
-            tooltip: 'Conductor',
+  Widget _buildLegend() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.95),
+        borderRadius: BorderRadius.circular(10),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
           ),
-        ),
-      );
-    }
-
-    // Pasajero (yo)
-    if (_myPosition != null && !widget.isDriver) {
-      markers.add(
-        Marker(
-          point: _myPosition!,
-          width: 46,
-          height: 46,
-          child: const _MapPin(
-            icon: Icons.person_rounded,
-            color: AppColors.primaryGreen,
-            tooltip: 'Tú',
-          ),
-        ),
-      );
-    }
-
-    // Origen
-    if (_originPoint != null) {
-      markers.add(
-        Marker(
-          point: _originPoint!,
-          width: 46,
-          height: 58,
-          child: _MapPinWithTail(
-            icon: Icons.trip_origin_rounded,
-            color: Colors.green.shade700,
-          ),
-        ),
-      );
-    }
-
-    // Destino
-    if (_destPoint != null) {
-      markers.add(
-        Marker(
-          point: _destPoint!,
-          width: 46,
-          height: 58,
-          child: _MapPinWithTail(
-            icon: Icons.flag_rounded,
-            color: Colors.red.shade700,
-          ),
-        ),
-      );
-    }
-
-    return markers;
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _legendRow(Colors.green, 'Origen'),
+          const SizedBox(height: 5),
+          _legendRow(Colors.red.shade700, 'Destino'),
+          const SizedBox(height: 5),
+          _legendRow(AppColors.accentGreen, 'Conductor'),
+          if (!widget.isDriver && _myPosition != null) ...[
+            const SizedBox(height: 5),
+            _legendRow(AppColors.primaryGreen, 'Tú'),
+          ],
+          // Cambio 1: leyenda para pasajeros (vista del conductor)
+          if (widget.isDriver && _passengerPositions.isNotEmpty) ...[
+            const SizedBox(height: 5),
+            _legendRow(Colors.blue.shade700, 'Pasajero(s)'),
+          ],
+          // Cambio 2: leyenda para la polyline de pickup
+          if (widget.isDriver && _pickupPolyline.isNotEmpty) ...[
+            const SizedBox(height: 5),
+            _legendPolyline(Colors.blue.shade600, 'Ruta al pasajero'),
+          ],
+          if (_routePolyline.isNotEmpty) ...[
+            const SizedBox(height: 5),
+            _legendPolyline(AppColors.accentGreen, 'Ruta publicada'),
+          ],
+        ],
+      ),
+    );
   }
 
-  // ── Acciones ──────────────────────────────────────────────────────────
+  Widget _legendRow(Color color, String label) => Row(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      Container(
+        width: 10,
+        height: 10,
+        decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+      ),
+      const SizedBox(width: 6),
+      Text(
+        label,
+        style: const TextStyle(
+          fontSize: 11,
+          color: AppColors.textDark,
+          fontWeight: FontWeight.w500,
+        ),
+      ),
+    ],
+  );
+
+  Widget _legendPolyline(Color color, String label) => Row(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      Container(
+        width: 18,
+        height: 3,
+        decoration: BoxDecoration(
+          color: color,
+          borderRadius: BorderRadius.circular(2),
+        ),
+      ),
+      const SizedBox(width: 6),
+      Text(
+        label,
+        style: const TextStyle(
+          fontSize: 11,
+          color: AppColors.textDark,
+          fontWeight: FontWeight.w500,
+        ),
+      ),
+    ],
+  );
+
+  // ════════════════════════════════════════════════════════════════════
+  // ACCIONES
+  // ════════════════════════════════════════════════════════════════════
+
   void _centerOnDriver() {
     if (_driverPosition != null) {
       _mapController.move(_driverPosition!, 16);
@@ -435,23 +786,25 @@ class _MapaTrayectoScreenState extends State<MapaTrayectoScreen> {
     }
   }
 
-  void _recalculateRoute() {
-    setState(() => _routePolyline = []);
+  void _refitBounds() {
+    _boundsAlreadySet = false;
+    _tryFitBounds();
+  }
+
+  void _recalcAllPolylines() {
+    setState(() {
+      _routePolyline = [];
+      _pickupPolyline = [];
+      _lastPickupCalcPos = null;
+    });
     _fetchRoutePolyline();
+    _tryRecalculatePickupPolyline();
   }
 
-  // ── Dispose ───────────────────────────────────────────────────────────
-  @override
-  void dispose() {
-    _driverPositionSub?.cancel();
-    _firestoreSub?.cancel();
-    _stalenessTimer?.cancel();
-    // IMPORTANTE: no llamamos LocationService().stopSharingLocation() aquí.
-    // Eso lo maneja route_card.dart al finalizar la ruta explícitamente.
-    super.dispose();
-  }
+  // ════════════════════════════════════════════════════════════════════
+  // BUILD
+  // ════════════════════════════════════════════════════════════════════
 
-  // ── Build ─────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
@@ -472,7 +825,7 @@ class _MapaTrayectoScreenState extends State<MapaTrayectoScreen> {
 
     final mapBody = Stack(
       children: [
-        // ── Mapa base ───────────────────────────────────────────────
+        // ── Mapa base ─────────────────────────────────────────────────
         FlutterMap(
           mapController: _mapController,
           options: MapOptions(
@@ -486,14 +839,14 @@ class _MapaTrayectoScreenState extends State<MapaTrayectoScreen> {
             maxZoom: 18,
           ),
           children: [
-            // Fix #21: package correcto para el user-agent de OSM
+            // Fix #21: package correcto
             TileLayer(
               urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
               userAgentPackageName: 'com.uceva.uniconnect_app',
               maxZoom: 18,
             ),
 
-            // Fix #17: Polyline de la ruta calculada
+            // Fix #17: Polyline verde — ruta publicada origen→destino
             if (_routePolyline.isNotEmpty)
               PolylineLayer(
                 polylines: [
@@ -507,12 +860,26 @@ class _MapaTrayectoScreenState extends State<MapaTrayectoScreen> {
                 ],
               ),
 
+            // Cambio 2: Polyline azul — conductor → pasajero más cercano
+            if (widget.isDriver && _pickupPolyline.isNotEmpty)
+              PolylineLayer(
+                polylines: [
+                  Polyline(
+                    points: _pickupPolyline,
+                    color: Colors.blue.shade600.withOpacity(0.9),
+                    strokeWidth: 4.0,
+                    borderColor: Colors.white,
+                    borderStrokeWidth: 1.5,
+                  ),
+                ],
+              ),
+
             MarkerLayer(markers: _buildMarkers()),
           ],
         ),
 
-        // ── Badge de carga de polyline ──────────────────────────────
-        if (_polylineLoading)
+        // ── Badge de carga de polylines ──────────────────────────────
+        if (_polylineLoading || _isCalculatingPickup)
           Positioned(
             top: 14,
             left: 0,
@@ -533,10 +900,10 @@ class _MapaTrayectoScreenState extends State<MapaTrayectoScreen> {
                     ),
                   ],
                 ),
-                child: const Row(
+                child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    SizedBox(
+                    const SizedBox(
                       width: 12,
                       height: 12,
                       child: CircularProgressIndicator(
@@ -544,10 +911,12 @@ class _MapaTrayectoScreenState extends State<MapaTrayectoScreen> {
                         color: AppColors.accentGreen,
                       ),
                     ),
-                    SizedBox(width: 8),
+                    const SizedBox(width: 8),
                     Text(
-                      'Calculando ruta...',
-                      style: TextStyle(
+                      _isCalculatingPickup
+                          ? 'Calculando ruta al pasajero...'
+                          : 'Calculando ruta...',
+                      style: const TextStyle(
                         fontSize: 12,
                         color: AppColors.textLight,
                       ),
@@ -558,8 +927,9 @@ class _MapaTrayectoScreenState extends State<MapaTrayectoScreen> {
             ),
           ),
 
-        // Fix #20: Badge de estado del conductor (solo para pasajeros)
-        if (!widget.isDriver && !_polylineLoading)
+        // Fix #20: Badge de estado del conductor (solo pasajeros,
+        // y solo cuando no hay otro badge cargando)
+        if (!widget.isDriver && !_polylineLoading && !_isCalculatingPickup)
           Positioned(
             top: 14,
             left: 0,
@@ -567,21 +937,21 @@ class _MapaTrayectoScreenState extends State<MapaTrayectoScreen> {
             child: Center(child: _buildDriverStatusBadge()),
           ),
 
-        // ── Leyenda ─────────────────────────────────────────────────
+        // ── Leyenda ───────────────────────────────────────────────────
         Positioned(
           bottom: widget.isEmbedded ? 10 : 100,
           left: 12,
           child: _buildLegend(),
         ),
 
-        // ── Botones de acción (solo modo fullscreen) ─────────────────
+        // ── Botones de acción (solo fullscreen) ───────────────────────
         if (!widget.isEmbedded) ...[
           // Centrar en conductor
           Positioned(
             bottom: 100,
             right: 12,
             child: FloatingActionButton.small(
-              heroTag: 'center_driver_btn',
+              heroTag: 'fab_center',
               onPressed: _centerOnDriver,
               backgroundColor: AppColors.primaryGreen,
               elevation: 3,
@@ -592,17 +962,13 @@ class _MapaTrayectoScreenState extends State<MapaTrayectoScreen> {
               ),
             ),
           ),
-
           // Fix #18: Encuadrar todos los puntos
           Positioned(
             bottom: 150,
             right: 12,
             child: FloatingActionButton.small(
-              heroTag: 'fit_bounds_btn',
-              onPressed: () {
-                _boundsAlreadySet = false;
-                _tryFitBounds();
-              },
+              heroTag: 'fab_fit',
+              onPressed: _refitBounds,
               backgroundColor: Colors.white,
               elevation: 3,
               child: Icon(
@@ -612,14 +978,13 @@ class _MapaTrayectoScreenState extends State<MapaTrayectoScreen> {
               ),
             ),
           ),
-
-          // Recalcular ruta (OSRM)
+          // Recalcular todas las rutas
           Positioned(
             bottom: 200,
             right: 12,
             child: FloatingActionButton.small(
-              heroTag: 'recalc_route_btn',
-              onPressed: _recalculateRoute,
+              heroTag: 'fab_recalc',
+              onPressed: _recalcAllPolylines,
               backgroundColor: Colors.white,
               elevation: 3,
               child: Icon(
@@ -633,10 +998,10 @@ class _MapaTrayectoScreenState extends State<MapaTrayectoScreen> {
       ],
     );
 
-    // Modo embebido: solo el mapa sin Scaffold
+    // Modo embebido: solo el mapa, sin Scaffold
     if (widget.isEmbedded) return mapBody;
 
-    // Modo fullscreen: con AppBar
+    // Modo fullscreen: con AppBar completo
     return Scaffold(
       appBar: AppBar(
         backgroundColor: AppColors.primaryGreen,
@@ -663,76 +1028,52 @@ class _MapaTrayectoScreenState extends State<MapaTrayectoScreen> {
             ),
           ],
         ),
+        // Contador de pasajeros conectados (solo conductor)
+        actions: [
+          if (widget.isDriver && _passengerPositions.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(right: 12),
+              child: Center(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.shade600,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    '${_passengerPositions.length} pasajero'
+                    '${_passengerPositions.length > 1 ? 's' : ''} conectado'
+                    '${_passengerPositions.length > 1 ? 's' : ''}',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
       ),
       body: mapBody,
     );
   }
-
-  // ── Leyenda del mapa ──────────────────────────────────────────────────
-  Widget _buildLegend() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.95),
-        borderRadius: BorderRadius.circular(10),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 6,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _legendRow(Colors.green.shade700, 'Origen'),
-          const SizedBox(height: 5),
-          _legendRow(Colors.red.shade700, 'Destino'),
-          const SizedBox(height: 5),
-          _legendRow(AppColors.accentGreen, 'Conductor'),
-          if (!widget.isDriver && _myPosition != null) ...[
-            const SizedBox(height: 5),
-            _legendRow(AppColors.primaryGreen, 'Tú'),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _legendRow(Color color, String label) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: 10,
-          height: 10,
-          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-        ),
-        const SizedBox(width: 6),
-        Text(
-          label,
-          style: const TextStyle(
-            fontSize: 11,
-            color: AppColors.textDark,
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-      ],
-    );
-  }
 }
 
-// ── Widgets auxiliares de marcadores ──────────────────────────────────────
+// ════════════════════════════════════════════════════════════════════
+// WIDGETS AUXILIARES DE MARCADORES
+// ════════════════════════════════════════════════════════════════════
 
-/// Marcador circular simple (conductor, pasajero).
-class _MapPin extends StatelessWidget {
+/// Pin con "cola" estilo clásico de mapa.
+class _MapPinWithTail extends StatelessWidget {
   final IconData icon;
   final Color color;
   final String tooltip;
 
-  const _MapPin({
+  const _MapPinWithTail({
     required this.icon,
     required this.color,
     required this.tooltip,
@@ -742,69 +1083,40 @@ class _MapPin extends StatelessWidget {
   Widget build(BuildContext context) {
     return Tooltip(
       message: tooltip,
-      child: Container(
-        width: 42,
-        height: 42,
-        decoration: BoxDecoration(
-          color: color,
-          shape: BoxShape.circle,
-          border: Border.all(color: Colors.white, width: 2.5),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.25),
-              blurRadius: 6,
-              offset: const Offset(0, 3),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              color: color,
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.white, width: 2.5),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.25),
+                  blurRadius: 6,
+                  offset: const Offset(0, 3),
+                ),
+              ],
             ),
-          ],
-        ),
-        child: Icon(icon, color: Colors.white, size: 22),
-      ),
-    );
-  }
-}
-
-/// Marcador con "cola" estilo pin de mapa (origen, destino).
-class _MapPinWithTail extends StatelessWidget {
-  final IconData icon;
-  final Color color;
-
-  const _MapPinWithTail({required this.icon, required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: 38,
-          height: 38,
-          decoration: BoxDecoration(
-            color: color,
-            shape: BoxShape.circle,
-            border: Border.all(color: Colors.white, width: 2.5),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.2),
-                blurRadius: 6,
-                offset: const Offset(0, 3),
+            child: Icon(icon, color: Colors.white, size: 18),
+          ),
+          // Cola del pin
+          Container(
+            width: 3,
+            height: 12,
+            decoration: BoxDecoration(
+              color: color,
+              borderRadius: const BorderRadius.only(
+                bottomLeft: Radius.circular(2),
+                bottomRight: Radius.circular(2),
               ),
-            ],
-          ),
-          child: Icon(icon, color: Colors.white, size: 18),
-        ),
-        // Cola del pin
-        Container(
-          width: 3,
-          height: 12,
-          decoration: BoxDecoration(
-            color: color,
-            borderRadius: const BorderRadius.only(
-              bottomLeft: Radius.circular(2),
-              bottomRight: Radius.circular(2),
             ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
