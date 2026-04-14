@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../theme/app_theme.dart';
 import '../models/route_model.dart';
 import '../services/route_service.dart';
@@ -29,6 +30,7 @@ class _RouteCardState extends State<RouteCard> {
   bool _finalizing = false;
   bool _starting = false;
   Future<String>? _requestStatusFuture;
+  bool _isSharingLocation = false;
 
   @override
   void initState() {
@@ -43,6 +45,43 @@ class _RouteCardState extends State<RouteCard> {
         uid,
         widget.route.id,
       );
+    }
+  }
+
+  Future<void> _startPassengerSharing() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+    try {
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .get();
+      final name = (userDoc.data()?['fullName'] as String?) ?? 'Pasajero';
+      final parts = name.trim().split(' ');
+      final initials = parts.length >= 2
+          ? '${parts[0][0]}${parts[1][0]}'.toUpperCase()
+          : (parts[0].isNotEmpty ? parts[0][0].toUpperCase() : 'P');
+
+      await LocationService().startSharingPassengerLocation(
+        routeId: widget.route.id,
+        passengerId: uid,
+        passengerName: name,
+        passengerInitials: initials,
+      );
+      _isSharingLocation = true;
+    } catch (_) {
+      // Manejar error silenciosamente o mostrar snackbar si es necesario
+    }
+  }
+
+  Future<void> _stopPassengerSharing() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid != null) {
+      await LocationService().stopSharingPassengerLocation(
+        routeId: widget.route.id,
+        passengerId: uid,
+      );
+      _isSharingLocation = false;
     }
   }
 
@@ -544,6 +583,13 @@ class _RouteCardState extends State<RouteCard> {
                     final loading =
                         snapshot.connectionState == ConnectionState.waiting;
 
+                    // Gestionar compartición de ubicación
+                    if (status == 'accepted' && widget.route.status == RouteStatus.enCurso && !_isSharingLocation) {
+                      _startPassengerSharing();
+                    } else if ((status != 'accepted' || widget.route.status != RouteStatus.enCurso) && _isSharingLocation) {
+                      _stopPassengerSharing();
+                    }
+
                     // Cupo confirmado
                     if (status == 'accepted') {
                       return Column(
@@ -688,5 +734,11 @@ class _RouteCardState extends State<RouteCard> {
         ),
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    if (_isSharingLocation) _stopPassengerSharing();
+    super.dispose();
   }
 }

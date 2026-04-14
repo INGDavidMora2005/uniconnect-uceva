@@ -124,8 +124,8 @@ class LocationService {
   }) async {
     await _requestPermissions();
 
-    // Cancelar suscripción previa si el pasajero reabrió el mapa
-    await _passengerGpsSubs[passengerId]?.cancel();
+    // Si ya está compartiendo, no hacer nada
+    if (_passengerGpsSubs.containsKey(passengerId)) return;
 
     const settings = LocationSettings(
       accuracy: LocationAccuracy.high,

@@ -70,11 +70,11 @@ class _MapaTrayectoScreenState extends State<MapaTrayectoScreen> {
   List<LatLng> _routePolyline = []; // Verde: ruta publicada origen→destino
   List<LatLng> _pickupPolyline = []; // Azul: conductor→pasajero más cercano
   bool _polylineLoading = false;
+  bool _usingRouteFallback = false;
+  bool _usingPickupFallback = false;
 
   // ── Cambio 2 — control de recalculo del pickup ────────────────────────
   bool _isCalculatingPickup = false;
-  LatLng? _lastPickupCalcPos; // Posición del conductor en el último cálculo
-  static const double _pickupRecalcThresholdM = 50.0; // metros
 
   // ── Fix #20 — detección de conductor desconectado ────────────────────
   DateTime? _lastDriverUpdate;
@@ -89,12 +89,12 @@ class _MapaTrayectoScreenState extends State<MapaTrayectoScreen> {
   /// El conductor también escucha el documento para ver a los pasajeros.
   StreamSubscription<DocumentSnapshot>? _routeDocSub;
 
-  // ── Usuario actual ────────────────────────────────────────────────────
-  String _myUid = '';
-
   // ── Fallback geográfico ───────────────────────────────────────────────
   // Cartago, Valle del Cauca
   static const LatLng _fallbackCenter = LatLng(4.7390, -75.8983);
+
+  // ── Usuario actual ────────────────────────────────────────────────────
+  String _myUid = '';
 
   // ── Puntos fijos de la ruta publicada ─────────────────────────────────
   LatLng? get _originPoint =>
@@ -183,16 +183,42 @@ class _MapaTrayectoScreenState extends State<MapaTrayectoScreen> {
     _applyFallbackCenter();
     if (mounted) setState(() => _isLoading = false);
 
-    // Cambio 1: Subir posición del pasajero a Firestore (solo en modo
-    // fullscreen y solo si la ruta está en curso)
-    if (!widget.isEmbedded && widget.route.status == RouteStatus.enCurso) {
-      _startPassengerLocationSharing();
+    // Cambio 1: Subir posición del pasajero a Firestore si la ruta está en curso
+    if (widget.route.status == RouteStatus.enCurso) {
+      await _startPassengerLocationSharing();
     }
 
     // Escuchar el documento de la ruta para ver al conductor
     _routeDocSub = LocationService()
         .getRouteStream(widget.route.id)
         .listen(_onRouteDocUpdate);
+  }
+
+  // ── Cambio 1 — Subir posición del pasajero ────────────────────────────
+  Future<void> _startPassengerLocationSharing() async {
+    if (_myUid.isEmpty) return;
+    try {
+      // Obtener datos del usuario desde Firestore para nombre e iniciales
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(_myUid)
+          .get();
+      final name = (userDoc.data()?['fullName'] as String?) ?? 'Pasajero';
+      final parts = name.trim().split(' ');
+      final initials = parts.length >= 2
+          ? '${parts[0][0]}${parts[1][0]}'.toUpperCase()
+          : (parts[0].isNotEmpty ? parts[0][0].toUpperCase() : 'P');
+
+      await LocationService().startSharingPassengerLocation(
+        routeId: widget.route.id,
+        passengerId: _myUid,
+        passengerName: name,
+        passengerInitials: initials,
+      );
+    } catch (_) {
+      // La compartición de ubicación del pasajero es una mejora opcional;
+      // si falla, el mapa sigue funcionando.
+    }
   }
 
   // ── Handler compartido del documento de Firestore ─────────────────────
@@ -250,32 +276,7 @@ class _MapaTrayectoScreenState extends State<MapaTrayectoScreen> {
     }
   }
 
-  // ── Cambio 1 — Subir posición del pasajero ────────────────────────────
-  Future<void> _startPassengerLocationSharing() async {
-    if (_myUid.isEmpty) return;
-    try {
-      // Obtener datos del usuario desde Firestore para nombre e iniciales
-      final userDoc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(_myUid)
-          .get();
-      final name = (userDoc.data()?['fullName'] as String?) ?? 'Pasajero';
-      final parts = name.trim().split(' ');
-      final initials = parts.length >= 2
-          ? '${parts[0][0]}${parts[1][0]}'.toUpperCase()
-          : (parts[0].isNotEmpty ? parts[0][0].toUpperCase() : 'P');
 
-      await LocationService().startSharingPassengerLocation(
-        routeId: widget.route.id,
-        passengerId: _myUid,
-        passengerName: name,
-        passengerInitials: initials,
-      );
-    } catch (_) {
-      // La compartición de ubicación del pasajero es una mejora opcional;
-      // si falla, el mapa sigue funcionando.
-    }
-  }
 
   // ════════════════════════════════════════════════════════════════════
   // CAMBIO 2 — POLYLINE DE PICKUP (conductor → pasajero más cercano)
@@ -320,13 +321,7 @@ class _MapaTrayectoScreenState extends State<MapaTrayectoScreen> {
       return;
     }
 
-    // Solo recalcular si el conductor se movió más de 50 m
-    if (_lastPickupCalcPos != null) {
-      final moved = _haversineDistance(_driverPosition!, _lastPickupCalcPos!);
-      if (moved < _pickupRecalcThresholdM) return;
-    }
-
-    _lastPickupCalcPos = _driverPosition;
+    // Siempre recalcular cuando cambian las posiciones
     _fetchPickupPolyline();
   }
 
@@ -369,6 +364,7 @@ class _MapaTrayectoScreenState extends State<MapaTrayectoScreen> {
           setState(() {
             _pickupPolyline = points;
             _isCalculatingPickup = false;
+            _usingPickupFallback = false;
           });
           return;
         }
@@ -386,6 +382,7 @@ class _MapaTrayectoScreenState extends State<MapaTrayectoScreen> {
           ? [_driverPosition!, target]
           : [];
       _isCalculatingPickup = false;
+      _usingPickupFallback = true;
     });
   }
 
@@ -426,6 +423,7 @@ class _MapaTrayectoScreenState extends State<MapaTrayectoScreen> {
                 )
                 .toList();
             _polylineLoading = false;
+            _usingRouteFallback = false;
           });
           return;
         }
@@ -443,6 +441,7 @@ class _MapaTrayectoScreenState extends State<MapaTrayectoScreen> {
           ? [_originPoint!, _destPoint!]
           : [];
       _polylineLoading = false;
+      _usingRouteFallback = true;
     });
   }
 
@@ -515,13 +514,7 @@ class _MapaTrayectoScreenState extends State<MapaTrayectoScreen> {
     _routeDocSub?.cancel();
     _stalenessTimer?.cancel();
 
-    // Cambio 1: dejar de compartir posición del pasajero al cerrar el mapa
-    if (!widget.isDriver && !widget.isEmbedded && _myUid.isNotEmpty) {
-      LocationService().stopSharingPassengerLocation(
-        routeId: widget.route.id,
-        passengerId: _myUid,
-      );
-    }
+
 
     super.dispose();
   }
@@ -795,7 +788,6 @@ class _MapaTrayectoScreenState extends State<MapaTrayectoScreen> {
     setState(() {
       _routePolyline = [];
       _pickupPolyline = [];
-      _lastPickupCalcPos = null;
     });
     _fetchRoutePolyline();
     _tryRecalculatePickupPolyline();
