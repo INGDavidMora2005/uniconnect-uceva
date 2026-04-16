@@ -16,8 +16,7 @@ class DetalleProductoScreen extends StatelessWidget {
   void _handleContact(BuildContext context) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(
-            'Contactando por ${product.contactMethod}...'),
+        content: Text('Contactando por ${product.contactMethod}...'),
         backgroundColor: AppColors.accentGreen,
       ),
     );
@@ -27,8 +26,7 @@ class DetalleProductoScreen extends StatelessWidget {
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Text(
           'Reportar publicación',
           style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
@@ -40,19 +38,24 @@ class DetalleProductoScreen extends StatelessWidget {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancelar',
-                style: TextStyle(color: AppColors.textLight)),
+            child: const Text(
+              'Cancelar',
+              style: TextStyle(color: AppColors.textLight),
+            ),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context),
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.redAccent,
               shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8)),
+                borderRadius: BorderRadius.circular(8),
+              ),
               elevation: 0,
             ),
-            child: const Text('Reportar',
-                style: TextStyle(color: Colors.white)),
+            child: const Text(
+              'Reportar',
+              style: TextStyle(color: Colors.white),
+            ),
           ),
         ],
       ),
@@ -63,8 +66,7 @@ class DetalleProductoScreen extends StatelessWidget {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Text(
           'Eliminar producto',
           style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
@@ -76,19 +78,24 @@ class DetalleProductoScreen extends StatelessWidget {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancelar',
-                style: TextStyle(color: AppColors.textLight)),
+            child: const Text(
+              'Cancelar',
+              style: TextStyle(color: AppColors.textLight),
+            ),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.redAccent,
               shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8)),
+                borderRadius: BorderRadius.circular(8),
+              ),
               elevation: 0,
             ),
-            child: const Text('Eliminar',
-                style: TextStyle(color: Colors.white)),
+            child: const Text(
+              'Eliminar',
+              style: TextStyle(color: Colors.white),
+            ),
           ),
         ],
       ),
@@ -117,9 +124,10 @@ class DetalleProductoScreen extends StatelessWidget {
           title: const Text(
             'Detalle del producto',
             style: TextStyle(
-                fontSize: 17,
-                fontWeight: FontWeight.w600,
-                color: Colors.white),
+              fontSize: 17,
+              fontWeight: FontWeight.w600,
+              color: Colors.white,
+            ),
           ),
           leading: IconButton(
             icon: const Icon(Icons.arrow_back, color: Colors.white),
@@ -163,7 +171,9 @@ class DetalleProductoScreen extends StatelessWidget {
                         const SizedBox(width: 8),
                         Container(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 10, vertical: 4),
+                            horizontal: 10,
+                            vertical: 4,
+                          ),
                           decoration: BoxDecoration(
                             color: const Color(0xFFE8F5EE),
                             borderRadius: BorderRadius.circular(8),
@@ -190,11 +200,11 @@ class DetalleProductoScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 10),
 
-                    // Tags condición
+                    // Tags categoría
                     Wrap(
                       spacing: 8,
                       children: [
-                        _tag(product.condition),
+                        _tag(product.category),
                         if (product.contactMethod.isNotEmpty)
                           _tag(product.contactMethod),
                       ],
@@ -239,8 +249,7 @@ class DetalleProductoScreen extends StatelessWidget {
                               const SizedBox(width: 12),
                               Expanded(
                                 child: Column(
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.start,
+                                  crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
                                       product.sellerName,
@@ -263,15 +272,20 @@ class DetalleProductoScreen extends StatelessWidget {
                               ),
                               Container(
                                 padding: const EdgeInsets.symmetric(
-                                    horizontal: 10, vertical: 6),
+                                  horizontal: 10,
+                                  vertical: 6,
+                                ),
                                 decoration: BoxDecoration(
                                   color: const Color(0xFFF5F5F5),
                                   borderRadius: BorderRadius.circular(10),
                                 ),
                                 child: Row(
                                   children: [
-                                    const Icon(Icons.star_rounded,
-                                        color: Colors.amber, size: 16),
+                                    const Icon(
+                                      Icons.star_rounded,
+                                      color: Colors.amber,
+                                      size: 16,
+                                    ),
                                     const SizedBox(width: 4),
                                     Text(
                                       '${product.sellerRating}',
@@ -336,15 +350,17 @@ class DetalleProductoScreen extends StatelessWidget {
                           style: ElevatedButton.styleFrom(
                             backgroundColor: AppColors.accentGreen,
                             shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12)),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
                             elevation: 0,
                           ),
                           child: const Text(
                             'Contactar vendedor',
                             style: TextStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white),
+                              fontSize: 15,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
                           ),
                         ),
                       ),
@@ -356,16 +372,20 @@ class DetalleProductoScreen extends StatelessWidget {
                           onPressed: () => _handleReport(context),
                           style: OutlinedButton.styleFrom(
                             side: const BorderSide(
-                                color: Colors.redAccent, width: 1.5),
+                              color: Colors.redAccent,
+                              width: 1.5,
+                            ),
                             shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12)),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
                           ),
                           child: const Text(
                             'Reportar publicación',
                             style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.redAccent),
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.redAccent,
+                            ),
                           ),
                         ),
                       ),
@@ -375,20 +395,27 @@ class DetalleProductoScreen extends StatelessWidget {
                         height: 48,
                         child: OutlinedButton.icon(
                           onPressed: () => _handleDelete(context),
-                          icon: const Icon(Icons.delete_outline,
-                              color: Colors.redAccent, size: 18),
+                          icon: const Icon(
+                            Icons.delete_outline,
+                            color: Colors.redAccent,
+                            size: 18,
+                          ),
                           label: const Text(
                             'Eliminar publicación',
                             style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.redAccent),
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.redAccent,
+                            ),
                           ),
                           style: OutlinedButton.styleFrom(
                             side: const BorderSide(
-                                color: Colors.redAccent, width: 1.5),
+                              color: Colors.redAccent,
+                              width: 1.5,
+                            ),
                             shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12)),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
                           ),
                         ),
                       ),
@@ -405,27 +432,29 @@ class DetalleProductoScreen extends StatelessWidget {
   }
 
   Widget _tag(String label) => Container(
-        padding:
-            const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-        decoration: BoxDecoration(
-          color: const Color(0xFFE8F5EE),
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Text(
-          label,
-          style: const TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-            color: AppColors.accentGreen,
-          ),
-        ),
-      );
+    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+    decoration: BoxDecoration(
+      color: const Color(0xFFE8F5EE),
+      borderRadius: BorderRadius.circular(20),
+    ),
+    child: Text(
+      label,
+      style: const TextStyle(
+        fontSize: 12,
+        fontWeight: FontWeight.w600,
+        color: AppColors.accentGreen,
+      ),
+    ),
+  );
 
   Widget _imagePlaceholder() => Container(
-        width: double.infinity,
-        height: 220,
-        color: const Color(0xFFE8F5EE),
-        child: const Icon(Icons.image_outlined,
-            color: AppColors.accentGreen, size: 56),
-      );
+    width: double.infinity,
+    height: 220,
+    color: const Color(0xFFE8F5EE),
+    child: const Icon(
+      Icons.image_outlined,
+      color: AppColors.accentGreen,
+      size: 56,
+    ),
+  );
 }

@@ -15,14 +15,17 @@ class BazarScreen extends StatefulWidget {
 
 class _BazarScreenState extends State<BazarScreen> {
   final TextEditingController _searchController = TextEditingController();
-  String? get _uid => FirebaseAuth.instance.currentUser?.uid;
 
   List<ProductModel> _applySearch(List<ProductModel> products) {
     final query = _searchController.text.toLowerCase().trim();
     if (query.isEmpty) return products;
-    return products.where((p) =>
-        p.name.toLowerCase().contains(query) ||
-        p.description.toLowerCase().contains(query)).toList();
+    return products
+        .where(
+          (p) =>
+              p.name.toLowerCase().contains(query) ||
+              p.description.toLowerCase().contains(query),
+        )
+        .toList();
   }
 
   @override
@@ -103,11 +106,15 @@ class _BazarScreenState extends State<BazarScreen> {
                         decoration: InputDecoration(
                           hintText: 'Buscar libros, calculadoras...',
                           hintStyle: const TextStyle(
-                              color: AppColors.textPlaceholder, fontSize: 13),
+                            color: AppColors.textPlaceholder,
+                            fontSize: 13,
+                          ),
                           suffixIcon: _searchController.text.isNotEmpty
                               ? IconButton(
-                                  icon: const Icon(Icons.close,
-                                      color: AppColors.textPlaceholder),
+                                  icon: const Icon(
+                                    Icons.close,
+                                    color: AppColors.textPlaceholder,
+                                  ),
                                   onPressed: () {
                                     _searchController.clear();
                                     setState(() {});
@@ -121,7 +128,9 @@ class _BazarScreenState extends State<BazarScreen> {
                             borderSide: BorderSide.none,
                           ),
                           contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 16, vertical: 14),
+                            horizontal: 16,
+                            vertical: 14,
+                          ),
                         ),
                       ),
                     ),
@@ -171,7 +180,8 @@ class _BazarScreenState extends State<BazarScreen> {
                         child: Padding(
                           padding: EdgeInsets.symmetric(vertical: 40),
                           child: CircularProgressIndicator(
-                              color: AppColors.accentGreen),
+                            color: AppColors.accentGreen,
+                          ),
                         ),
                       );
                     }
@@ -183,7 +193,9 @@ class _BazarScreenState extends State<BazarScreen> {
                           child: Text(
                             'Error: ${snapshot.error}',
                             style: const TextStyle(
-                                color: Colors.redAccent, fontSize: 12),
+                              color: Colors.redAccent,
+                              fontSize: 12,
+                            ),
                           ),
                         ),
                       );
@@ -197,20 +209,26 @@ class _BazarScreenState extends State<BazarScreen> {
                           padding: EdgeInsets.symmetric(vertical: 40),
                           child: Column(
                             children: [
-                              Icon(Icons.storefront_outlined,
-                                  size: 48, color: AppColors.borderDefault),
+                              Icon(
+                                Icons.storefront_outlined,
+                                size: 48,
+                                color: AppColors.borderDefault,
+                              ),
                               SizedBox(height: 12),
                               Text(
                                 'No hay productos disponibles',
                                 style: TextStyle(
-                                    color: AppColors.textLight, fontSize: 14),
+                                  color: AppColors.textLight,
+                                  fontSize: 14,
+                                ),
                               ),
                               SizedBox(height: 4),
                               Text(
                                 '¡Se el primero en publicar!',
                                 style: TextStyle(
-                                    color: AppColors.textPlaceholder,
-                                    fontSize: 12),
+                                  color: AppColors.textPlaceholder,
+                                  fontSize: 12,
+                                ),
                               ),
                             ],
                           ),
@@ -223,11 +241,11 @@ class _BazarScreenState extends State<BazarScreen> {
                       physics: const NeverScrollableScrollPhysics(),
                       gridDelegate:
                           const SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 2,
-                        crossAxisSpacing: 12,
-                        mainAxisSpacing: 12,
-                        childAspectRatio: 0.78,
-                      ),
+                            crossAxisCount: 2,
+                            crossAxisSpacing: 12,
+                            mainAxisSpacing: 12,
+                            childAspectRatio: 0.78,
+                          ),
                       itemCount: products.length,
                       itemBuilder: (_, i) => _ProductCard(
                         product: products[i],
@@ -320,8 +338,9 @@ class _ProductCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             ClipRRect(
-              borderRadius:
-                  const BorderRadius.vertical(top: Radius.circular(14)),
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(14),
+              ),
               child: product.imageUrls.isNotEmpty
                   ? Image.network(
                       product.imageUrls.first,
@@ -370,8 +389,11 @@ class _ProductCard extends StatelessWidget {
                           ),
                         ),
                       ),
-                      const Icon(Icons.star_rounded,
-                          color: Colors.amber, size: 13),
+                      const Icon(
+                        Icons.star_rounded,
+                        color: Colors.amber,
+                        size: 13,
+                      ),
                       const SizedBox(width: 2),
                       Text(
                         '${product.sellerRating}',
@@ -397,8 +419,11 @@ class _ProductCard extends StatelessWidget {
       height: 110,
       width: double.infinity,
       color: const Color(0xFFE8F5EE),
-      child: const Icon(Icons.image_outlined,
-          color: Color(0xFF2D9E6B), size: 36),
+      child: const Icon(
+        Icons.image_outlined,
+        color: Color(0xFF2D9E6B),
+        size: 36,
+      ),
     );
   }
 }
