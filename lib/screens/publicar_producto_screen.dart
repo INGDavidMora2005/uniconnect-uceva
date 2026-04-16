@@ -109,6 +109,7 @@ class _PublicarProductoScreenState extends State<PublicarProductoScreen> {
         sellerInitials: initials,
         sellerRating: user.rating,
         sellerCareer: user.faculty,
+        sellerPhone: user.phone,
         status: 'Disponible',
       );
 

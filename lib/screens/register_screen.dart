@@ -18,10 +18,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _emailController    = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmController  = TextEditingController();
+  final _phoneController    = TextEditingController(); // ← NUEVO
   String? _selectedRole;
   String? _selectedFaculty;
   bool _isLoading = false;
-  bool _useGoogle = false; // true para Google, false para formulario
+  bool _useGoogle = false;
 
   final List<String> _roles = ['Estudiante', 'Docente', 'Administrativo'];
   final List<String> _faculties = [
@@ -40,27 +41,19 @@ class _RegisterScreenState extends State<RegisterScreen> {
     _emailController.dispose();
     _passwordController.dispose();
     _confirmController.dispose();
+    _phoneController.dispose(); // ← NUEVO
     super.dispose();
   }
 
   void _showError(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: Colors.redAccent,
-      ),
+      SnackBar(content: Text(message), backgroundColor: Colors.redAccent),
     );
   }
 
   void _handleRegister() async {
-    if (_selectedRole == null) {
-      _showError('Selecciona un rol');
-      return;
-    }
-    if (_selectedFaculty == null) {
-      _showError('Selecciona una facultad');
-      return;
-    }
+    if (_selectedRole == null) { _showError('Selecciona un rol'); return; }
+    if (_selectedFaculty == null) { _showError('Selecciona una facultad'); return; }
     if (!_formKey.currentState!.validate()) return;
 
     setState(() => _isLoading = true);
@@ -69,8 +62,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
       final message = _useGoogle
           ? await AuthService().registerWithGoogle(
               studentCode: _codeController.text.trim(),
-              role:    _selectedRole!,
-              faculty: _selectedFaculty!,
+              role:        _selectedRole!,
+              faculty:     _selectedFaculty!,
+              phone:       _phoneController.text.trim(), // ← NUEVO
             )
           : await AuthService().register(
               fullName:    _nameController.text.trim(),
@@ -79,6 +73,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
               password:    _passwordController.text,
               role:        _selectedRole!,
               faculty:     _selectedFaculty!,
+              phone:       _phoneController.text.trim(), // ← NUEVO
             );
 
       if (!mounted) return;
@@ -86,10 +81,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
       if (message.startsWith('Cuenta creada')) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(message),
-            backgroundColor: AppColors.accentGreen,
-          ),
+          SnackBar(content: Text(message), backgroundColor: AppColors.accentGreen),
         );
         Navigator.pop(context);
       } else {
@@ -136,7 +128,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 ),
                 const SizedBox(height: 24),
 
-                // Toggle entre Google y Formulario
+                // Toggle Google / Formulario
                 Row(
                   children: [
                     Expanded(
@@ -145,9 +137,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         style: ElevatedButton.styleFrom(
                           backgroundColor: _useGoogle ? AppColors.accentGreen : AppColors.backgroundWhite,
                           foregroundColor: _useGoogle ? Colors.white : AppColors.textDark,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                         ),
                         child: const Text('Google'),
                       ),
@@ -159,9 +149,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         style: ElevatedButton.styleFrom(
                           backgroundColor: !_useGoogle ? AppColors.accentGreen : AppColors.backgroundWhite,
                           foregroundColor: !_useGoogle ? Colors.white : AppColors.textDark,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                         ),
                         child: const Text('Formulario'),
                       ),
@@ -176,8 +164,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     hint: 'Ej: 230231053',
                     controller: _codeController,
                     keyboardType: TextInputType.number,
-                    validator: (v) =>
-                        v == null || v.isEmpty ? 'Ingresa tu código' : null,
+                    validator: (v) => v == null || v.isEmpty ? 'Ingresa tu código' : null,
                   ),
                   const SizedBox(height: 16),
                 ],
@@ -187,8 +174,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     label: 'Nombre completo',
                     hint: 'Tu nombre completo',
                     controller: _nameController,
-                    validator: (v) =>
-                        v == null || v.isEmpty ? 'Ingresa tu nombre' : null,
+                    validator: (v) => v == null || v.isEmpty ? 'Ingresa tu nombre' : null,
                   ),
                   const SizedBox(height: 16),
 
@@ -197,8 +183,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     hint: 'Ej: 230231053',
                     controller: _codeController,
                     keyboardType: TextInputType.number,
-                    validator: (v) =>
-                        v == null || v.isEmpty ? 'Ingresa tu código' : null,
+                    validator: (v) => v == null || v.isEmpty ? 'Ingresa tu código' : null,
                   ),
                   const SizedBox(height: 16),
 
@@ -209,9 +194,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     keyboardType: TextInputType.emailAddress,
                     validator: (v) {
                       if (v == null || v.isEmpty) return 'Ingresa tu correo';
-                      if (!v.contains('@uceva.edu.co')) {
-                        return 'Usa tu correo @uceva.edu.co';
-                      }
+                      if (!v.contains('@uceva.edu.co')) return 'Usa tu correo @uceva.edu.co';
                       return null;
                     },
                   ),
@@ -228,7 +211,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       if (!RegExp(r'[A-Z]').hasMatch(v)) return 'Debe contener al menos una mayúscula';
                       if (!RegExp(r'[a-z]').hasMatch(v)) return 'Debe contener al menos una minúscula';
                       if (!RegExp(r'[0-9]').hasMatch(v)) return 'Debe contener al menos un número';
-                      if (!RegExp(r'[!@#$%^&*(),.?":{}|<>]').hasMatch(v)) return 'Debe contener al menos un carácter especial';
+                      if (!RegExp(r'[!@#$%^&*(),.?\":{}|<>]').hasMatch(v)) return 'Debe contener al menos un carácter especial';
                       return null;
                     },
                   ),
@@ -241,14 +224,27 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     controller: _confirmController,
                     validator: (v) {
                       if (v == null || v.isEmpty) return 'Confirma tu contraseña';
-                      if (v != _passwordController.text) {
-                        return 'Las contraseñas no coinciden';
-                      }
+                      if (v != _passwordController.text) return 'Las contraseñas no coinciden';
                       return null;
                     },
                   ),
                   const SizedBox(height: 16),
                 ],
+
+                // ── Teléfono WhatsApp (aparece en AMBOS modos) ── NUEVO
+                CustomTextField(
+                  label: 'Número de WhatsApp',
+                  hint: 'Ej: 3001234567',
+                  controller: _phoneController,
+                  keyboardType: TextInputType.phone,
+                  validator: (v) {
+                    if (v == null || v.isEmpty) return 'Ingresa tu número de WhatsApp';
+                    final digits = v.replaceAll(RegExp(r'\D'), '');
+                    if (digits.length < 10) return 'Ingresa un número válido de 10 dígitos';
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 16),
 
                 // Selector de Rol
                 Column(
@@ -256,11 +252,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   children: [
                     const Text(
                       'Rol',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.textMedium,
-                      ),
+                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.textMedium),
                     ),
                     const SizedBox(height: 6),
                     Container(
@@ -273,28 +265,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       child: DropdownButtonHideUnderline(
                         child: DropdownButton<String>(
                           isExpanded: true,
-                          hint: const Text(
-                            'Selecciona tu rol',
-                            style: TextStyle(
-                              color: AppColors.textPlaceholder,
-                              fontSize: 14,
-                            ),
-                          ),
+                          hint: const Text('Selecciona tu rol',
+                              style: TextStyle(color: AppColors.textPlaceholder, fontSize: 14)),
                           value: _selectedRole,
-                          items: _roles
-                              .map((r) => DropdownMenuItem(
-                                    value: r,
-                                    child: Text(r),
-                                  ))
-                              .toList(),
-                          onChanged: (v) =>
-                              setState(() => _selectedRole = v),
+                          items: _roles.map((r) => DropdownMenuItem(value: r, child: Text(r))).toList(),
+                          onChanged: (v) => setState(() => _selectedRole = v),
                         ),
                       ),
                     ),
                   ],
                 ),
-
                 const SizedBox(height: 16),
 
                 // Selector de Facultad
@@ -303,11 +283,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   children: [
                     const Text(
                       'Facultad',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.textMedium,
-                      ),
+                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.textMedium),
                     ),
                     const SizedBox(height: 6),
                     Container(
@@ -320,28 +296,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       child: DropdownButtonHideUnderline(
                         child: DropdownButton<String>(
                           isExpanded: true,
-                          hint: const Text(
-                            'Selecciona tu facultad',
-                            style: TextStyle(
-                              color: AppColors.textPlaceholder,
-                              fontSize: 14,
-                            ),
-                          ),
+                          hint: const Text('Selecciona tu facultad',
+                              style: TextStyle(color: AppColors.textPlaceholder, fontSize: 14)),
                           value: _selectedFaculty,
-                          items: _faculties
-                              .map((f) => DropdownMenuItem(
-                                    value: f,
-                                    child: Text(f),
-                                  ))
-                              .toList(),
-                          onChanged: (v) =>
-                              setState(() => _selectedFaculty = v),
+                          items: _faculties.map((f) => DropdownMenuItem(value: f, child: Text(f))).toList(),
+                          onChanged: (v) => setState(() => _selectedFaculty = v),
                         ),
                       ),
                     ),
                   ],
                 ),
-
                 const SizedBox(height: 28),
 
                 PrimaryButton(
@@ -349,7 +313,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   onPressed: _handleRegister,
                   isLoading: _isLoading,
                 ),
-
                 const SizedBox(height: 12),
 
                 GestureDetector(
@@ -357,24 +320,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   child: RichText(
                     text: const TextSpan(
                       text: '¿Ya tienes cuenta? ',
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: AppColors.textLight,
-                        fontWeight: FontWeight.bold,
-                      ),
+                      style: TextStyle(fontSize: 13, color: AppColors.textLight, fontWeight: FontWeight.bold),
                       children: [
                         TextSpan(
                           text: 'Inicia sesión',
-                          style: TextStyle(
-                            color: AppColors.accentGreen,
-                            fontWeight: FontWeight.w600,
-                          ),
+                          style: TextStyle(color: AppColors.accentGreen, fontWeight: FontWeight.w600),
                         ),
                       ],
                     ),
                   ),
                 ),
-
                 const SizedBox(height: 32),
               ],
             ),

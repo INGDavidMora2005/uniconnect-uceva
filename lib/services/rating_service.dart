@@ -8,7 +8,7 @@ class RatingService {
 
   final FirebaseFirestore _db = FirebaseFirestore.instance;
 
-  // ── GUARDAR CALIFICACIÓN ──────────────────────────────────
+  // GUARDAR CALIFICACIÓN 
   Future<String> submitRating(RatingModel rating) async {
     try {
       // 1. Guardar la calificación
@@ -23,7 +23,7 @@ class RatingService {
     }
   }
 
-  // ── ACTUALIZAR RATING PROMEDIO ────────────────────────────
+  // ACTUALIZAR RATING PROMEDIO 
   Future<void> _updateUserRating(String userId) async {
     try {
       final snapshot = await _db
@@ -47,13 +47,32 @@ class RatingService {
     }
   }
 
-  // ── VERIFICAR SI YA CALIFICÓ ──────────────────────────────
+  // VERIFICAR SI YA CALIFICÓ (RUTAS) 
   Future<bool> hasRated(String raterId, String routeId) async {
     try {
       final snapshot = await _db
           .collection('ratings')
           .where('raterId', isEqualTo: raterId)
           .where('routeId', isEqualTo: routeId)
+          .get();
+      return snapshot.docs.isNotEmpty;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  //  VERIFICAR SI YA CALIFICÓ UNA TRANSACCIÓN DE BAZAR 
+  /// Retorna true si el usuario ya calificó la transacción de un producto dado.
+  Future<bool> hasRatedBazarTransaction(
+    String raterId,
+    String productId,
+  ) async {
+    try {
+      final snapshot = await _db
+          .collection('ratings')
+          .where('raterId', isEqualTo: raterId)
+          .where('productId', isEqualTo: productId)
+          .where('ratingType', isEqualTo: 'bazar')
           .get();
       return snapshot.docs.isNotEmpty;
     } catch (e) {

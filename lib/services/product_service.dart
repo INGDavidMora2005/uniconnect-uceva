@@ -72,4 +72,22 @@ class ProductService {
       return 'Error al eliminar el producto: $e';
     }
   }
+
+  // ── UU-20: CERRAR TRANSACCIÓN ────────────────────────────────────────────
+  /// Cambia el estado de un producto entre 'Disponible' y 'Vendido'.
+  /// Retorna 'ok' si fue exitoso o un mensaje de error.
+  Future<String> updateProductStatus(
+    String productId,
+    String newStatus,
+  ) async {
+    try {
+      await _db.collection('products').doc(productId).update({
+        'status': newStatus,
+        'statusUpdatedAt': FieldValue.serverTimestamp(),
+      });
+      return 'ok';
+    } catch (e) {
+      return 'Error al actualizar el estado del producto: $e';
+    }
+  }
 }

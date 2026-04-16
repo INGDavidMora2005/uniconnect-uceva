@@ -114,6 +114,7 @@ class _EditarProductoScreenState extends State<EditarProductoScreen> {
         sellerInitials: widget.product.sellerInitials,
         sellerRating: widget.product.sellerRating,
         sellerCareer: widget.product.sellerCareer,
+        sellerPhone: widget.product.sellerPhone,
         status: widget.product.status,
         createdAt: widget.product.createdAt,
       );
