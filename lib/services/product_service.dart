@@ -27,12 +27,40 @@ class ProductService {
         });
   }
 
+  Stream<List<ProductModel>> getMyProducts(String sellerId) {
+    return _db
+        .collection('products')
+        .where('sellerId', isEqualTo: sellerId)
+        .snapshots()
+        .map((snap) {
+          final list = snap.docs
+              .map((doc) => ProductModel.fromFirestore(doc))
+              .toList();
+          list.sort((a, b) {
+            if (a.createdAt == null && b.createdAt == null) return 0;
+            if (a.createdAt == null) return 1;
+            if (b.createdAt == null) return -1;
+            return b.createdAt!.compareTo(a.createdAt!);
+          });
+          return list;
+        });
+  }
+
   Future<String> publishProduct(ProductModel product) async {
     try {
       await _db.collection('products').add(product.toMap());
       return 'ok';
     } catch (e) {
       return 'Error al publicar el producto: $e';
+    }
+  }
+
+  Future<String> updateProduct(ProductModel product) async {
+    try {
+      await _db.collection('products').doc(product.id).update(product.toMap());
+      return 'ok';
+    } catch (e) {
+      return 'Error al actualizar el producto: $e';
     }
   }
 
