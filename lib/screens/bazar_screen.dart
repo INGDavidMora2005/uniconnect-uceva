@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import '../models/product_model.dart';
+import '../models/user_model.dart';
 import '../services/product_service.dart';
+import '../services/auth_service.dart';
 import '../theme/app_theme.dart';
 import 'publicar_producto_screen.dart';
 import 'detalle_producto_screen.dart';
@@ -15,6 +16,18 @@ class BazarScreen extends StatefulWidget {
 
 class _BazarScreenState extends State<BazarScreen> {
   final TextEditingController _searchController = TextEditingController();
+  UserModel? _currentUser; // ← agregamos esto
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUser(); // ← cargamos el usuario al iniciar
+  }
+
+  Future<void> _loadUser() async {
+    final user = await AuthService().getUserData();
+    if (mounted) setState(() => _currentUser = user);
+  }
 
   List<ProductModel> _applySearch(List<ProductModel> products) {
     final query = _searchController.text.toLowerCase().trim();
@@ -33,6 +46,9 @@ class _BazarScreenState extends State<BazarScreen> {
     _searchController.dispose();
     super.dispose();
   }
+
+  // ← ahora usa _currentUser de Firestore
+  String get _initials => _currentUser?.initials ?? '?';
 
   @override
   Widget build(BuildContext context) {
@@ -299,18 +315,9 @@ class _BazarScreenState extends State<BazarScreen> {
       ],
     );
   }
-
-  String get _initials {
-    final user = FirebaseAuth.instance.currentUser;
-    final name = user?.displayName ?? '';
-    final parts = name.trim().split(' ');
-    if (parts.length >= 2) {
-      return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
-    }
-    if (parts[0].isNotEmpty) return parts[0][0].toUpperCase();
-    return '?';
-  }
 }
+
+// ── _ProductCard (sin cambios) ────────────────────────────────────────────────
 
 class _ProductCard extends StatelessWidget {
   final ProductModel product;

@@ -1,6 +1,9 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import '../theme/app_theme.dart';
 import '../services/auth_service.dart';
+import '../services/cloudinary_service.dart';
 
 class EditProfileScreen extends StatefulWidget {
   const EditProfileScreen({super.key});
@@ -14,11 +17,14 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _descriptionController = TextEditingController();
+  final TextEditingController _phoneController = TextEditingController();
 
   String? _selectedFaculty;
   String? _selectedRole;
   bool _loading = true;
   bool _saving = false;
+  bool _uploadingImage = false;
+  String? _profileImageUrl; // URL de la imagen de perfil
 
   // ── Listas de opciones ─────────────────────────────────────
   final List<String> _roles = [
@@ -48,8 +54,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     if (user != null) {
       _nameController.text = user.fullName;
       _descriptionController.text = user.description;
+      _phoneController.text = user.phone;
+      _profileImageUrl = user.profileImageUrl;
 
-      // Validar que el rol y facultad existan en las listas
       _selectedRole = _roles.contains(user.role) ? user.role : null;
       _selectedFaculty = _faculties.contains(user.faculty)
           ? user.faculty
@@ -57,6 +64,28 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     }
     if (!mounted) return;
     setState(() => _loading = false);
+  }
+
+  Future<void> _pickImage() async {
+    final picker = ImagePicker();
+    final picked = await picker.pickImage(source: ImageSource.gallery);
+    if (picked == null) return;
+
+    setState(() => _uploadingImage = true);
+    try {
+      final url = await CloudinaryService.uploadImage(File(picked.path));
+      setState(() {
+        _profileImageUrl = url;
+        _uploadingImage = false;
+      });
+    } catch (e) {
+      setState(() => _uploadingImage = false);
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error subiendo imagen: $e')));
+      }
+    }
   }
 
   Future<void> _saveProfile() async {
@@ -68,6 +97,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       role: _selectedRole ?? '',
       faculty: _selectedFaculty ?? '',
       description: _descriptionController.text.trim(),
+      phone: _phoneController.text.trim(),
+      profileImageUrl: _profileImageUrl,
     );
 
     if (!mounted) return;
@@ -91,6 +122,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   void dispose() {
     _nameController.dispose();
     _descriptionController.dispose();
+    _phoneController.dispose();
     super.dispose();
   }
 
@@ -162,10 +194,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   20,
                   20,
                   20,
-                  20 +
-                      MediaQuery.of(
-                        context,
-                      ).viewInsets.bottom, // Ajustado para insets del teclado
+                  20 + MediaQuery.of(context).viewInsets.bottom,
                 ),
                 child: Form(
                   key: _formKey,
@@ -176,26 +205,36 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                       Center(
                         child: Column(
                           children: [
-                            const CircleAvatar(
-                              radius: 38,
-                              backgroundColor: AppColors.accentGreen,
-                              child: Icon(
-                                Icons.person,
-                                size: 34,
-                                color: Colors.white,
-                              ),
-                            ),
+                            _uploadingImage
+                                ? const CircleAvatar(
+                                    radius: 38,
+                                    backgroundColor: AppColors.accentGreen,
+                                    child: SizedBox(
+                                      width: 24,
+                                      height: 24,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2.5,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                  )
+                                : CircleAvatar(
+                                    radius: 38,
+                                    backgroundColor: AppColors.accentGreen,
+                                    backgroundImage: _profileImageUrl != null
+                                        ? NetworkImage(_profileImageUrl!)
+                                        : null,
+                                    child: _profileImageUrl == null
+                                        ? const Icon(
+                                            Icons.person,
+                                            size: 34,
+                                            color: Colors.white,
+                                          )
+                                        : null,
+                                  ),
                             const SizedBox(height: 8),
                             TextButton(
-                              onPressed: () {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text(
-                                      'Cambio de foto próximamente',
-                                    ),
-                                  ),
-                                );
-                              },
+                              onPressed: _uploadingImage ? null : _pickImage,
                               child: const Text(
                                 'Cambiar foto',
                                 style: TextStyle(
@@ -272,6 +311,15 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                             ? 'La facultad es obligatorio'
                             : null,
                         onChanged: (v) => setState(() => _selectedFaculty = v),
+                      ),
+                      const SizedBox(height: 12),
+
+                      // ── Teléfono ─────────────────────────────
+                      _sectionLabel('Teléfono WhatsApp'),
+                      TextFormField(
+                        controller: _phoneController,
+                        decoration: _inputDecoration('Ej: 3001234567'),
+                        keyboardType: TextInputType.phone,
                       ),
                       const SizedBox(height: 20),
 

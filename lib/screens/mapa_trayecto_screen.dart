@@ -280,9 +280,9 @@ class _MapaTrayectoScreenState extends State<MapaTrayectoScreen> {
 
 
 
-  // ════════════════════════════════════════════════════════════════════
+  // 
   // CAMBIO 2 — POLYLINE DE PICKUP (conductor → pasajero más cercano)
-  // ════════════════════════════════════════════════════════════════════
+  // 
 
   /// Distancia Haversine en metros entre dos puntos.
   double _haversineDistance(LatLng a, LatLng b) {
