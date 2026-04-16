@@ -35,6 +35,9 @@ dependencies:
   # evitar que una actualización de dependencias lo elimine sin aviso.
   http: ^1.2.0
 
+  # Imágenes
+  image_picker: ^1.2.1
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
