@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../theme/app_theme.dart';
 import '../models/route_model.dart';
 import '../services/route_service.dart';
@@ -29,6 +30,7 @@ class _RouteCardState extends State<RouteCard> {
   bool _finalizing = false;
   bool _starting = false;
   Future<String>? _requestStatusFuture;
+  bool _isSharingLocation = false;
 
   @override
   void initState() {
@@ -46,11 +48,51 @@ class _RouteCardState extends State<RouteCard> {
     }
   }
 
+  Future<void> _startPassengerSharing() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+    try {
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .get();
+      final name = (userDoc.data()?['fullName'] as String?) ?? 'Pasajero';
+      final parts = name.trim().split(' ');
+      final initials = parts.length >= 2
+          ? '${parts[0][0]}${parts[1][0]}'.toUpperCase()
+          : (parts[0].isNotEmpty ? parts[0][0].toUpperCase() : 'P');
+
+      await LocationService().startSharingPassengerLocation(
+        routeId: widget.route.id,
+        passengerId: uid,
+        passengerName: name,
+        passengerInitials: initials,
+      );
+      _isSharingLocation = true;
+    } catch (_) {
+      // Manejar error silenciosamente o mostrar snackbar si es necesario
+    }
+  }
+
+  Future<void> _stopPassengerSharing() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid != null) {
+      await LocationService().stopSharingPassengerLocation(
+        routeId: widget.route.id,
+        passengerId: uid,
+      );
+      _isSharingLocation = false;
+    }
+  }
+
   bool get _isDriver =>
       FirebaseAuth.instance.currentUser?.uid == widget.route.driverId;
   bool get _isFinalized => widget.route.status == RouteStatus.finalizada;
   bool get _isFull => widget.route.isFull;
 
+  // ════════════════════════════════════════════════════════════════════
+  // DIÁLOGOS
+  // ════════════════════════════════════════════════════════════════════
 
   Future<void> _handleFinalize() async {
     final confirm = await showDialog<bool>(
@@ -62,7 +104,8 @@ class _RouteCardState extends State<RouteCard> {
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
         content: const Text(
-          '¿Confirmas que esta ruta ya terminó? Se notificará a los pasajeros para que califiquen.',
+          '¿Confirmas que esta ruta ya terminó? Se notificará a los '
+          'pasajeros para que califiquen.',
         ),
         actions: [
           TextButton(
@@ -121,7 +164,8 @@ class _RouteCardState extends State<RouteCard> {
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
         content: const Text(
-          '¿Confirmas que la ruta ya comenzó? Los pasajeros podrán ver tu ubicación en tiempo real.',
+          '¿Confirmas que la ruta ya comenzó? Los pasajeros podrán '
+          'ver tu ubicación en tiempo real.',
         ),
         actions: [
           TextButton(
@@ -140,10 +184,7 @@ class _RouteCardState extends State<RouteCard> {
                 borderRadius: BorderRadius.circular(8),
               ),
             ),
-            child: const Text(
-              'Iniciar',
-              style: TextStyle(color: Colors.white),
-            ),
+            child: const Text('Iniciar', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
@@ -172,49 +213,58 @@ class _RouteCardState extends State<RouteCard> {
     );
   }
 
+  // ════════════════════════════════════════════════════════════════════
+  // CAMBIO 3 — BOTÓN UNIFICADO "VER TRAYECTO EN VIVO"
+  // ════════════════════════════════════════════════════════════════════
+
+  /// Mismo botón para conductor y pasajero. La diferencia entre roles
+  /// la gestiona [MapaTrayectoScreen] internamente con [isDriver].
+  Widget _buildLiveMapButton({required bool isDriver}) {
+    return SizedBox(
+      width: double.infinity,
+      height: 36,
+      child: OutlinedButton.icon(
+        onPressed: () => Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) =>
+                MapaTrayectoScreen(route: widget.route, isDriver: isDriver),
+          ),
+        ),
+        icon: const Icon(
+          Icons.map_outlined,
+          size: 16,
+          color: AppColors.accentGreen,
+        ),
+        label: const Text(
+          'Ver trayecto en vivo',
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: AppColors.accentGreen,
+          ),
+        ),
+        style: OutlinedButton.styleFrom(
+          side: const BorderSide(color: AppColors.accentGreen, width: 1.5),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        ),
+      ),
+    );
+  }
+
+  // ════════════════════════════════════════════════════════════════════
+  // ACCIONES DEL CONDUCTOR
+  // ════════════════════════════════════════════════════════════════════
+
   Widget _buildDriverActions() {
     if (!_isDriver || _isFinalized) return const SizedBox.shrink();
 
     if (widget.route.status == RouteStatus.enCurso) {
+      // Ruta en curso: botón unificado + finalizar
       return Column(
         children: [
-          SizedBox(
-            width: double.infinity,
-            height: 36,
-            child: OutlinedButton.icon(
-              onPressed: () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => MapaTrayectoScreen(
-                    route: widget.route,
-                    isDriver: true,
-                  ),
-                ),
-              ),
-              icon: const Icon(
-                Icons.my_location,
-                size: 16,
-                color: AppColors.accentGreen,
-              ),
-              label: const Text(
-                'Ver mi ruta en mapa',
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.accentGreen,
-                ),
-              ),
-              style: OutlinedButton.styleFrom(
-                side: const BorderSide(
-                  color: AppColors.accentGreen,
-                  width: 1.5,
-                ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              ),
-            ),
-          ),
+          // Cambio 3: mismo botón que el pasajero
+          _buildLiveMapButton(isDriver: true),
           const SizedBox(height: 8),
           SizedBox(
             width: double.infinity,
@@ -259,6 +309,7 @@ class _RouteCardState extends State<RouteCard> {
         ],
       );
     } else {
+      // Ruta activa pero no iniciada: botón "Iniciar ruta"
       return SizedBox(
         width: double.infinity,
         height: 36,
@@ -276,7 +327,7 @@ class _RouteCardState extends State<RouteCard> {
             : OutlinedButton.icon(
                 onPressed: _handleStartRoute,
                 icon: const Icon(
-                  Icons.play_arrow,
+                  Icons.play_arrow_rounded,
                   size: 16,
                   color: AppColors.accentGreen,
                 ),
@@ -302,35 +353,27 @@ class _RouteCardState extends State<RouteCard> {
     }
   }
 
+  // ════════════════════════════════════════════════════════════════════
+  // NAVEGACIÓN
+  // ════════════════════════════════════════════════════════════════════
+
   void _handleCardTap() {
-    // Para pasajeros con cupo confirmado, navegar a detalles
-    if (!_isDriver && _requestStatusFuture != null) {
-      // Verificar si el status es 'accepted' (esto es aproximado, ya que es async)
-      // Idealmente, usar un state para el status
-      // Por simplicidad, navegar siempre para pasajeros, y en detalles mostrar mapa si 'En curso'
+    if (_isDriver) {
       Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (_) => RouteDetailsScreen(
-            route: widget.route,
-            isDriver: false,
-          ),
-        ),
-      );
-    } else if (_isDriver) {
-      // Para conductores, navegar a detalles
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => RouteDetailsScreen(
-            route: widget.route,
-            isDriver: true,
-          ),
+          builder: (_) =>
+              RouteDetailsScreen(route: widget.route, isDriver: true),
         ),
       );
     } else {
-      // Para otros casos, llamar el onTap original
-      widget.onTap();
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) =>
+              RouteDetailsScreen(route: widget.route, isDriver: false),
+        ),
+      );
     }
   }
 
@@ -341,11 +384,14 @@ class _RouteCardState extends State<RouteCard> {
         builder: (_) => SolicitarCupoScreen(route: widget.route),
       ),
     ).then((_) {
-      // Recargar estado y rutas rechazadas al volver
       setState(() => _loadStatus());
       widget.onRefreshRejected?.call();
     });
   }
+
+  // ════════════════════════════════════════════════════════════════════
+  // BADGE DE ESTADO
+  // ════════════════════════════════════════════════════════════════════
 
   Widget _buildStatusBadge() {
     String label;
@@ -388,203 +434,280 @@ class _RouteCardState extends State<RouteCard> {
     );
   }
 
+  // ════════════════════════════════════════════════════════════════════
+  // BUILD
+  // ════════════════════════════════════════════════════════════════════
+
   @override
   Widget build(BuildContext context) {
     return InkWell(
       onTap: _handleCardTap,
       child: Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        color: AppColors.backgroundWhite,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.06),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildStatusBadge(),
-            const SizedBox(height: 8),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Expanded(
-                  child: Text(
-                    '${widget.route.origin} → ${widget.route.destination}',
-                    style: const TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.textDark,
+        margin: const EdgeInsets.only(bottom: 12),
+        decoration: BoxDecoration(
+          color: AppColors.backgroundWhite,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.06),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildStatusBadge(),
+              const SizedBox(height: 8),
+
+              // Origen → Destino + cupos
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Text(
+                      '${widget.route.origin} → ${widget.route.destination}',
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textDark,
+                      ),
                     ),
                   ),
+                  if (!_isFinalized)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: _isFull
+                            ? Colors.red.withOpacity(0.1)
+                            : AppColors.accentGreen.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        _isFull
+                            ? 'Lleno'
+                            : '${widget.route.availableSeats} Cupos',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: _isFull ? Colors.red : AppColors.accentGreen,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 6),
+
+              // Fecha, hora y precio
+              Text(
+                _isFinalized
+                    ? '${widget.route.date} · ${widget.route.time}'
+                    : '${widget.route.date} · ${widget.route.time} · ${widget.route.priceFormatted}',
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: AppColors.textLight,
                 ),
-                if (!_isFinalized)
+              ),
+              const SizedBox(height: 10),
+
+              // Avatar + nombre del conductor + rating
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
+                    children: [
+                      CircleAvatar(
+                        radius: 14,
+                        backgroundColor: AppColors.accentGreen,
+                        child: Text(
+                          widget.route.driverInitials,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        _isDriver
+                            ? '${widget.route.driverName} (tú)'
+                            : widget.route.driverName,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textMedium,
+                        ),
+                      ),
+                    ],
+                  ),
                   Container(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
+                      horizontal: 8,
                       vertical: 4,
                     ),
                     decoration: BoxDecoration(
-                      color: _isFull
-                          ? Colors.red.withOpacity(0.1)
-                          : AppColors.accentGreen.withOpacity(0.1),
+                      color: AppColors.backgroundApp,
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Text(
-                      _isFull
-                          ? 'Lleno'
-                          : '${widget.route.availableSeats} Cupos',
-                      style: TextStyle(
+                      '⭐ ${widget.route.driverRating}',
+                      style: const TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.w600,
-                        color: _isFull ? Colors.red : AppColors.accentGreen,
+                        color: AppColors.textDark,
                       ),
                     ),
                   ),
-              ],
-            ),
-            const SizedBox(height: 6),
-            Text(
-              _isFinalized
-                  ? '${widget.route.date} · ${widget.route.time}'
-                  : '${widget.route.date} · ${widget.route.time} · ${widget.route.priceFormatted}',
-              style: const TextStyle(fontSize: 12, color: AppColors.textLight),
-            ),
-            const SizedBox(height: 10),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Row(
-                  children: [
-                    CircleAvatar(
-                      radius: 14,
-                      backgroundColor: AppColors.accentGreen,
-                      child: Text(
-                        widget.route.driverInitials,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      _isDriver
-                          ? '${widget.route.driverName} (tú)'
-                          : widget.route.driverName,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: AppColors.textMedium,
-                      ),
-                    ),
-                  ],
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: AppColors.backgroundApp,
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    '⭐ ${widget.route.driverRating}',
-                    style: const TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.textDark,
-                    ),
-                  ),
-                ),
-              ],
-            ),
+                ],
+              ),
 
-            const SizedBox(height: 12),
-            const Divider(height: 1),
-            const SizedBox(height: 10),
+              const SizedBox(height: 12),
+              const Divider(height: 1),
+              const SizedBox(height: 10),
 
-            _buildDriverActions(),
-            // ── PASAJERO: según estado de solicitud ────────
-            if (!_isDriver && !_isFinalized)
-              FutureBuilder<String>(
-                future: _requestStatusFuture,
-                builder: (context, snapshot) {
-                  final status = snapshot.data ?? '';
-                  final loading =
-                      snapshot.connectionState == ConnectionState.waiting;
+              // ── Acciones del CONDUCTOR ──────────────────────────────
+              _buildDriverActions(),
 
-                  // Cupo confirmado
-                  if (status == 'accepted') {
-                    return Column(
-                      children: [
-                        Container(
-                          width: double.infinity,
-                          height: 36,
-                          decoration: BoxDecoration(
-                            color: AppColors.accentGreen.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(
-                              color: AppColors.accentGreen,
-                              width: 1.5,
-                            ),
-                          ),
-                          child: const Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                Icons.check_circle_rounded,
-                                size: 16,
-                                color: AppColors.accentGreen,
-                              ),
-                              SizedBox(width: 6),
-                              Text(
-                                'Cupo confirmado',
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w600,
-                                  color: AppColors.accentGreen,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        if (widget.route.status == RouteStatus.enCurso) ...[
-                          const SizedBox(height: 8),
-                          SizedBox(
+              // ── Acciones del PASAJERO ───────────────────────────────
+              if (!_isDriver && !_isFinalized)
+                FutureBuilder<String>(
+                  future: _requestStatusFuture,
+                  builder: (context, snapshot) {
+                    final status = snapshot.data ?? '';
+                    final loading =
+                        snapshot.connectionState == ConnectionState.waiting;
+
+                    // Gestionar compartición de ubicación
+                    if (status == 'accepted' && widget.route.status == RouteStatus.enCurso && !_isSharingLocation) {
+                      _startPassengerSharing();
+                    } else if ((status != 'accepted' || widget.route.status != RouteStatus.enCurso) && _isSharingLocation) {
+                      _stopPassengerSharing();
+                    }
+
+                    // Cupo confirmado
+                    if (status == 'accepted') {
+                      return Column(
+                        children: [
+                          // Badge "Cupo confirmado"
+                          Container(
                             width: double.infinity,
                             height: 36,
-                            child: OutlinedButton.icon(
-                              onPressed: () => Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => MapaTrayectoScreen(
-                                    route: widget.route,
-                                    isDriver: false,
-                                  ),
-                                ),
-                              ),
-                              icon: const Icon(
-                                Icons.map_outlined,
-                                size: 16,
+                            decoration: BoxDecoration(
+                              color: AppColors.accentGreen.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
                                 color: AppColors.accentGreen,
+                                width: 1.5,
                               ),
-                              label: const Text(
-                                'Ver en mapa en vivo',
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w600,
+                            ),
+                            child: const Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.check_circle_rounded,
+                                  size: 16,
                                   color: AppColors.accentGreen,
                                 ),
+                                SizedBox(width: 6),
+                                Text(
+                                  'Cupo confirmado',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: AppColors.accentGreen,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+
+                          // Cambio 3: Botón unificado cuando la ruta está en curso
+                          if (widget.route.status == RouteStatus.enCurso) ...[
+                            const SizedBox(height: 8),
+                            _buildLiveMapButton(isDriver: false),
+                          ],
+                        ],
+                      );
+                    }
+
+                    // Solicitud pendiente
+                    if (status == 'pending') {
+                      return SizedBox(
+                        width: double.infinity,
+                        height: 36,
+                        child: OutlinedButton(
+                          onPressed: null,
+                          style: OutlinedButton.styleFrom(
+                            side: const BorderSide(
+                              color: Colors.grey,
+                              width: 1.5,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                          child: const Text(
+                            'Solicitud enviada',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.grey,
+                            ),
+                          ),
+                        ),
+                      );
+                    }
+
+                    // Sin cupos disponibles
+                    if (_isFull) {
+                      return SizedBox(
+                        width: double.infinity,
+                        height: 36,
+                        child: OutlinedButton(
+                          onPressed: null,
+                          style: OutlinedButton.styleFrom(
+                            side: const BorderSide(
+                              color: Colors.grey,
+                              width: 1.5,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                          child: const Text(
+                            'Sin cupos disponibles',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.grey,
+                            ),
+                          ),
+                        ),
+                      );
+                    }
+
+                    // Disponible para solicitar
+                    return SizedBox(
+                      width: double.infinity,
+                      height: 36,
+                      child: loading
+                          ? const Center(
+                              child: SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
                               ),
+                            )
+                          : OutlinedButton(
+                              onPressed: _handleRequestSeat,
                               style: OutlinedButton.styleFrom(
                                 side: const BorderSide(
                                   color: AppColors.accentGreen,
@@ -594,108 +717,28 @@ class _RouteCardState extends State<RouteCard> {
                                   borderRadius: BorderRadius.circular(8),
                                 ),
                               ),
-                            ),
-                          ),
-                        ],
-                      ],
-                    );
-                  }
-
-                  // Solicitud pendiente
-                  if (status == 'pending') {
-                    return SizedBox(
-                      width: double.infinity,
-                      height: 36,
-                      child: OutlinedButton(
-                        onPressed: null,
-                        style: OutlinedButton.styleFrom(
-                          side: const BorderSide(
-                            color: Colors.grey,
-                            width: 1.5,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                        ),
-                        child: const Text(
-                          'Solicitud enviada',
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.grey,
-                          ),
-                        ),
-                      ),
-                    );
-                  }
-
-                  // Sin cupos
-                  if (_isFull) {
-                    return SizedBox(
-                      width: double.infinity,
-                      height: 36,
-                      child: OutlinedButton(
-                        onPressed: null,
-                        style: OutlinedButton.styleFrom(
-                          side: const BorderSide(
-                            color: Colors.grey,
-                            width: 1.5,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                        ),
-                        child: const Text(
-                          'Sin cupos disponibles',
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.grey,
-                          ),
-                        ),
-                      ),
-                    );
-                  }
-
-                  // Disponible para solicitar
-                  return SizedBox(
-                    width: double.infinity,
-                    height: 36,
-                    child: loading
-                        ? const Center(
-                            child: SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            ),
-                          )
-                        : OutlinedButton(
-                            onPressed: _handleRequestSeat,
-                            style: OutlinedButton.styleFrom(
-                              side: const BorderSide(
-                                color: AppColors.accentGreen,
-                                width: 1.5,
-                              ),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
+                              child: const Text(
+                                'Solicitar cupo',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.accentGreen,
+                                ),
                               ),
                             ),
-                            child: const Text(
-                              'Solicitar cupo',
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                                color: AppColors.accentGreen,
-                              ),
-                            ),
-                          ),
-                  );
-                },
-              ),
-          ],
+                    );
+                  },
+                ),
+            ],
+          ),
         ),
       ),
-    ),
     );
+  }
+
+  @override
+  void dispose() {
+    if (_isSharingLocation) _stopPassengerSharing();
+    super.dispose();
   }
 }

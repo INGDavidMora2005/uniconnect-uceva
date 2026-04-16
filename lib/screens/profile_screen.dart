@@ -6,6 +6,7 @@ import '../widgets/bottom_nav_bar.dart';
 import '../services/auth_service.dart';
 import '../models/user_model.dart';
 import 'edit_profile_screen.dart';
+import 'mis_publicaciones_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key, this.showBottomNav = true});
@@ -245,6 +246,42 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               ),
                               child: const Text(
                                 'Editar Perfil',
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+
+                        const SizedBox(height: 12),
+
+                        // ── Botón Mis Publicaciones ─────────
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 20),
+                          child: SizedBox(
+                            width: double.infinity,
+                            height: 48,
+                            child: OutlinedButton(
+                              onPressed: () => Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) =>
+                                      const MisPublicacionesScreen(),
+                                ),
+                              ),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: AppColors.accentGreen,
+                                side: const BorderSide(
+                                  color: AppColors.accentGreen,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                              child: const Text(
+                                'Mis Publicaciones',
                                 style: TextStyle(
                                   fontSize: 15,
                                   fontWeight: FontWeight.bold,

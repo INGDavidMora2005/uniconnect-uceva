@@ -1,31 +1,32 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:image_picker/image_picker.dart';
 import '../models/product_model.dart';
 import '../services/product_service.dart';
-import '../services/auth_service.dart';
 import '../services/cloudinary_service.dart';
 import '../theme/app_theme.dart';
 
-class PublicarProductoScreen extends StatefulWidget {
-  const PublicarProductoScreen({super.key});
+class EditarProductoScreen extends StatefulWidget {
+  final ProductModel product;
+
+  const EditarProductoScreen({super.key, required this.product});
 
   @override
-  State<PublicarProductoScreen> createState() => _PublicarProductoScreenState();
+  State<EditarProductoScreen> createState() => _EditarProductoScreenState();
 }
 
-class _PublicarProductoScreenState extends State<PublicarProductoScreen> {
-  final _nameController = TextEditingController();
-  final _priceController = TextEditingController();
-  final _descriptionController = TextEditingController();
+class _EditarProductoScreenState extends State<EditarProductoScreen> {
+  late final TextEditingController _nameController;
+  late final TextEditingController _priceController;
+  late final TextEditingController _descriptionController;
 
-  String _category = 'Libros';
-  String _contactMethod = 'Whatsapp';
+  late String _category;
+  late String _contactMethod;
   bool _loading = false;
   bool _uploadingImages = false;
   final List<File> _selectedImages = [];
+
   final List<String> _categories = [
     'Libros',
     'Batas',
@@ -33,6 +34,20 @@ class _PublicarProductoScreenState extends State<PublicarProductoScreen> {
     'Equipos',
     'Otro',
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    _nameController = TextEditingController(text: widget.product.name);
+    _priceController = TextEditingController(
+      text: widget.product.price.toString(),
+    );
+    _descriptionController = TextEditingController(
+      text: widget.product.description,
+    );
+    _category = widget.product.category;
+    _contactMethod = widget.product.contactMethod;
+  }
 
   @override
   void dispose() {
@@ -50,7 +65,7 @@ class _PublicarProductoScreenState extends State<PublicarProductoScreen> {
     }
   }
 
-  Future<void> _handlePublish() async {
+  Future<void> _handleUpdate() async {
     if (_nameController.text.trim().isEmpty) {
       _showError('Ingresa el nombre del producto');
       return;
@@ -59,7 +74,7 @@ class _PublicarProductoScreenState extends State<PublicarProductoScreen> {
       _showError('Ingresa el precio');
       return;
     }
-    if (_selectedImages.isEmpty) {
+    if (_selectedImages.isEmpty && widget.product.imageUrls.isEmpty) {
       _showError('Selecciona al menos una foto del producto');
       return;
     }
@@ -67,28 +82,18 @@ class _PublicarProductoScreenState extends State<PublicarProductoScreen> {
     setState(() => _uploadingImages = true);
 
     try {
-      // Upload images to Cloudinary
-      final List<String> imageUrls = [];
-      for (final image in _selectedImages) {
-        final url = await CloudinaryService.uploadImage(image);
-        imageUrls.add(url);
+      List<String> imageUrls = widget.product.imageUrls;
+      if (_selectedImages.isNotEmpty) {
+        // Upload new images
+        imageUrls = [];
+        for (final image in _selectedImages) {
+          final url = await CloudinaryService.uploadImage(image);
+          imageUrls.add(url);
+        }
       }
 
       setState(() => _uploadingImages = false);
       setState(() => _loading = true);
-
-      final user = await AuthService().getUserData();
-      if (user == null) {
-        _showError('No se pudo obtener tu información');
-        setState(() => _loading = false);
-        return;
-      }
-
-      final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
-      final parts = user.fullName.trim().split(' ');
-      final initials = parts.length >= 2
-          ? '${parts[0][0]}${parts[1][0]}'.toUpperCase()
-          : parts[0][0].toUpperCase();
 
       final priceText = _priceController.text
           .trim()
@@ -96,99 +101,32 @@ class _PublicarProductoScreenState extends State<PublicarProductoScreen> {
           .replaceAll(',', '');
       final price = double.tryParse(priceText) ?? 0;
 
-      final product = ProductModel(
-        id: '',
+      final updatedProduct = ProductModel(
+        id: widget.product.id,
         name: _nameController.text.trim(),
         description: _descriptionController.text.trim(),
         price: price,
         category: _category,
         contactMethod: _contactMethod,
         imageUrls: imageUrls,
-        sellerId: uid,
-        sellerName: parts[0] + (parts.length > 1 ? ' ${parts[1][0]}.' : ''),
-        sellerInitials: initials,
-        sellerRating: user.rating,
-        sellerCareer: user.faculty,
-        status: 'Disponible',
+        sellerId: widget.product.sellerId,
+        sellerName: widget.product.sellerName,
+        sellerInitials: widget.product.sellerInitials,
+        sellerRating: widget.product.sellerRating,
+        sellerCareer: widget.product.sellerCareer,
+        status: widget.product.status,
+        createdAt: widget.product.createdAt,
       );
 
-      final result = await ProductService().publishProduct(product);
+      final result = await ProductService().updateProduct(updatedProduct);
       if (!mounted) return;
       setState(() => _loading = false);
 
       if (result == 'ok') {
-        await showDialog(
-          context: context,
-          barrierDismissible: false,
-          builder: (_) => AlertDialog(
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 64,
-                  height: 64,
-                  decoration: BoxDecoration(
-                    color: AppColors.accentGreen.withOpacity(0.12),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(
-                    Icons.check_circle_rounded,
-                    color: AppColors.accentGreen,
-                    size: 36,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                const Text(
-                  '¡Producto publicado!',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.textDark,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                const Text(
-                  'Tu producto ya está visible en el Bazar.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: AppColors.textLight,
-                    height: 1.5,
-                  ),
-                ),
-                const SizedBox(height: 20),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: () {
-                      Navigator.pop(context);
-                      Navigator.pop(context);
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.accentGreen,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      elevation: 0,
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                    ),
-                    child: const Text(
-                      'Entendido',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Producto actualizado')));
+        Navigator.pop(context, true);
       } else {
         _showError(result);
       }
@@ -221,9 +159,8 @@ class _PublicarProductoScreenState extends State<PublicarProductoScreen> {
           backgroundColor: AppColors.primaryGreen,
           foregroundColor: Colors.white,
           elevation: 0,
-          scrolledUnderElevation: 0,
           title: const Text(
-            'Publicar producto',
+            'Editar producto',
             style: TextStyle(
               fontSize: 17,
               fontWeight: FontWeight.w600,
@@ -240,11 +177,37 @@ class _PublicarProductoScreenState extends State<PublicarProductoScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Selección de fotos
+              // Fotos
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   _label('Fotos del producto'),
+                  if (widget.product.imageUrls.isNotEmpty &&
+                      _selectedImages.isEmpty)
+                    Container(
+                      height: 100,
+                      margin: const EdgeInsets.only(bottom: 10),
+                      child: ListView.builder(
+                        scrollDirection: Axis.horizontal,
+                        itemCount: widget.product.imageUrls.length,
+                        itemBuilder: (context, index) {
+                          return Container(
+                            width: 80,
+                            height: 80,
+                            margin: const EdgeInsets.only(right: 8),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(8),
+                              image: DecorationImage(
+                                image: NetworkImage(
+                                  widget.product.imageUrls[index],
+                                ),
+                                fit: BoxFit.cover,
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
                   if (_selectedImages.isNotEmpty)
                     Container(
                       height: 100,
@@ -276,7 +239,7 @@ class _PublicarProductoScreenState extends State<PublicarProductoScreen> {
                                     child: Container(
                                       width: 20,
                                       height: 20,
-                                      decoration: BoxDecoration(
+                                      decoration: const BoxDecoration(
                                         color: Colors.red,
                                         shape: BoxShape.circle,
                                       ),
@@ -326,7 +289,7 @@ class _PublicarProductoScreenState extends State<PublicarProductoScreen> {
                             ),
                             const SizedBox(height: 6),
                             Text(
-                              'Agregar foto (${_selectedImages.length}/3)',
+                              'Cambiar fotos (${_selectedImages.isEmpty ? widget.product.imageUrls.length : _selectedImages.length}/3)',
                               style: const TextStyle(
                                 fontSize: 12,
                                 fontWeight: FontWeight.w600,
@@ -346,6 +309,7 @@ class _PublicarProductoScreenState extends State<PublicarProductoScreen> {
                 controller: _nameController,
                 hint: 'Ej: Calculadora marca casio ...',
               ),
+
               const SizedBox(height: 16),
 
               _label('Categoría'),
@@ -382,6 +346,7 @@ class _PublicarProductoScreenState extends State<PublicarProductoScreen> {
                   ),
                 ),
               ),
+
               const SizedBox(height: 16),
 
               _label('Precio'),
@@ -390,6 +355,7 @@ class _PublicarProductoScreenState extends State<PublicarProductoScreen> {
                 hint: '\$ 0.000',
                 keyboardType: TextInputType.number,
               ),
+
               const SizedBox(height: 16),
 
               _label('Descripción'),
@@ -398,6 +364,7 @@ class _PublicarProductoScreenState extends State<PublicarProductoScreen> {
                 hint: 'Describe el estado y detalles del producto',
                 maxLines: 4,
               ),
+
               const SizedBox(height: 16),
 
               _label('Contacto preferido'),
@@ -469,6 +436,7 @@ class _PublicarProductoScreenState extends State<PublicarProductoScreen> {
                   ),
                 ],
               ),
+
               const SizedBox(height: 28),
 
               SizedBox(
@@ -477,7 +445,7 @@ class _PublicarProductoScreenState extends State<PublicarProductoScreen> {
                 child: ElevatedButton(
                   onPressed: (_loading || _uploadingImages)
                       ? null
-                      : _handlePublish,
+                      : _handleUpdate,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.accentGreen,
                     disabledBackgroundColor: AppColors.accentGreen.withOpacity(
@@ -498,7 +466,7 @@ class _PublicarProductoScreenState extends State<PublicarProductoScreen> {
                           ),
                         )
                       : const Text(
-                          'Publicar producto',
+                          'Actualizar producto',
                           style: TextStyle(
                             fontSize: 15,
                             fontWeight: FontWeight.bold,
@@ -507,6 +475,7 @@ class _PublicarProductoScreenState extends State<PublicarProductoScreen> {
                         ),
                 ),
               ),
+
               const SizedBox(height: 12),
 
               SizedBox(
@@ -524,6 +493,7 @@ class _PublicarProductoScreenState extends State<PublicarProductoScreen> {
                   ),
                 ),
               ),
+
               const SizedBox(height: 20),
             ],
           ),

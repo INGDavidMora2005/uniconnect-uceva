@@ -19,16 +19,24 @@ dependencies:
   cloud_firestore: ^5.6.7
   google_sign_in: ^6.2.1
 
-  # Notificaciones ← NUEVO
+  # Notificaciones
   firebase_messaging: ^15.1.3
   flutter_local_notifications: ^18.0.1
   dropdown_button2: ^3.0.0
 
-  # Mapas y ubicación ← NUEVO
+  # Mapas y ubicación
   flutter_map: ^7.0.2
   latlong2: ^0.9.1
   geolocator: ^13.0.2
   permission_handler: ^11.3.1
+
+  # HTTP — necesario para llamar a OSRM (polyline de rutas)
+  # Antes era solo dependencia transitiva; ahora es directa para
+  # evitar que una actualización de dependencias lo elimine sin aviso.
+  http: ^1.2.0
+
+  # Imágenes
+  image_picker: ^1.2.1
 
 dev_dependencies:
   flutter_test:
