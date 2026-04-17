@@ -8,7 +8,7 @@ class RatingService {
 
   final FirebaseFirestore _db = FirebaseFirestore.instance;
 
-  // GUARDAR CALIFICACIÓN 
+  // GUARDAR CALIFICACIÓN
   Future<String> submitRating(RatingModel rating) async {
     try {
       // 1. Guardar la calificación
@@ -23,7 +23,7 @@ class RatingService {
     }
   }
 
-  // ACTUALIZAR RATING PROMEDIO 
+  // ACTUALIZAR RATING PROMEDIO
   Future<void> _updateUserRating(String userId) async {
     try {
       final snapshot = await _db
@@ -38,16 +38,28 @@ class RatingService {
           .reduce((a, b) => a + b);
 
       final avg = total / snapshot.docs.length;
+      final avgRounded = double.parse(avg.toStringAsFixed(1));
 
-      await _db.collection('users').doc(userId).update({
-        'rating': double.parse(avg.toStringAsFixed(1)),
-      });
+      // Actualizar usuario
+      await _db.collection('users').doc(userId).update({'rating': avgRounded});
+
+      // Actualizar sellerRating en TODOS los productos del vendedor
+      final productsSnap = await _db
+          .collection('products')
+          .where('sellerId', isEqualTo: userId)
+          .get();
+
+      final batch = _db.batch();
+      for (var doc in productsSnap.docs) {
+        batch.update(doc.reference, {'sellerRating': avgRounded});
+      }
+      await batch.commit();
     } catch (e) {
       // Ignorar error en actualización de rating
     }
   }
 
-  // VERIFICAR SI YA CALIFICÓ (RUTAS) 
+  // VERIFICAR SI YA CALIFICÓ (RUTAS)
   Future<bool> hasRated(String raterId, String routeId) async {
     try {
       final snapshot = await _db
@@ -61,7 +73,7 @@ class RatingService {
     }
   }
 
-  //  VERIFICAR SI YA CALIFICÓ UNA TRANSACCIÓN DE BAZAR 
+  //  VERIFICAR SI YA CALIFICÓ UNA TRANSACCIÓN DE BAZAR
   /// Retorna true si el usuario ya calificó la transacción de un producto dado.
   Future<bool> hasRatedBazarTransaction(
     String raterId,

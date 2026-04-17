@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../models/product_model.dart';
 import '../services/product_service.dart';
 import '../theme/app_theme.dart';
+import 'perfil_vendedor_screen.dart';
 
 class DetalleProductoScreen extends StatefulWidget {
   final ProductModel product;
@@ -277,96 +278,123 @@ class _DetalleProductoScreenState extends State<DetalleProductoScreen> {
                     ),
                     const SizedBox(height: 16),
 
-                    // Vendedor
-                    Container(
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: const Color(0xFFE8EDE9)),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'VENDEDOR',
-                            style: TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.bold,
-                              color: Color(0xFFAFB8B3),
-                              letterSpacing: 1.0,
-                            ),
+                    // Vendedor (tappable → perfil)
+                    InkWell(
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => PerfilVendedorScreen(
+                            sellerId: widget.product.sellerId,
+                            sellerName: widget.product.sellerName,
+                            sellerInitials: widget.product.sellerInitials,
                           ),
-                          const SizedBox(height: 10),
-                          Row(
-                            children: [
-                              CircleAvatar(
-                                radius: 22,
-                                backgroundColor: AppColors.accentGreen,
-                                child: Text(
-                                  widget.product.sellerInitials,
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 14,
+                        ),
+                      ),
+                      borderRadius: BorderRadius.circular(14),
+                      child: Container(
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: const Color(0xFFE8EDE9)),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                const Text(
+                                  'VENDEDOR',
+                                  style: TextStyle(
+                                    fontSize: 10,
                                     fontWeight: FontWeight.bold,
+                                    color: Color(0xFFAFB8B3),
+                                    letterSpacing: 1.0,
                                   ),
                                 ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      widget.product.sellerName,
-                                      style: const TextStyle(
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.bold,
-                                        color: Color(0xFF1A1A1A),
-                                      ),
+                                Icon(
+                                  Icons.person_outline,
+                                  size: 16,
+                                  color: AppColors.textLight,
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 10),
+                            Row(
+                              children: [
+                                CircleAvatar(
+                                  radius: 22,
+                                  backgroundColor: AppColors.accentGreen,
+                                  child: Text(
+                                    widget.product.sellerInitials,
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.bold,
                                     ),
-                                    if (widget.product.sellerCareer.isNotEmpty)
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
                                       Text(
-                                        widget.product.sellerCareer,
+                                        widget.product.sellerName,
                                         style: const TextStyle(
-                                          fontSize: 12,
-                                          color: Color(0xFF8A9990),
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.bold,
+                                          color: Color(0xFF1A1A1A),
                                         ),
                                       ),
-                                  ],
+                                      if (widget
+                                          .product
+                                          .sellerCareer
+                                          .isNotEmpty)
+                                        Text(
+                                          widget.product.sellerCareer,
+                                          style: const TextStyle(
+                                            fontSize: 12,
+                                            color: Color(0xFF8A9990),
+                                          ),
+                                        ),
+                                    ],
+                                  ),
                                 ),
-                              ),
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 10,
-                                  vertical: 6,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFFF5F5F5),
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
-                                child: Row(
-                                  children: [
-                                    const Icon(
-                                      Icons.star_rounded,
-                                      color: Colors.amber,
-                                      size: 16,
-                                    ),
-                                    const SizedBox(width: 4),
-                                    Text(
-                                      '${widget.product.sellerRating}',
-                                      style: const TextStyle(
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.bold,
-                                        color: Color(0xFF1A1A1A),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 6,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFF5F5F5),
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      const Icon(
+                                        Icons.star_rounded,
+                                        color: Colors.amber,
+                                        size: 16,
                                       ),
-                                    ),
-                                  ],
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        '${widget.product.sellerRating}',
+                                        style: const TextStyle(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.bold,
+                                          color: Color(0xFF1A1A1A),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
                                 ),
-                              ),
-                            ],
-                          ),
-                        ],
+                              ],
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                     const SizedBox(height: 14),
