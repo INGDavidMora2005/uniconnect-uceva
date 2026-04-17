@@ -139,8 +139,9 @@ class _CalificarBazarScreenState extends State<CalificarBazarScreen> {
         ? '${parts[0][0]}${parts[1][0]}'.toUpperCase()
         : parts[0][0].toUpperCase();
 
-    final otherRole =
-        widget.currentUserRole == 'vendedor' ? 'Comprador' : 'Vendedor';
+    final otherRole = widget.currentUserRole == 'vendedor'
+        ? 'Comprador'
+        : 'Vendedor';
 
     return Scaffold(
       backgroundColor: AppColors.backgroundApp,
@@ -247,6 +248,54 @@ class _CalificarBazarScreenState extends State<CalificarBazarScreen> {
                           ),
                           const SizedBox(height: 20),
 
+                          // Mensaje introductorio mejorado
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: AppColors.primaryGreen.withOpacity(0.08),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: AppColors.primaryGreen.withOpacity(0.2),
+                              ),
+                            ),
+                            child: Column(
+                              children: [
+                                Row(
+                                  children: const [
+                                    Icon(
+                                      Icons.rate_review_outlined,
+                                      size: 20,
+                                      color: AppColors.primaryGreen,
+                                    ),
+                                    SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        '¿Cómo fue el trato con el vendedor?',
+                                        style: TextStyle(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w600,
+                                          color: AppColors.textDark,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 6),
+                                const Text(
+                                  'Califica su servicio y cuéntanos si el producto llegó según lo acordado.',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: AppColors.textMedium,
+                                    height: 1.4,
+                                  ),
+                                  textAlign: TextAlign.center,
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 20),
+
                           // ── Estrellas ───────────────────────────────────────
                           Text(
                             _stars == 0
@@ -266,7 +315,8 @@ class _CalificarBazarScreenState extends State<CalificarBazarScreen> {
                                     setState(() => _stars = (i + 1).toDouble()),
                                 child: Padding(
                                   padding: const EdgeInsets.symmetric(
-                                      horizontal: 6),
+                                    horizontal: 6,
+                                  ),
                                   child: Icon(
                                     i < _stars
                                         ? Icons.star_rounded
@@ -298,7 +348,9 @@ class _CalificarBazarScreenState extends State<CalificarBazarScreen> {
                           onTap: () => _toggleTag(label),
                           child: Container(
                             padding: const EdgeInsets.symmetric(
-                                horizontal: 16, vertical: 10),
+                              horizontal: 16,
+                              vertical: 10,
+                            ),
                             decoration: BoxDecoration(
                               color: selected
                                   ? AppColors.accentGreen.withOpacity(0.1)
@@ -348,23 +400,28 @@ class _CalificarBazarScreenState extends State<CalificarBazarScreen> {
                             color: AppColors.textDark,
                           ),
                           decoration: InputDecoration(
-                            hintText: 'Describe tu experiencia en la transacción',
+                            hintText:
+                                'Describe tu experiencia en la transacción',
                             filled: true,
                             fillColor: AppColors.backgroundWhite,
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(10),
                               borderSide: const BorderSide(
-                                  color: AppColors.borderDefault),
+                                color: AppColors.borderDefault,
+                              ),
                             ),
                             enabledBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(10),
                               borderSide: const BorderSide(
-                                  color: AppColors.borderDefault),
+                                color: AppColors.borderDefault,
+                              ),
                             ),
                             focusedBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(10),
                               borderSide: const BorderSide(
-                                  color: AppColors.accentGreen, width: 1.5),
+                                color: AppColors.accentGreen,
+                                width: 1.5,
+                              ),
                             ),
                           ),
                         ),
