@@ -14,7 +14,6 @@ class AuthService {
   User? get currentUser => _auth.currentUser;
   Stream<User?> get authStateChanges => _auth.authStateChanges();
 
-  // ── LOGIN ─────────────────────────────────────────────────
   Future<String> login(String email, String password) async {
     try {
       await _auth.signInWithEmailAndPassword(email: email, password: password);
@@ -31,7 +30,6 @@ class AuthService {
     }
   }
 
-  // ── LOGIN CON GOOGLE ──────────────────────────────────────
   Future<String> loginWithGoogle() async {
     try {
       final GoogleSignInAccount? googleUser = await GoogleSignIn().signIn();
@@ -68,7 +66,6 @@ class AuthService {
     }
   }
 
-  // ── REGISTRO ──────────────────────────────────────────────
   Future<String> register({
     required String fullName,
     required String studentCode,
@@ -76,9 +73,14 @@ class AuthService {
     required String password,
     required String role,
     required String faculty,
-    required String phone, // ← NUEVO
+    required String phone,
   }) async {
     try {
+      final normalizedPhone = _normalizePhone(phone);
+      if (normalizedPhone == null) {
+        return 'Ingresa un número válido de 10 dígitos (ej: 3001234567)';
+      }
+
       final credential = await _auth.createUserWithEmailAndPassword(
         email: email,
         password: password,
@@ -99,7 +101,7 @@ class AuthService {
         'email': email,
         'role': role,
         'faculty': faculty,
-        'phone': phone,
+        'phone': normalizedPhone,
         'profileImageUrl': null,
         'description': '',
         'rating': 0.0,
@@ -124,12 +126,11 @@ class AuthService {
     }
   }
 
-  // ── REGISTRO CON GOOGLE ───────────────────────────────────
   Future<String> registerWithGoogle({
     required String studentCode,
     required String role,
     required String faculty,
-    required String phone, // ← NUEVO
+    required String phone,
   }) async {
     try {
       if (_auth.currentUser != null) await _auth.signOut();
@@ -160,7 +161,6 @@ class AuthService {
           .collection('users')
           .doc(userCredential.user!.uid)
           .get();
-
       if (existingUserDoc.exists) {
         final existingCode = existingUserDoc.data()?['studentCode'];
         if (existingCode != studentCode) {
@@ -181,13 +181,20 @@ class AuthService {
         return 'Este código estudiantil ya está registrado.';
       }
 
+      final normalizedPhone = _normalizePhone(phone);
+      if (normalizedPhone == null) {
+        await _auth.signOut();
+        await GoogleSignIn().signOut();
+        return 'Ingresa un número válido de 10 dígitos (ej: 3001234567)';
+      }
+
       await _db.collection('users').doc(userCredential.user!.uid).set({
         'fullName': googleUser.displayName ?? '',
         'studentCode': studentCode,
         'email': googleUser.email,
         'role': role,
         'faculty': faculty,
-        'phone': phone,
+        'phone': normalizedPhone,
         'profileImageUrl': null,
         'description': '',
         'rating': 0.0,
@@ -211,7 +218,6 @@ class AuthService {
     }
   }
 
-  // ── OBTENER DATOS DEL USUARIO ─────────────────────────────
   Future<UserModel?> getUserData() async {
     try {
       final uid = _auth.currentUser?.uid;
@@ -224,7 +230,6 @@ class AuthService {
     }
   }
 
-  // ── ACTUALIZAR PERFIL ─────────────────────────────────────
   Future<String> updateProfile({
     required String fullName,
     required String role,
@@ -236,14 +241,26 @@ class AuthService {
     try {
       final uid = _auth.currentUser?.uid;
       if (uid == null) return 'No hay sesión activa.';
+
+      final normalizedPhone = _normalizePhone(phone);
+      if (normalizedPhone == null) {
+        return 'Ingresa un número válido de 10 dígitos (ej: 3001234567)';
+      }
+
+      // Verificar que el número no esté en uso por otro usuario
+      if (await _isPhoneTaken(normalizedPhone, excludeUid: uid)) {
+        return 'Este número ya está registrado en otra cuenta.';
+      }
+
       final data = <String, dynamic>{
         'fullName': fullName,
         'role': role,
         'faculty': faculty,
         'description': description,
-        'phone': phone,
+        'phone': normalizedPhone,
       };
       if (profileImageUrl != null) data['profileImageUrl'] = profileImageUrl;
+
       await _db.collection('users').doc(uid).update(data);
       return 'Perfil actualizado correctamente.';
     } catch (e) {
@@ -251,7 +268,42 @@ class AuthService {
     }
   }
 
-  // ── RESET PASSWORD ────────────────────────────────────────
+  // Normaliza a 10 dígitos (sin prefijo) para guardar y comparar
+  String? _normalizePhone(String phone) {
+    if (phone.isEmpty) return '';
+    final digits = phone.replaceAll(RegExp(r'\D'), '');
+    if (digits.length != 10) return null;
+    return digits;
+  }
+
+  // Verifica si un número (normalizado a 10 dígitos) ya está registrado
+  Future<bool> _isPhoneTaken(
+    String normalizedDigits, {
+    String? excludeUid,
+  }) async {
+    // Buscar por el número sin prefijo
+    final snap1 = await _db
+        .collection('users')
+        .where('phone', isEqualTo: normalizedDigits)
+        .limit(1)
+        .get();
+
+    // También buscar por número con prefijo +57 (por si hay datos antiguos)
+    final withPrefix = '+57$normalizedDigits';
+    final snap2 = await _db
+        .collection('users')
+        .where('phone', isEqualTo: withPrefix)
+        .limit(1)
+        .get();
+
+    final allDocs = [...snap1.docs, ...snap2.docs];
+
+    if (excludeUid != null) {
+      return allDocs.any((doc) => doc.id != excludeUid);
+    }
+    return allDocs.isNotEmpty;
+  }
+
   Future<String> forgotPassword(String email) async {
     try {
       if (email.isEmpty) return 'El correo es obligatorio.';
@@ -268,6 +320,5 @@ class AuthService {
     }
   }
 
-  // ── LOGOUT ────────────────────────────────────────────────
   Future<void> logout() async => await _auth.signOut();
 }
