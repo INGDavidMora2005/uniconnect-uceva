@@ -320,6 +320,14 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                         controller: _phoneController,
                         decoration: _inputDecoration('Ej: 3001234567'),
                         keyboardType: TextInputType.phone,
+                        validator: (value) {
+                          if (value == null || value.isEmpty) return null;
+                          final digits = value.replaceAll(RegExp(r'\D'), '');
+                          if (digits.length != 10) {
+                            return 'El número debe tener 10 dígitos';
+                          }
+                          return null;
+                        },
                       ),
                       const SizedBox(height: 20),
 

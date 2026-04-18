@@ -86,6 +86,12 @@ class AuthService {
         password: password,
       );
 
+      // Verificar que el teléfono no esté en uso (ahora hay sesión activa)
+      if (await _isPhoneTaken(normalizedPhone)) {
+        await credential.user!.delete();
+        return 'Este número ya está registrado en otra cuenta.';
+      }
+
       final studentCodeDoc = await _db
           .collection('studentCodes')
           .doc(studentCode)
@@ -186,6 +192,13 @@ class AuthService {
         await _auth.signOut();
         await GoogleSignIn().signOut();
         return 'Ingresa un número válido de 10 dígitos (ej: 3001234567)';
+      }
+
+      // Verificar que el teléfono no esté en uso
+      if (await _isPhoneTaken(normalizedPhone)) {
+        await _auth.signOut();
+        await GoogleSignIn().signOut();
+        return 'Este número ya está registrado en otra cuenta.';
       }
 
       await _db.collection('users').doc(userCredential.user!.uid).set({

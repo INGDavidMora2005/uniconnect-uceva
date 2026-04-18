@@ -122,7 +122,7 @@ class ProductService {
           sellerId != null) {
         await _db.runTransaction((transaction) async {
           transaction.update(_db.collection('users').doc(sellerId), {
-            'bazarPurchases': FieldValue.increment(1),
+            'bazarSales': FieldValue.increment(1),
           });
           transaction.update(productDoc, {
             'status': newStatus,
