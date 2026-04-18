@@ -55,7 +55,7 @@ class RatingService {
       }
       await batch.commit();
     } catch (e) {
-      // Ignorar error en actualización de rating
+      rethrow;
     }
   }
 

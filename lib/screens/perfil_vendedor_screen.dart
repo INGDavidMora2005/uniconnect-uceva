@@ -31,18 +31,21 @@ class _PerfilVendedorScreenState extends State<PerfilVendedorScreen> {
   final ProductService _productService = ProductService();
 
   Future<void> _calificarVendedor() async {
-    final productos = await _productService.getMyProductsOnce(widget.sellerId);
-    final productosVendidos = productos
-        .where((p) => p.status == 'Vendido')
-        .toList();
+    final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+    if (currentUserId == null) return;
 
-    if (productosVendidos.isEmpty) {
+    final alreadyRated = await FirebaseFirestore.instance
+        .collection('ratings')
+        .where('raterId', isEqualTo: currentUserId)
+        .where('ratedUserId', isEqualTo: widget.sellerId)
+        .where('ratingType', isEqualTo: 'bazar')
+        .get();
+
+    if (alreadyRated.docs.isNotEmpty) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text(
-              'Este vendedor no tiene ventas registradas para calificar',
-            ),
+            content: Text('Ya has calificado a este vendedor'),
             backgroundColor: Colors.orange,
           ),
         );
@@ -50,15 +53,40 @@ class _PerfilVendedorScreenState extends State<PerfilVendedorScreen> {
       return;
     }
 
-    final productoVendido = productosVendidos.first;
+    final productos = await _productService.getMyProductsOnce(widget.sellerId);
+    final productosDisponibles = productos
+        .where((p) => p.status == 'Disponible' || p.status == 'Vendido')
+        .toList();
+
+    ProductModel productoAUsar;
+    if (productosDisponibles.isNotEmpty) {
+      productoAUsar = productosDisponibles.first;
+    } else {
+      productoAUsar = ProductModel(
+        id: '',
+        name: 'Producto',
+        description: '',
+        price: 0,
+        sellerId: widget.sellerId,
+        sellerName: widget.sellerName,
+        sellerInitials: widget.sellerInitials,
+        imageUrls: [],
+        category: '',
+        status: 'Vendido',
+        createdAt: DateTime.now(),
+        sellerRating: 0.0,
+        sellerCareer: '',
+        contactMethod: 'Whatsapp',
+      );
+    }
 
     if (!mounted) return;
 
-    await Navigator.push(
+    final result = await Navigator.push<bool>(
       context,
       MaterialPageRoute(
         builder: (_) => CalificarBazarScreen(
-          product: productoVendido,
+          product: productoAUsar,
           ratedUser: UserModel(
             id: widget.sellerId,
             fullName: widget.sellerName,
@@ -72,7 +100,7 @@ class _PerfilVendedorScreenState extends State<PerfilVendedorScreen> {
       ),
     );
 
-    if (mounted) {
+    if (mounted && result == true) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('¡Gracias por tu calificación!'),
@@ -124,7 +152,7 @@ class _PerfilVendedorScreenState extends State<PerfilVendedorScreen> {
           final faculty = (data['faculty'] ?? '').toString();
           final rating = (data['rating'] ?? 0.0).toDouble();
           final trips = (data['tripsCompleted'] ?? 0) as int;
-          final ventasCount = (data['bazarPurchases'] ?? 0) as int;
+          final ventasCount = (data['bazarSales'] ?? 0) as int;
 
           return StreamBuilder<List<ProductModel>>(
             stream: _productService.getMyProducts(widget.sellerId),

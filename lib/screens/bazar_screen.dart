@@ -33,29 +33,23 @@ class _BazarScreenState extends State<BazarScreen> {
     if (mounted) setState(() => _currentUser = user);
   }
 
-  Future<void> _loadCategories() async {
-    try {
-      final snapshot = await FirebaseFirestore.instance
-          .collection('products')
-          .get();
-
-      final categories =
-          snapshot.docs
-              .map((doc) => doc.data()['category'] as String?)
-              .where((category) => category != null && category.isNotEmpty)
-              .map((category) => category!)
-              .toSet()
-              .toList()
-            ..sort();
-
-      if (mounted) {
-        setState(() {
-          _categories = ['Todas', ...categories];
-        });
-      }
-    } catch (e) {
-      // Ignorar errores, se mantiene solo 'Todas'
-    }
+  void _loadCategories() {
+    setState(() {
+      _categories = [
+        'Todas',
+        'Libros',
+        'Batas',
+        'Calculadoras',
+        'Útiles escolares',
+        'Electrónica',
+        'Ropa',
+        'Instrumentos musicales',
+        'Deportes',
+        'Hogar',
+        'Equipos',
+        'Otro',
+      ];
+    });
   }
 
   List<ProductModel> _applyFilters(List<ProductModel> products) {

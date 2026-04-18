@@ -75,8 +75,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       .toDouble();
                   final tripsCompleted =
                       (liveData?['tripsCompleted'] ?? 0) as int;
-                  final bazarPurchases =
-                      (liveData?['bazarPurchases'] ?? 0) as int;
+                  final bazarSales = (liveData?['bazarSales'] ?? 0) as int;
                   final ratingText = rating > 0
                       ? '⭐ ${rating.toStringAsFixed(1)}'
                       : '⭐ Nuevo';
@@ -229,8 +228,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                     value: '$tripsCompleted',
                                   ),
                                   _InfoItem(
-                                    label: 'Compras en el Bazar',
-                                    value: '$bazarPurchases',
+                                    label: 'Ventas en el Bazar',
+                                    value: '$bazarSales',
                                   ),
                                 ],
                               ),
