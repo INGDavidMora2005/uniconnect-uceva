@@ -37,7 +37,7 @@ class _MisPublicacionesScreenState extends State<MisPublicacionesScreen> {
         ),
       ),
       body: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(12),
         child: StreamBuilder<List<ProductModel>>(
           stream: _uid != null ? ProductService().getMyProducts(_uid!) : null,
           builder: (context, snapshot) {
@@ -65,23 +65,24 @@ class _MisPublicacionesScreenState extends State<MisPublicacionesScreen> {
                   children: [
                     Icon(
                       Icons.storefront_outlined,
-                      size: 48,
+                      size: 56,
                       color: AppColors.borderDefault,
                     ),
-                    SizedBox(height: 12),
+                    SizedBox(height: 16),
                     Text(
                       'No tienes publicaciones',
                       style: TextStyle(
-                        color: AppColors.textLight,
-                        fontSize: 14,
+                        color: AppColors.textDark,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
-                    SizedBox(height: 4),
+                    SizedBox(height: 6),
                     Text(
-                      '¡Publica tu primer producto!',
+                      'Publica tu primer producto en el Bazar',
                       style: TextStyle(
-                        color: AppColors.textPlaceholder,
-                        fontSize: 12,
+                        color: AppColors.textLight,
+                        fontSize: 13,
                       ),
                     ),
                   ],
@@ -89,21 +90,24 @@ class _MisPublicacionesScreenState extends State<MisPublicacionesScreen> {
               );
             }
 
-            return ListView.builder(
+            return GridView.builder(
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                crossAxisSpacing: 12,
+                mainAxisSpacing: 12,
+                childAspectRatio: 0.68,
+              ),
               itemCount: products.length,
-              itemBuilder: (_, i) => Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: _ProductCard(
-                  product: products[i],
-                  onEdit: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) =>
-                          EditarProductoScreen(product: products[i]),
-                    ),
-                  ).then((_) => setState(() {})),
-                  onDelete: () => _confirmDelete(products[i]),
-                ),
+              itemBuilder: (_, i) => _ProductCard(
+                product: products[i],
+                onEdit: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => EditarProductoScreen(product: products[i]),
+                  ),
+                ).then((_) => setState(() {})),
+                onDelete: () => _confirmDelete(products[i]),
+                onToggleStatus: () => _confirmToggleStatus(products[i]),
               ),
             );
           },
@@ -112,24 +116,126 @@ class _MisPublicacionesScreenState extends State<MisPublicacionesScreen> {
     );
   }
 
+  Future<void> _confirmToggleStatus(ProductModel product) async {
+    final isAvailable = product.status == 'Disponible';
+    final actionLabel = isAvailable
+        ? 'Marcar como vendido'
+        : 'Volver a publicar';
+    final confirmMsg = isAvailable
+        ? '¿Marcar este producto como vendido? Dejará de aparecer en el Bazar y se guardará en tu historial de ventas.'
+        : '¿Volver a publicar este producto? Se creará una nueva publicación y la anterior quedará en tu historial de ventas.';
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(
+          actionLabel,
+          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+        ),
+        content: Text(
+          confirmMsg,
+          style: const TextStyle(fontSize: 14, color: AppColors.textMedium),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text(
+              'Cancelar',
+              style: TextStyle(fontWeight: FontWeight.w600),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(
+              foregroundColor: isAvailable
+                  ? AppColors.primaryGreen
+                  : AppColors.accentGreen,
+            ),
+            child: Text(
+              actionLabel,
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    if (isAvailable) {
+      // ── Marcar como vendido (lo guarda en historial) ─────────────────────
+      final result = await ProductService().updateProductStatus(
+        product.id,
+        'Vendido',
+      );
+
+      if (!mounted) return;
+
+      if (result == 'ok') {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Producto marcado como vendido'),
+            backgroundColor: AppColors.accentGreen,
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(result), backgroundColor: Colors.redAccent),
+        );
+      }
+    } else {
+      // ── Volver a publicar (duplica el producto) ──────────────────────────
+      final result = await ProductService().duplicateProduct(product);
+
+      if (!mounted) return;
+
+      if (result == 'ok') {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Producto republicado correctamente'),
+            backgroundColor: AppColors.accentGreen,
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al republicar: $result'),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
+    }
+  }
+
   Future<void> _confirmDelete(ProductModel product) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Eliminar producto'),
+        title: const Text(
+          'Eliminar producto',
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+        ),
         content: const Text(
           '¿Estás seguro de que quieres eliminar este producto?',
+          style: TextStyle(fontSize: 14, color: AppColors.textMedium),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancelar'),
+            child: const Text(
+              'Cancelar',
+              style: TextStyle(fontWeight: FontWeight.w600),
+            ),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('Eliminar'),
+            style: TextButton.styleFrom(foregroundColor: Colors.redAccent),
+            child: const Text(
+              'Eliminar',
+              style: TextStyle(fontWeight: FontWeight.w600),
+            ),
           ),
         ],
       ),
@@ -144,124 +250,200 @@ class _MisPublicacionesScreenState extends State<MisPublicacionesScreen> {
         ).showSnackBar(const SnackBar(content: Text('Producto eliminado')));
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(result), backgroundColor: Colors.red),
+          SnackBar(content: Text(result), backgroundColor: Colors.redAccent),
         );
       }
     }
   }
 }
 
+// ── Tarjeta de producto Grid (2 columnas) ──────────────────────────────────────
 class _ProductCard extends StatelessWidget {
   final ProductModel product;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
+  final VoidCallback onToggleStatus;
 
   const _ProductCard({
     required this.product,
     required this.onEdit,
     required this.onDelete,
+    required this.onToggleStatus,
   });
+
+  bool get _isVendido => product.status == 'Vendido';
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 130,
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(14),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.06),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+            color: Colors.black.withOpacity(0.08),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
           ),
         ],
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          ClipRRect(
-            borderRadius: const BorderRadius.horizontal(
-              left: Radius.circular(14),
-            ),
-            child: product.imageUrls.isNotEmpty
-                ? Image.network(
-                    product.imageUrls.first,
-                    width: 130,
-                    height: 130,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => _placeholder(),
-                  )
-                : _placeholder(),
-          ),
+          // ── Imagen (parte visual principal) ─────
           Expanded(
-            child: Padding(
-              padding: const EdgeInsets.all(8),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    product.name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: Color(0xFF1A1A1A),
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                ClipRRect(
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(12),
+                  ),
+                  child: product.imageUrls.isNotEmpty
+                      ? Image.network(
+                          product.imageUrls.first,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => _placeholder(),
+                        )
+                      : _placeholder(),
+                ),
+                // Botón Editar (arriba a la izquierda) - solo si disponible
+                if (!_isVendido)
+                  Positioned(
+                    top: 6,
+                    left: 6,
+                    child: GestureDetector(
+                      onTap: onEdit,
+                      child: Container(
+                        padding: const EdgeInsets.all(5),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.95),
+                          borderRadius: BorderRadius.circular(6),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.15),
+                              blurRadius: 4,
+                              offset: const Offset(0, 1),
+                            ),
+                          ],
+                        ),
+                        child: const Icon(
+                          Icons.edit_outlined,
+                          size: 16,
+                          color: AppColors.primaryGreen,
+                        ),
+                      ),
                     ),
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    product.priceFormatted,
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF1A5C40),
+                // Icono Eliminar (arriba a la derecha)
+                Positioned(
+                  top: 6,
+                  right: 6,
+                  child: GestureDetector(
+                    onTap: onDelete,
+                    child: Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.9),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: const Icon(
+                        Icons.delete_outline,
+                        size: 16,
+                        color: Colors.redAccent,
+                      ),
                     ),
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Estado: ${product.status}',
-                    style: const TextStyle(
-                      fontSize: 11,
-                      color: Color(0xFF8A9990),
-                    ),
-                  ),
-                  const Spacer(),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: ElevatedButton(
-                          onPressed: onEdit,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.accentGreen,
-                            padding: const EdgeInsets.symmetric(vertical: 4),
-                            minimumSize: Size.zero,
-                          ),
-                          child: const Text(
-                            'Editar',
-                            style: TextStyle(fontSize: 11, color: Colors.white),
+                ),
+                // Sello VENDIDO (cruzando la imagen, igual que perfil vendedor)
+                if (_isVendido)
+                  Positioned.fill(
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.6),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Center(
+                        child: RotatedBox(
+                          quarterTurns: 1,
+                          child: Text(
+                            'VENDIDO',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 3,
+                              shadows: [
+                                Shadow(
+                                  color: Colors.black54,
+                                  blurRadius: 4,
+                                  offset: Offset(2, 2),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                       ),
-                      const SizedBox(width: 4),
-                      Expanded(
-                        child: ElevatedButton(
-                          onPressed: onDelete,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.redAccent,
-                            padding: const EdgeInsets.symmetric(vertical: 4),
-                            minimumSize: Size.zero,
-                          ),
-                          child: const Text(
-                            'Eliminar',
-                            style: TextStyle(fontSize: 11, color: Colors.white),
-                          ),
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
-                ],
-              ),
+              ],
+            ),
+          ),
+
+          // ── Info del producto (compacta) ────────
+          Padding(
+            padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  product.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF1A1A1A),
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  product.priceFormatted,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF1A5C40),
+                  ),
+                ),
+                const SizedBox(height: 8),
+
+                // Botón principal: Marcar/Volver a publicar
+                SizedBox(
+                  width: double.infinity,
+                  height: 32,
+                  child: ElevatedButton(
+                    onPressed: onToggleStatus,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: _isVendido
+                          ? AppColors.accentGreen
+                          : AppColors.primaryGreen,
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      padding: const EdgeInsets.symmetric(vertical: 0),
+                    ),
+                    child: Text(
+                      _isVendido ? 'Volver a publicar' : 'Marcar como vendido',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -271,8 +453,6 @@ class _ProductCard extends StatelessWidget {
 
   Widget _placeholder() {
     return Container(
-      width: 130,
-      height: 130,
       color: const Color(0xFFE8F5EE),
       child: const Icon(
         Icons.image_outlined,

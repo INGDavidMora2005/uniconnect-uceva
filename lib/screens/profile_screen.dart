@@ -75,11 +75,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       .toDouble();
                   final tripsCompleted =
                       (liveData?['tripsCompleted'] ?? 0) as int;
-                  final bazarPurchases =
-                      (liveData?['bazarPurchases'] ?? 0) as int;
+                  final bazarSales = (liveData?['bazarSales'] ?? 0) as int;
                   final ratingText = rating > 0
                       ? '⭐ ${rating.toStringAsFixed(1)}'
                       : '⭐ Nuevo';
+
+                  final profileImageUrl =
+                      liveData?['profileImageUrl'] as String?;
+                  final initials = _user != null
+                      ? (_user!.fullName.trim().split(' ').length >= 2
+                            ? '${_user!.fullName[0]}${_user!.fullName.split(' ')[1][0]}'
+                                  .toUpperCase()
+                            : _user!.fullName[0].toUpperCase())
+                      : '?';
 
                   return SingleChildScrollView(
                     child: Column(
@@ -94,14 +102,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               CircleAvatar(
                                 radius: 40,
                                 backgroundColor: AppColors.accentGreen,
-                                child: Text(
-                                  _initials,
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 24,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
+                                backgroundImage: profileImageUrl != null
+                                    ? NetworkImage(profileImageUrl)
+                                    : null,
+                                child: profileImageUrl == null
+                                    ? Text(
+                                        initials,
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 24,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      )
+                                    : null,
                               ),
                               const SizedBox(height: 12),
                               Text(
@@ -178,6 +191,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                         ? _user!.faculty
                                         : '-',
                                   ),
+                                  _InfoItem(
+                                    label: 'Teléfono',
+                                    value: _user?.phone.isNotEmpty == true
+                                        ? _user!.phone
+                                        : 'No registrado',
+                                  ),
                                 ],
                               ),
                             ],
@@ -209,8 +228,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                     value: '$tripsCompleted',
                                   ),
                                   _InfoItem(
-                                    label: 'Compras en el Bazar',
-                                    value: '$bazarPurchases',
+                                    label: 'Ventas en el Bazar',
+                                    value: '$bazarSales',
                                   ),
                                 ],
                               ),

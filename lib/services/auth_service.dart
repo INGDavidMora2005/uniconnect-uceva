@@ -11,45 +11,29 @@ class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _db = FirebaseFirestore.instance;
 
-  // Usuario actual de Firebase
   User? get currentUser => _auth.currentUser;
-
-  // Stream del estado de autenticación
   Stream<User?> get authStateChanges => _auth.authStateChanges();
 
-  // ── LOGIN ─────────────────────────────────────────────────
   Future<String> login(String email, String password) async {
     try {
-      final credential = await _auth.signInWithEmailAndPassword(
-        email: email,
-        password: password,
-      );
-
+      await _auth.signInWithEmailAndPassword(email: email, password: password);
       return 'Inicio de sesión exitoso.';
     } on FirebaseAuthException catch (e) {
-      if (e.code == 'user-not-found') {
-        return 'Usuario no encontrado.';
-      } else if (e.code == 'wrong-password') {
-        return 'Contraseña incorrecta.';
-      } else if (e.code == 'invalid-email') {
-        return 'Correo electrónico inválido.';
-      } else if (e.code == 'user-disabled') {
+      if (e.code == 'user-not-found') return 'Usuario no encontrado.';
+      if (e.code == 'wrong-password') return 'Contraseña incorrecta.';
+      if (e.code == 'invalid-email') return 'Correo electrónico inválido.';
+      if (e.code == 'user-disabled')
         return 'Esta cuenta ha sido deshabilitada.';
-      } else {
-        return 'Error al iniciar sesión: ${e.message}';
-      }
+      return 'Error al iniciar sesión: ${e.message}';
     } catch (e) {
       return 'Error inesperado: ${e.toString()}';
     }
   }
 
-  // ── LOGIN CON GOOGLE ──────────────────────────────────────
   Future<String> loginWithGoogle() async {
     try {
       final GoogleSignInAccount? googleUser = await GoogleSignIn().signIn();
-      if (googleUser == null) {
-        return 'Inicio de sesión cancelado.';
-      }
+      if (googleUser == null) return 'Inicio de sesión cancelado.';
 
       if (!googleUser.email.endsWith('@uceva.edu.co')) {
         await GoogleSignIn().signOut();
@@ -75,15 +59,13 @@ class AuthService {
     } on FirebaseAuthException catch (e) {
       if (e.code == 'account-exists-with-different-credential') {
         return 'Ya existe una cuenta con este email usando otro método.';
-      } else {
-        return 'Error al iniciar sesión con Google: ${e.message}';
       }
+      return 'Error al iniciar sesión con Google: ${e.message}';
     } catch (e) {
       return 'Error inesperado: ${e.toString()}';
     }
   }
 
-  // ── REGISTRO ──────────────────────────────────────────────
   Future<String> register({
     required String fullName,
     required String studentCode,
@@ -91,20 +73,30 @@ class AuthService {
     required String password,
     required String role,
     required String faculty,
+    required String phone,
   }) async {
     try {
+      final normalizedPhone = _normalizePhone(phone);
+      if (normalizedPhone == null) {
+        return 'Ingresa un número válido de 10 dígitos (ej: 3001234567)';
+      }
+
       final credential = await _auth.createUserWithEmailAndPassword(
         email: email,
         password: password,
       );
 
-      // Verificar studentCode después de autenticar
+      // Verificar que el teléfono no esté en uso (ahora hay sesión activa)
+      if (await _isPhoneTaken(normalizedPhone)) {
+        await credential.user!.delete();
+        return 'Este número ya está registrado en otra cuenta.';
+      }
+
       final studentCodeDoc = await _db
           .collection('studentCodes')
           .doc(studentCode)
           .get();
       if (studentCodeDoc.exists) {
-        // Eliminar la cuenta recién creada si el código ya existe
         await credential.user!.delete();
         return 'Este código estudiantil ya está registrado.';
       }
@@ -115,6 +107,8 @@ class AuthService {
         'email': email,
         'role': role,
         'faculty': faculty,
+        'phone': normalizedPhone,
+        'profileImageUrl': null,
         'description': '',
         'rating': 0.0,
         'tripsCompleted': 0,
@@ -128,41 +122,30 @@ class AuthService {
 
       return 'Cuenta creada exitosamente.';
     } on FirebaseAuthException catch (e) {
-      if (e.code == 'email-already-in-use') {
-        return 'Este correo electrónico ya está registrado.';
-      } else if (e.code == 'weak-password') {
-        return 'La contraseña es demasiado débil.';
-      } else if (e.code == 'invalid-email') {
-        return 'El correo electrónico no es válido.';
-      } else {
-        return 'Error al crear la cuenta: ${e.message}';
-      }
+      if (e.code == 'email-already-in-use')
+        return 'Este correo ya está registrado.';
+      if (e.code == 'weak-password') return 'La contraseña es demasiado débil.';
+      if (e.code == 'invalid-email') return 'El correo no es válido.';
+      return 'Error al crear la cuenta: ${e.message}';
     } catch (e) {
       return 'Error inesperado: ${e.toString()}';
     }
   }
 
-  // ── REGISTRO CON GOOGLE ───────────────────────────────────
   Future<String> registerWithGoogle({
     required String studentCode,
     required String role,
     required String faculty,
+    required String phone,
   }) async {
     try {
-      if (_auth.currentUser != null) {
-        await _auth.signOut();
-      }
-
+      if (_auth.currentUser != null) await _auth.signOut();
       try {
         await GoogleSignIn().disconnect();
-      } catch (e) {
-        // Ignorar si no hay sesión activa de Google
-      }
+      } catch (_) {}
 
       final GoogleSignInAccount? googleUser = await GoogleSignIn().signIn();
-      if (googleUser == null) {
-        return 'Registro cancelado por el usuario.';
-      }
+      if (googleUser == null) return 'Registro cancelado por el usuario.';
 
       if (!googleUser.email.endsWith('@uceva.edu.co')) {
         await GoogleSignIn().signOut();
@@ -184,15 +167,14 @@ class AuthService {
           .collection('users')
           .doc(userCredential.user!.uid)
           .get();
-
       if (existingUserDoc.exists) {
-        final existingStudentCode = existingUserDoc.data()?['studentCode'];
-        if (existingStudentCode != studentCode) {
+        final existingCode = existingUserDoc.data()?['studentCode'];
+        if (existingCode != studentCode) {
           await _auth.signOut();
           await GoogleSignIn().signOut();
-          return 'Este email ya está registrado con un código estudiantil diferente.';
+          return 'Este email ya está registrado con un código diferente.';
         }
-        return 'Ya tienes una cuenta registrada con este email y código estudiantil.';
+        return 'Ya tienes una cuenta registrada con este email y código.';
       }
 
       final studentCodeDoc = await _db
@@ -205,12 +187,28 @@ class AuthService {
         return 'Este código estudiantil ya está registrado.';
       }
 
+      final normalizedPhone = _normalizePhone(phone);
+      if (normalizedPhone == null) {
+        await _auth.signOut();
+        await GoogleSignIn().signOut();
+        return 'Ingresa un número válido de 10 dígitos (ej: 3001234567)';
+      }
+
+      // Verificar que el teléfono no esté en uso
+      if (await _isPhoneTaken(normalizedPhone)) {
+        await _auth.signOut();
+        await GoogleSignIn().signOut();
+        return 'Este número ya está registrado en otra cuenta.';
+      }
+
       await _db.collection('users').doc(userCredential.user!.uid).set({
         'fullName': googleUser.displayName ?? '',
         'studentCode': studentCode,
         'email': googleUser.email,
         'role': role,
         'faculty': faculty,
+        'phone': normalizedPhone,
+        'profileImageUrl': null,
         'description': '',
         'rating': 0.0,
         'tripsCompleted': 0,
@@ -222,87 +220,118 @@ class AuthService {
         'uid': userCredential.user!.uid,
       });
 
-
-
       return 'Cuenta creada exitosamente.';
     } on FirebaseAuthException catch (e) {
       if (e.code == 'account-exists-with-different-credential') {
         return 'Ya existe una cuenta con este email.';
-      } else {
-        return 'Error al registrar con Google: ${e.message}';
       }
+      return 'Error al registrar con Google: ${e.message}';
     } catch (e) {
       return 'Error inesperado: ${e.toString()}';
     }
   }
 
-  // ── OBTENER DATOS DEL USUARIO ─────────────────────────────
   Future<UserModel?> getUserData() async {
     try {
       final uid = _auth.currentUser?.uid;
       if (uid == null) return null;
-
       final doc = await _db.collection('users').doc(uid).get();
       if (!doc.exists) return null;
-
       return UserModel.fromMap({'id': uid, ...doc.data()!});
     } catch (e) {
       return null;
     }
   }
 
-  // ── ACTUALIZAR PERFIL ─────────────────────────────────────
   Future<String> updateProfile({
     required String fullName,
     required String role,
     required String faculty,
     required String description,
+    required String phone,
+    String? profileImageUrl,
   }) async {
     try {
       final uid = _auth.currentUser?.uid;
       if (uid == null) return 'No hay sesión activa.';
 
-      await _db.collection('users').doc(uid).update({
+      final normalizedPhone = _normalizePhone(phone);
+      if (normalizedPhone == null) {
+        return 'Ingresa un número válido de 10 dígitos (ej: 3001234567)';
+      }
+
+      // Verificar que el número no esté en uso por otro usuario
+      if (await _isPhoneTaken(normalizedPhone, excludeUid: uid)) {
+        return 'Este número ya está registrado en otra cuenta.';
+      }
+
+      final data = <String, dynamic>{
         'fullName': fullName,
         'role': role,
         'faculty': faculty,
         'description': description,
-      });
+        'phone': normalizedPhone,
+      };
+      if (profileImageUrl != null) data['profileImageUrl'] = profileImageUrl;
 
+      await _db.collection('users').doc(uid).update(data);
       return 'Perfil actualizado correctamente.';
     } catch (e) {
       return 'Error al actualizar el perfil: ${e.toString()}';
     }
   }
 
-  // ── RESET PASSWORD ────────────────────────────────────────
+  // Normaliza a 10 dígitos (sin prefijo) para guardar y comparar
+  String? _normalizePhone(String phone) {
+    if (phone.isEmpty) return '';
+    final digits = phone.replaceAll(RegExp(r'\D'), '');
+    if (digits.length != 10) return null;
+    return digits;
+  }
+
+  // Verifica si un número (normalizado a 10 dígitos) ya está registrado
+  Future<bool> _isPhoneTaken(
+    String normalizedDigits, {
+    String? excludeUid,
+  }) async {
+    // Buscar por el número sin prefijo
+    final snap1 = await _db
+        .collection('users')
+        .where('phone', isEqualTo: normalizedDigits)
+        .limit(1)
+        .get();
+
+    // También buscar por número con prefijo +57 (por si hay datos antiguos)
+    final withPrefix = '+57$normalizedDigits';
+    final snap2 = await _db
+        .collection('users')
+        .where('phone', isEqualTo: withPrefix)
+        .limit(1)
+        .get();
+
+    final allDocs = [...snap1.docs, ...snap2.docs];
+
+    if (excludeUid != null) {
+      return allDocs.any((doc) => doc.id != excludeUid);
+    }
+    return allDocs.isNotEmpty;
+  }
+
   Future<String> forgotPassword(String email) async {
     try {
-      if (email.isEmpty) {
-        return 'El correo electrónico es obligatorio.';
-      }
-
-      if (!email.endsWith('@uceva.edu.co')) {
+      if (email.isEmpty) return 'El correo es obligatorio.';
+      if (!email.endsWith('@uceva.edu.co'))
         return 'Solo se permiten emails @uceva.edu.co.';
-      }
-
       await _auth.sendPasswordResetEmail(email: email);
       return 'Email de recuperación enviado. Revisa tu bandeja de entrada.';
     } on FirebaseAuthException catch (e) {
-      if (e.code == 'user-not-found') {
-        return 'Usuario no encontrado.';
-      } else if (e.code == 'invalid-email') {
-        return 'Correo electrónico inválido.';
-      } else {
-        return 'Error al enviar email: ${e.message}';
-      }
+      if (e.code == 'user-not-found') return 'Usuario no encontrado.';
+      if (e.code == 'invalid-email') return 'Correo inválido.';
+      return 'Error al enviar email: ${e.message}';
     } catch (e) {
       return 'Error inesperado: ${e.toString()}';
     }
   }
 
-  // ── LOGOUT ────────────────────────────────────────────────
-  Future<void> logout() async {
-    await _auth.signOut();
-  }
+  Future<void> logout() async => await _auth.signOut();
 }
