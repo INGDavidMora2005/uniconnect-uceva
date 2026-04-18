@@ -242,15 +242,21 @@ class _DetalleProductoScreenState extends State<DetalleProductoScreen> {
                             vertical: 4,
                           ),
                           decoration: BoxDecoration(
-                            color: const Color(0xFFE8F5EE),
+                            color: widget.product.status == 'Vendido'
+                                ? Colors.red.shade50
+                                : const Color(0xFFE8F5EE),
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Text(
-                            widget.product.status,
-                            style: const TextStyle(
+                            widget.product.status == 'Vendido'
+                                ? 'No disponible'
+                                : 'Disponible',
+                            style: TextStyle(
                               fontSize: 11,
                               fontWeight: FontWeight.bold,
-                              color: AppColors.accentGreen,
+                              color: widget.product.status == 'Vendido'
+                                  ? Colors.redAccent
+                                  : AppColors.accentGreen,
                             ),
                           ),
                         ),
@@ -439,17 +445,28 @@ class _DetalleProductoScreenState extends State<DetalleProductoScreen> {
                       SizedBox(
                         width: double.infinity,
                         height: 48,
-                        child: ElevatedButton(
+                        child: ElevatedButton.icon(
                           onPressed: () => _handleContact(context),
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.accentGreen,
+                            backgroundColor: const Color(0xFF25D366),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(12),
                             ),
                             elevation: 0,
                           ),
-                          child: const Text(
-                            'Contactar vendedor',
+                          icon: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.chat_bubble,
+                                color: Colors.white,
+                                size: 18,
+                              ),
+                              SizedBox(width: 8),
+                            ],
+                          ),
+                          label: const Text(
+                            'Contactar por WhatsApp',
                             style: TextStyle(
                               fontSize: 15,
                               fontWeight: FontWeight.bold,

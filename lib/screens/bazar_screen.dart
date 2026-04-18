@@ -16,8 +16,24 @@ class BazarScreen extends StatefulWidget {
 }
 
 class _BazarScreenState extends State<BazarScreen> {
+  static const List<String> _categories = [
+    'Todos',
+    'Libros',
+    'Batas',
+    'Calculadoras',
+    'Útiles escolares',
+    'Electrónica',
+    'Ropa',
+    'Instrumentos musicales',
+    'Deportes',
+    'Hogar',
+    'Equipos',
+    'Otro',
+  ];
+
   final TextEditingController _searchController = TextEditingController();
   UserModel? _currentUser;
+  String _selectedCategory = 'Todos';
 
   @override
   void initState() {
@@ -32,13 +48,17 @@ class _BazarScreenState extends State<BazarScreen> {
 
   List<ProductModel> _applyFilters(List<ProductModel> products) {
     final query = _searchController.text.toLowerCase().trim();
+    final category = _selectedCategory;
 
     return products.where((p) {
       final matchesSearch =
           query.isEmpty ||
           p.name.toLowerCase().contains(query) ||
           p.description.toLowerCase().contains(query);
-      return matchesSearch;
+      final matchesCategory =
+          category == 'Todos' ||
+          p.category.toLowerCase() == category.toLowerCase();
+      return matchesSearch && matchesCategory;
     }).toList();
   }
 
@@ -154,6 +174,54 @@ class _BazarScreenState extends State<BazarScreen> {
                   ),
                   const SizedBox(height: 12),
 
+                  // ── Filtros de categoría ────────────────────────
+                  SizedBox(
+                    height: 36,
+                    child: ListView.builder(
+                      scrollDirection: Axis.horizontal,
+                      itemCount: _categories.length,
+                      itemBuilder: (_, i) {
+                        final category = _categories[i];
+                        final isSelected = _selectedCategory == category;
+                        return Padding(
+                          padding: EdgeInsets.only(
+                            right: i < _categories.length - 1 ? 8 : 0,
+                          ),
+                          child: FilterChip(
+                            label: Text(
+                              category,
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: isSelected
+                                    ? Colors.white
+                                    : AppColors.textDark,
+                              ),
+                            ),
+                            selected: isSelected,
+                            onSelected: (_) {
+                              setState(() => _selectedCategory = category);
+                            },
+                            backgroundColor: Colors.white,
+                            selectedColor: AppColors.accentGreen,
+                            checkmarkColor: Colors.white,
+                            showCheckmark: false,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(20),
+                              side: BorderSide(
+                                color: isSelected
+                                    ? AppColors.accentGreen
+                                    : AppColors.borderDefault,
+                              ),
+                            ),
+                            padding: const EdgeInsets.symmetric(horizontal: 12),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
                   // ── Grid de productos ─────────────────────────
                   StreamBuilder<List<ProductModel>>(
                     stream: ProductService().getProducts(),
@@ -199,24 +267,16 @@ class _BazarScreenState extends State<BazarScreen> {
                                 ),
                                 const SizedBox(height: 12),
                                 Text(
-                                  _searchController.text.isNotEmpty
-                                      ? 'No se encontraron productos'
+                                  _searchController.text.isNotEmpty ||
+                                          _selectedCategory != 'Todos'
+                                      ? 'No se encontraron productos para tu búsqueda'
                                       : 'No hay productos disponibles',
+                                  textAlign: TextAlign.center,
                                   style: const TextStyle(
                                     color: AppColors.textLight,
                                     fontSize: 14,
                                   ),
                                 ),
-                                if (_searchController.text.isNotEmpty)
-                                  const SizedBox(height: 4),
-                                if (_searchController.text.isNotEmpty)
-                                  const Text(
-                                    'Intenta con otros filtros',
-                                    style: TextStyle(
-                                      color: AppColors.textPlaceholder,
-                                      fontSize: 12,
-                                    ),
-                                  ),
                               ],
                             ),
                           ),
@@ -379,13 +439,36 @@ class _ProductCard extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 4),
-                  Text(
-                    product.priceFormatted,
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF1A5C40),
-                    ),
+                  Row(
+                    children: [
+                      Text(
+                        product.priceFormatted,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF1A5C40),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFE8F5EE),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          product.category,
+                          style: const TextStyle(
+                            fontSize: 9,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.accentGreen,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 6),
                   Row(
