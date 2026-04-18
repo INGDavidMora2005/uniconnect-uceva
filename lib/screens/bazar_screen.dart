@@ -18,14 +18,11 @@ class BazarScreen extends StatefulWidget {
 class _BazarScreenState extends State<BazarScreen> {
   final TextEditingController _searchController = TextEditingController();
   UserModel? _currentUser;
-  int _selectedCategoryIndex = 0;
-  List<String> _categories = ['Todas'];
 
   @override
   void initState() {
     super.initState();
     _loadUser();
-    _loadCategories();
   }
 
   Future<void> _loadUser() async {
@@ -33,39 +30,15 @@ class _BazarScreenState extends State<BazarScreen> {
     if (mounted) setState(() => _currentUser = user);
   }
 
-  void _loadCategories() {
-    setState(() {
-      _categories = [
-        'Todas',
-        'Libros',
-        'Batas',
-        'Calculadoras',
-        'Útiles escolares',
-        'Electrónica',
-        'Ropa',
-        'Instrumentos musicales',
-        'Deportes',
-        'Hogar',
-        'Equipos',
-        'Otro',
-      ];
-    });
-  }
-
   List<ProductModel> _applyFilters(List<ProductModel> products) {
     final query = _searchController.text.toLowerCase().trim();
-    final selectedCategory = _selectedCategoryIndex == 0
-        ? null
-        : _categories[_selectedCategoryIndex];
 
     return products.where((p) {
       final matchesSearch =
           query.isEmpty ||
           p.name.toLowerCase().contains(query) ||
           p.description.toLowerCase().contains(query);
-      final matchesCategory =
-          selectedCategory == null || p.category == selectedCategory;
-      return matchesSearch && matchesCategory;
+      return matchesSearch;
     }).toList();
   }
 
@@ -181,58 +154,6 @@ class _BazarScreenState extends State<BazarScreen> {
                   ),
                   const SizedBox(height: 12),
 
-                  // ── Filtros por categoría (chips) ─────────────
-                  if (_categories.length > 1)
-                    SizedBox(
-                      height: 36,
-                      child: ListView.builder(
-                        scrollDirection: Axis.horizontal,
-                        itemCount: _categories.length,
-                        itemBuilder: (_, i) {
-                          final category = _categories[i];
-                          final isSelected = _selectedCategoryIndex == i;
-                          return Padding(
-                            padding: const EdgeInsets.only(right: 8),
-                            child: FilterChip(
-                              label: Text(category),
-                              selected: isSelected,
-                              onSelected: (_) {
-                                setState(() {
-                                  _selectedCategoryIndex = i;
-                                });
-                              },
-                              selectedColor: AppColors.primaryGreen.withOpacity(
-                                0.15,
-                              ),
-                              checkmarkColor: AppColors.primaryGreen,
-                              labelStyle: TextStyle(
-                                color: isSelected
-                                    ? AppColors.primaryGreen
-                                    : AppColors.textMedium,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                              ),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(20),
-                                side: BorderSide(
-                                  color: isSelected
-                                      ? AppColors.primaryGreen
-                                      : AppColors.borderDefault,
-                                  width: isSelected ? 1.5 : 1,
-                                ),
-                              ),
-                              backgroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 0,
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                  const SizedBox(height: 16),
-
                   // ── Grid de productos ─────────────────────────
                   StreamBuilder<List<ProductModel>>(
                     stream: ProductService().getProducts(),
@@ -278,8 +199,7 @@ class _BazarScreenState extends State<BazarScreen> {
                                 ),
                                 const SizedBox(height: 12),
                                 Text(
-                                  _searchController.text.isNotEmpty ||
-                                          _selectedCategoryIndex != 0
+                                  _searchController.text.isNotEmpty
                                       ? 'No se encontraron productos'
                                       : 'No hay productos disponibles',
                                   style: const TextStyle(
@@ -287,11 +207,9 @@ class _BazarScreenState extends State<BazarScreen> {
                                     fontSize: 14,
                                   ),
                                 ),
-                                if (_searchController.text.isNotEmpty ||
-                                    _selectedCategoryIndex != 0)
+                                if (_searchController.text.isNotEmpty)
                                   const SizedBox(height: 4),
-                                if (_searchController.text.isNotEmpty ||
-                                    _selectedCategoryIndex != 0)
+                                if (_searchController.text.isNotEmpty)
                                   const Text(
                                     'Intenta con otros filtros',
                                     style: TextStyle(
