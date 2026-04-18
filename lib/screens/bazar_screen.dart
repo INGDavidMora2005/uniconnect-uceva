@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/product_model.dart';
+import '../models/user_model.dart';
 import '../services/product_service.dart';
+import '../services/auth_service.dart';
 import '../theme/app_theme.dart';
 import 'publicar_producto_screen.dart';
 import 'detalle_producto_screen.dart';
@@ -15,17 +17,29 @@ class BazarScreen extends StatefulWidget {
 
 class _BazarScreenState extends State<BazarScreen> {
   final TextEditingController _searchController = TextEditingController();
+  UserModel? _currentUser;
 
-  List<ProductModel> _applySearch(List<ProductModel> products) {
+  @override
+  void initState() {
+    super.initState();
+    _loadUser();
+  }
+
+  Future<void> _loadUser() async {
+    final user = await AuthService().getUserData();
+    if (mounted) setState(() => _currentUser = user);
+  }
+
+  List<ProductModel> _applyFilters(List<ProductModel> products) {
     final query = _searchController.text.toLowerCase().trim();
-    if (query.isEmpty) return products;
-    return products
-        .where(
-          (p) =>
-              p.name.toLowerCase().contains(query) ||
-              p.description.toLowerCase().contains(query),
-        )
-        .toList();
+
+    return products.where((p) {
+      final matchesSearch =
+          query.isEmpty ||
+          p.name.toLowerCase().contains(query) ||
+          p.description.toLowerCase().contains(query);
+      return matchesSearch;
+    }).toList();
   }
 
   @override
@@ -34,281 +48,244 @@ class _BazarScreenState extends State<BazarScreen> {
     super.dispose();
   }
 
+  String get _initials => _currentUser?.initials ?? '?';
+
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Container(
-          color: AppColors.primaryGreen,
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Bazar UCEVA',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                  ),
-                  Text(
-                    '¿Qué necesitas?',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.white,
-                      shadows: [
-                        Shadow(
-                          color: Colors.black26,
-                          blurRadius: 2,
-                          offset: Offset(0, 1),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              CircleAvatar(
-                radius: 20,
-                backgroundColor: AppColors.accentGreen,
-                child: Text(
-                  _initials,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 13,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-        Expanded(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+    return Scaffold(
+      backgroundColor: AppColors.backgroundApp,
+      body: Column(
+        children: [
+          // ── Header ────────────────────────────────────────
+          Container(
+            color: AppColors.primaryGreen,
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Row(
+                const Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(
-                      child: TextField(
-                        controller: _searchController,
-                        onChanged: (_) => setState(() {}),
-                        style: const TextStyle(
-                          fontSize: 14,
-                          color: AppColors.textDark,
-                        ),
-                        decoration: InputDecoration(
-                          hintText: 'Buscar libros, calculadoras...',
-                          hintStyle: const TextStyle(
-                            color: AppColors.textPlaceholder,
-                            fontSize: 13,
-                          ),
-                          suffixIcon: _searchController.text.isNotEmpty
-                              ? IconButton(
-                                  icon: const Icon(
-                                    Icons.close,
-                                    color: AppColors.textPlaceholder,
-                                  ),
-                                  onPressed: () {
-                                    _searchController.clear();
-                                    setState(() {});
-                                  },
-                                )
-                              : null,
-                          filled: true,
-                          fillColor: Colors.white,
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide.none,
-                          ),
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 14,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Container(
-                      decoration: BoxDecoration(
-                        color: AppColors.accentGreen,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: IconButton(
-                        onPressed: () => setState(() {}),
-                        icon: const Icon(Icons.search, color: Colors.white),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 20),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text(
-                      'Publicaciones recientes',
+                    Text(
+                      'Bazar UCEVA',
                       style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.textDark,
-                      ),
-                    ),
-                    TextButton(
-                      onPressed: () {},
-                      child: const Text(
-                        'Ver todas',
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: AppColors.accentGreen,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                StreamBuilder<List<ProductModel>>(
-                  stream: ProductService().getProducts(),
-                  builder: (context, snapshot) {
-                    if (snapshot.connectionState == ConnectionState.waiting) {
-                      return const Center(
-                        child: Padding(
-                          padding: EdgeInsets.symmetric(vertical: 40),
-                          child: CircularProgressIndicator(
-                            color: AppColors.accentGreen,
-                          ),
-                        ),
-                      );
-                    }
-
-                    if (snapshot.hasError) {
-                      return Center(
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 40),
-                          child: Text(
-                            'Error: ${snapshot.error}',
-                            style: const TextStyle(
-                              color: Colors.redAccent,
-                              fontSize: 12,
-                            ),
-                          ),
-                        ),
-                      );
-                    }
-
-                    final products = _applySearch(snapshot.data ?? []);
-
-                    if (products.isEmpty) {
-                      return const Center(
-                        child: Padding(
-                          padding: EdgeInsets.symmetric(vertical: 40),
-                          child: Column(
-                            children: [
-                              Icon(
-                                Icons.storefront_outlined,
-                                size: 48,
-                                color: AppColors.borderDefault,
-                              ),
-                              SizedBox(height: 12),
-                              Text(
-                                'No hay productos disponibles',
-                                style: TextStyle(
-                                  color: AppColors.textLight,
-                                  fontSize: 14,
-                                ),
-                              ),
-                              SizedBox(height: 4),
-                              Text(
-                                '¡Se el primero en publicar!',
-                                style: TextStyle(
-                                  color: AppColors.textPlaceholder,
-                                  fontSize: 12,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      );
-                    }
-
-                    return GridView.builder(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      gridDelegate:
-                          const SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: 2,
-                            crossAxisSpacing: 12,
-                            mainAxisSpacing: 12,
-                            childAspectRatio: 0.78,
-                          ),
-                      itemCount: products.length,
-                      itemBuilder: (_, i) => _ProductCard(
-                        product: products[i],
-                        onTap: () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) =>
-                                DetalleProductoScreen(product: products[i]),
-                          ),
-                        ),
-                      ),
-                    );
-                  },
-                ),
-                const SizedBox(height: 20),
-                SizedBox(
-                  width: double.infinity,
-                  height: 48,
-                  child: ElevatedButton.icon(
-                    onPressed: () async {
-                      await Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const PublicarProductoScreen(),
-                        ),
-                      );
-                    },
-                    icon: const Icon(Icons.add, color: Colors.white),
-                    label: const Text(
-                      'Publicar Producto',
-                      style: TextStyle(
-                        fontSize: 15,
+                        fontSize: 16,
                         fontWeight: FontWeight.bold,
                         color: Colors.white,
                       ),
                     ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.accentGreen,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+                    Text(
+                      '¿Qué necesitas?',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white,
+                        shadows: [
+                          Shadow(
+                            color: Colors.black26,
+                            blurRadius: 2,
+                            offset: Offset(0, 1),
+                          ),
+                        ],
                       ),
-                      elevation: 0,
+                    ),
+                  ],
+                ),
+                CircleAvatar(
+                  radius: 20,
+                  backgroundColor: AppColors.accentGreen,
+                  child: Text(
+                    _initials,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
                 ),
-                const SizedBox(height: 20),
               ],
             ),
           ),
-        ),
-      ],
-    );
-  }
 
-  String get _initials {
-    final user = FirebaseAuth.instance.currentUser;
-    final name = user?.displayName ?? '';
-    final parts = name.trim().split(' ');
-    if (parts.length >= 2) {
-      return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
-    }
-    if (parts[0].isNotEmpty) return parts[0][0].toUpperCase();
-    return '?';
+          // ── Contenido ─────────────────────────────────────
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // ── Buscador (estilo Home Rutas) ─────────────
+                  TextField(
+                    controller: _searchController,
+                    onChanged: (_) => setState(() {}),
+                    style: const TextStyle(
+                      fontSize: 14,
+                      color: AppColors.textDark,
+                    ),
+                    decoration: InputDecoration(
+                      hintText: 'Buscar libros, calculadoras...',
+                      prefixIcon: const Icon(
+                        Icons.search,
+                        color: AppColors.textPlaceholder,
+                      ),
+                      suffixIcon: _searchController.text.isNotEmpty
+                          ? IconButton(
+                              icon: const Icon(
+                                Icons.close,
+                                color: AppColors.textPlaceholder,
+                              ),
+                              onPressed: () {
+                                _searchController.clear();
+                                setState(() {});
+                              },
+                            )
+                          : null,
+                      filled: true,
+                      fillColor: Colors.white,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide.none,
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 14,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+
+                  // ── Grid de productos ─────────────────────────
+                  StreamBuilder<List<ProductModel>>(
+                    stream: ProductService().getProducts(),
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return const Center(
+                          child: Padding(
+                            padding: EdgeInsets.symmetric(vertical: 40),
+                            child: CircularProgressIndicator(
+                              color: AppColors.accentGreen,
+                            ),
+                          ),
+                        );
+                      }
+
+                      if (snapshot.hasError) {
+                        return Center(
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 40),
+                            child: Text(
+                              'Error: ${snapshot.error}',
+                              style: const TextStyle(
+                                color: Colors.redAccent,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ),
+                        );
+                      }
+
+                      final products = _applyFilters(snapshot.data ?? []);
+
+                      if (products.isEmpty) {
+                        return Center(
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 40),
+                            child: Column(
+                              children: [
+                                Icon(
+                                  Icons.search_off,
+                                  size: 48,
+                                  color: AppColors.borderDefault,
+                                ),
+                                const SizedBox(height: 12),
+                                Text(
+                                  _searchController.text.isNotEmpty
+                                      ? 'No se encontraron productos'
+                                      : 'No hay productos disponibles',
+                                  style: const TextStyle(
+                                    color: AppColors.textLight,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                                if (_searchController.text.isNotEmpty)
+                                  const SizedBox(height: 4),
+                                if (_searchController.text.isNotEmpty)
+                                  const Text(
+                                    'Intenta con otros filtros',
+                                    style: TextStyle(
+                                      color: AppColors.textPlaceholder,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                        );
+                      }
+
+                      return GridView.builder(
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        gridDelegate:
+                            const SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: 2,
+                              crossAxisSpacing: 12,
+                              mainAxisSpacing: 12,
+                              childAspectRatio: 0.78,
+                            ),
+                        itemCount: products.length,
+                        itemBuilder: (_, i) => _ProductCard(
+                          product: products[i],
+                          onTap: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) =>
+                                  DetalleProductoScreen(product: products[i]),
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 20),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 48,
+                    child: ElevatedButton.icon(
+                      onPressed: () async {
+                        await Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const PublicarProductoScreen(),
+                          ),
+                        );
+                      },
+                      icon: const Icon(Icons.add, color: Colors.white),
+                      label: const Text(
+                        'Publicar Producto',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.accentGreen,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        elevation: 0,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 
@@ -325,7 +302,7 @@ class _ProductCard extends StatelessWidget {
       child: Container(
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(12),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withOpacity(0.06),
@@ -337,19 +314,54 @@ class _ProductCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            ClipRRect(
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(14),
+            Expanded(
+              child: ClipRRect(
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(12),
+                ),
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    product.imageUrls.isNotEmpty
+                        ? Image.network(
+                            product.imageUrls.first,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => _placeholder(),
+                          )
+                        : _placeholder(),
+                    if (product.status == 'Vendido')
+                      Positioned.fill(
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: Colors.black.withOpacity(0.6),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Center(
+                            child: RotatedBox(
+                              quarterTurns: 1,
+                              child: Text(
+                                'VENDIDO',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: 3,
+                                  shadows: [
+                                    Shadow(
+                                      color: Colors.black54,
+                                      blurRadius: 4,
+                                      offset: Offset(2, 2),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
               ),
-              child: product.imageUrls.isNotEmpty
-                  ? Image.network(
-                      product.imageUrls.first,
-                      height: 110,
-                      width: double.infinity,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => _placeholder(),
-                    )
-                  : _placeholder(),
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),

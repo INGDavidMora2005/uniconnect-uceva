@@ -30,6 +30,12 @@ class _PublicarProductoScreenState extends State<PublicarProductoScreen> {
     'Libros',
     'Batas',
     'Calculadoras',
+    'Útiles escolares',
+    'Electrónica',
+    'Ropa',
+    'Instrumentos musicales',
+    'Deportes',
+    'Hogar',
     'Equipos',
     'Otro',
   ];
@@ -109,6 +115,7 @@ class _PublicarProductoScreenState extends State<PublicarProductoScreen> {
         sellerInitials: initials,
         sellerRating: user.rating,
         sellerCareer: user.faculty,
+        sellerPhone: user.phone,
         status: 'Disponible',
       );
 

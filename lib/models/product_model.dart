@@ -13,6 +13,7 @@ class ProductModel {
   final String sellerInitials;
   final double sellerRating;
   final String sellerCareer;
+  final String sellerPhone; // ← NUEVO
   final String status;
   final DateTime? createdAt;
 
@@ -29,6 +30,7 @@ class ProductModel {
     required this.sellerInitials,
     required this.sellerRating,
     required this.sellerCareer,
+    this.sellerPhone = '', // ← NUEVO
     this.status = 'Disponible',
     this.createdAt,
   });
@@ -48,6 +50,7 @@ class ProductModel {
     'sellerInitials': sellerInitials,
     'sellerRating': sellerRating,
     'sellerCareer': sellerCareer,
+    'sellerPhone': sellerPhone, // ← NUEVO
     'status': status,
     'createdAt': FieldValue.serverTimestamp(),
   };
@@ -67,6 +70,7 @@ class ProductModel {
       sellerInitials: data['sellerInitials'] ?? '',
       sellerRating: (data['sellerRating'] ?? 0.0).toDouble(),
       sellerCareer: data['sellerCareer'] ?? '',
+      sellerPhone: data['sellerPhone'] ?? '', // ← NUEVO
       status: data['status'] ?? 'Disponible',
       createdAt: (data['createdAt'] as Timestamp?)?.toDate(),
     );

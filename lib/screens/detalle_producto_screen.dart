@@ -1,25 +1,92 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../models/product_model.dart';
 import '../services/product_service.dart';
 import '../theme/app_theme.dart';
+import 'perfil_vendedor_screen.dart';
 
-class DetalleProductoScreen extends StatelessWidget {
+class DetalleProductoScreen extends StatefulWidget {
   final ProductModel product;
 
   const DetalleProductoScreen({super.key, required this.product});
 
-  String? get _uid => FirebaseAuth.instance.currentUser?.uid;
-  bool get _isOwner => _uid == product.sellerId;
+  @override
+  State<DetalleProductoScreen> createState() => _DetalleProductoScreenState();
+}
 
-  void _handleContact(BuildContext context) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Contactando por ${product.contactMethod}...'),
-        backgroundColor: AppColors.accentGreen,
-      ),
-    );
+class _DetalleProductoScreenState extends State<DetalleProductoScreen> {
+  String? get _uid => FirebaseAuth.instance.currentUser?.uid;
+  bool get _isOwner => _uid == widget.product.sellerId;
+
+  Future<void> _handleContact(BuildContext context) async {
+    try {
+      // Obtener el número del vendedor directamente desde Firestore
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(widget.product.sellerId)
+          .get();
+
+      if (!userDoc.exists) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('No se pudo encontrar la información del vendedor'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        }
+        return;
+      }
+
+      final userPhone = userDoc.data()?['phone'] ?? '';
+      final phone = userPhone.replaceAll(RegExp(r'\D'), '');
+
+      if (phone.isEmpty) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'El vendedor no tiene número de WhatsApp registrado',
+              ),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        }
+        return;
+      }
+
+      final fullPhone = phone.startsWith('57') ? phone : '57$phone';
+      final message = Uri.encodeComponent(
+        '¡Hola! Vi tu publicación de "${widget.product.name}" en UniConnect y me interesa. ¿Sigue disponible?',
+      );
+      final url = Uri.parse('https://wa.me/$fullPhone?text=$message');
+
+      // Intentar abrir WhatsApp directamente
+      if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'No se pudo abrir WhatsApp. Asegúrate de tenerlo instalado.',
+              ),
+              backgroundColor: Colors.redAccent,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al contactar al vendedor: $e'),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
+    }
   }
 
   void _handleReport(BuildContext context) {
@@ -102,7 +169,7 @@ class DetalleProductoScreen extends StatelessWidget {
     );
 
     if (confirm != true) return;
-    await ProductService().deleteProduct(product.id);
+    await ProductService().deleteProduct(widget.product.id);
     if (context.mounted) Navigator.pop(context);
   }
 
@@ -139,9 +206,9 @@ class DetalleProductoScreen extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // Imagen
-              product.imageUrls.isNotEmpty
+              widget.product.imageUrls.isNotEmpty
                   ? Image.network(
-                      product.imageUrls.first,
+                      widget.product.imageUrls.first,
                       width: double.infinity,
                       height: 220,
                       fit: BoxFit.cover,
@@ -160,7 +227,7 @@ class DetalleProductoScreen extends StatelessWidget {
                       children: [
                         Expanded(
                           child: Text(
-                            product.name,
+                            widget.product.name,
                             style: const TextStyle(
                               fontSize: 18,
                               fontWeight: FontWeight.bold,
@@ -179,7 +246,7 @@ class DetalleProductoScreen extends StatelessWidget {
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Text(
-                            product.status,
+                            widget.product.status,
                             style: const TextStyle(
                               fontSize: 11,
                               fontWeight: FontWeight.bold,
@@ -191,7 +258,7 @@ class DetalleProductoScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      product.priceFormatted,
+                      widget.product.priceFormatted,
                       style: const TextStyle(
                         fontSize: 22,
                         fontWeight: FontWeight.bold,
@@ -204,103 +271,130 @@ class DetalleProductoScreen extends StatelessWidget {
                     Wrap(
                       spacing: 8,
                       children: [
-                        _tag(product.category),
-                        if (product.contactMethod.isNotEmpty)
-                          _tag(product.contactMethod),
+                        _tag(widget.product.category),
+                        if (widget.product.contactMethod.isNotEmpty)
+                          _tag(widget.product.contactMethod),
                       ],
                     ),
                     const SizedBox(height: 16),
 
-                    // Vendedor
-                    Container(
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: const Color(0xFFE8EDE9)),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'VENDEDOR',
-                            style: TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.bold,
-                              color: Color(0xFFAFB8B3),
-                              letterSpacing: 1.0,
-                            ),
+                    // Vendedor (tappable → perfil)
+                    InkWell(
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => PerfilVendedorScreen(
+                            sellerId: widget.product.sellerId,
+                            sellerName: widget.product.sellerName,
+                            sellerInitials: widget.product.sellerInitials,
                           ),
-                          const SizedBox(height: 10),
-                          Row(
-                            children: [
-                              CircleAvatar(
-                                radius: 22,
-                                backgroundColor: AppColors.accentGreen,
-                                child: Text(
-                                  product.sellerInitials,
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 14,
+                        ),
+                      ),
+                      borderRadius: BorderRadius.circular(14),
+                      child: Container(
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: const Color(0xFFE8EDE9)),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                const Text(
+                                  'VENDEDOR',
+                                  style: TextStyle(
+                                    fontSize: 10,
                                     fontWeight: FontWeight.bold,
+                                    color: Color(0xFFAFB8B3),
+                                    letterSpacing: 1.0,
                                   ),
                                 ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      product.sellerName,
-                                      style: const TextStyle(
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.bold,
-                                        color: Color(0xFF1A1A1A),
-                                      ),
+                                Icon(
+                                  Icons.person_outline,
+                                  size: 16,
+                                  color: AppColors.textLight,
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 10),
+                            Row(
+                              children: [
+                                CircleAvatar(
+                                  radius: 22,
+                                  backgroundColor: AppColors.accentGreen,
+                                  child: Text(
+                                    widget.product.sellerInitials,
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.bold,
                                     ),
-                                    if (product.sellerCareer.isNotEmpty)
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
                                       Text(
-                                        product.sellerCareer,
+                                        widget.product.sellerName,
                                         style: const TextStyle(
-                                          fontSize: 12,
-                                          color: Color(0xFF8A9990),
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.bold,
+                                          color: Color(0xFF1A1A1A),
                                         ),
                                       ),
-                                  ],
+                                      if (widget
+                                          .product
+                                          .sellerCareer
+                                          .isNotEmpty)
+                                        Text(
+                                          widget.product.sellerCareer,
+                                          style: const TextStyle(
+                                            fontSize: 12,
+                                            color: Color(0xFF8A9990),
+                                          ),
+                                        ),
+                                    ],
+                                  ),
                                 ),
-                              ),
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 10,
-                                  vertical: 6,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFFF5F5F5),
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
-                                child: Row(
-                                  children: [
-                                    const Icon(
-                                      Icons.star_rounded,
-                                      color: Colors.amber,
-                                      size: 16,
-                                    ),
-                                    const SizedBox(width: 4),
-                                    Text(
-                                      '${product.sellerRating}',
-                                      style: const TextStyle(
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.bold,
-                                        color: Color(0xFF1A1A1A),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 6,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFF5F5F5),
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      const Icon(
+                                        Icons.star_rounded,
+                                        color: Colors.amber,
+                                        size: 16,
                                       ),
-                                    ),
-                                  ],
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        '${widget.product.sellerRating}',
+                                        style: const TextStyle(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.bold,
+                                          color: Color(0xFF1A1A1A),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
                                 ),
-                              ),
-                            ],
-                          ),
-                        ],
+                              ],
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                     const SizedBox(height: 14),
@@ -328,7 +422,7 @@ class DetalleProductoScreen extends StatelessWidget {
                           ),
                           const SizedBox(height: 8),
                           Text(
-                            product.description,
+                            widget.product.description,
                             style: const TextStyle(
                               fontSize: 13,
                               color: Color(0xFF4A6558),
