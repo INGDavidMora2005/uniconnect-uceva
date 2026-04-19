@@ -90,6 +90,19 @@ class _PublicarProductoScreenState extends State<PublicarProductoScreen> {
         return;
       }
 
+      if (user.suspended == true) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Tu cuenta ha sido suspendida. No puedes publicar productos.',
+            ),
+            backgroundColor: Colors.red,
+          ),
+        );
+        setState(() => _loading = false);
+        return;
+      }
+
       final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
       final parts = user.fullName.trim().split(' ');
       final initials = parts.length >= 2

@@ -3,6 +3,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'theme/app_theme.dart';
 import 'screens/splash_screen.dart';
 import 'screens/login_screen.dart';
+import 'screens/moderation_panel_screen.dart';
 import 'services/notification_service.dart';
 
 void main() async {
@@ -25,6 +26,7 @@ class UniConnectApp extends StatelessWidget {
       routes: {
         '/': (context) => const SplashScreen(),
         '/login': (context) => const LoginScreen(),
+        '/admin/moderation': (context) => const ModerationPanelScreen(),
       },
     );
   }
