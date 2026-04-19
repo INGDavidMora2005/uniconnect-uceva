@@ -4,9 +4,11 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../models/product_model.dart';
+import '../models/report_model.dart';
 import '../services/product_service.dart';
 import '../theme/app_theme.dart';
 import 'perfil_vendedor_screen.dart';
+import 'report_form_screen.dart';
 
 class DetalleProductoScreen extends StatefulWidget {
   final ProductModel product;
@@ -90,41 +92,14 @@ class _DetalleProductoScreenState extends State<DetalleProductoScreen> {
   }
 
   void _handleReport(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text(
-          'Reportar publicación',
-          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ReportFormScreen(
+          type: ReportType.publication,
+          targetId: widget.product.id,
+          targetName: widget.product.name,
         ),
-        content: const Text(
-          '¿Estás seguro de que deseas reportar esta publicación?',
-          style: TextStyle(fontSize: 13, color: AppColors.textLight),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text(
-              'Cancelar',
-              style: TextStyle(color: AppColors.textLight),
-            ),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.redAccent,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-              elevation: 0,
-            ),
-            child: const Text(
-              'Reportar',
-              style: TextStyle(color: Colors.white),
-            ),
-          ),
-        ],
       ),
     );
   }
@@ -479,23 +454,24 @@ class _DetalleProductoScreenState extends State<DetalleProductoScreen> {
                       SizedBox(
                         width: double.infinity,
                         height: 48,
-                        child: OutlinedButton(
+                        child: OutlinedButton.icon(
                           onPressed: () => _handleReport(context),
+                          icon: const Icon(Icons.flag_outlined, size: 18),
+                          label: const Text(
+                            'Reportar publicación',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
                           style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.redAccent,
                             side: const BorderSide(
                               color: Colors.redAccent,
                               width: 1.5,
                             ),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(12),
-                            ),
-                          ),
-                          child: const Text(
-                            'Reportar publicación',
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.redAccent,
                             ),
                           ),
                         ),

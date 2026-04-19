@@ -13,6 +13,7 @@ class UserModel {
   final double rating;
   final int tripsCompleted;
   final int bazarPurchases;
+  final bool suspended;
 
   const UserModel({
     required this.id,
@@ -23,10 +24,11 @@ class UserModel {
     required this.faculty,
     this.description = '',
     this.phone = '',
-    this.profileImageUrl, // ← NUEVO
+    this.profileImageUrl,
     this.rating = 0.0,
     this.tripsCompleted = 0,
     this.bazarPurchases = 0,
+    this.suspended = false,
   });
 
   factory UserModel.fromMap(Map<String, dynamic> map) => UserModel(
@@ -38,10 +40,11 @@ class UserModel {
     faculty: map['faculty'] ?? '',
     description: map['description'] ?? '',
     phone: map['phone'] ?? '',
-    profileImageUrl: map['profileImageUrl'] as String?, // ← NUEVO
+    profileImageUrl: map['profileImageUrl'] as String?,
     rating: (map['rating'] ?? 0.0).toDouble(),
     tripsCompleted: map['tripsCompleted'] ?? 0,
     bazarPurchases: map['bazarPurchases'] ?? 0,
+    suspended: map['suspended'] ?? false,
   );
 
   Map<String, dynamic> toMap() => {
@@ -53,10 +56,11 @@ class UserModel {
     'faculty': faculty,
     'description': description,
     'phone': phone,
-    'profileImageUrl': profileImageUrl, // ← NUEVO
+    'profileImageUrl': profileImageUrl,
     'rating': rating,
     'tripsCompleted': tripsCompleted,
     'bazarPurchases': bazarPurchases,
+    'suspended': suspended,
     'createdAt': FieldValue.serverTimestamp(),
   };
 
