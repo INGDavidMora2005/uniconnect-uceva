@@ -109,6 +109,18 @@ class ModerationService {
       'suspendedAt': FieldValue.serverTimestamp(),
     });
 
+    final productsSnap = await _db
+        .collection('products')
+        .where('sellerId', isEqualTo: userId)
+        .where('status', isEqualTo: 'Disponible')
+        .get();
+
+    final batch = _db.batch();
+    for (final doc in productsSnap.docs) {
+      batch.update(doc.reference, {'status': 'Suspendido'});
+    }
+    await batch.commit();
+
     await _db.collection('reports').doc(reportId).update({
       'status': 'reviewed',
     });
@@ -120,6 +132,25 @@ class ModerationService {
           'Tu cuenta ha sido suspendida por violar las políticas de uso. Contacta al administrador para más información.',
       type: 'moderation',
     );
+  }
+
+  Future<void> unsuspendUser(String targetUserId) async {
+    await _db.collection('users').doc(targetUserId).update({
+      'suspended': false,
+      'suspendedAt': FieldValue.delete(),
+    });
+
+    final productsSnap = await _db
+        .collection('products')
+        .where('sellerId', isEqualTo: targetUserId)
+        .where('status', isEqualTo: 'Suspendido')
+        .get();
+
+    final batch = _db.batch();
+    for (final doc in productsSnap.docs) {
+      batch.update(doc.reference, {'status': 'Disponible'});
+    }
+    await batch.commit();
   }
 
   Future<void> dismissReport(String reportId) async {
