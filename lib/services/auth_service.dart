@@ -16,7 +16,19 @@ class AuthService {
 
   Future<String> login(String email, String password) async {
     try {
-      await _auth.signInWithEmailAndPassword(email: email, password: password);
+      final credential = await _auth.signInWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+      final uid = credential.user?.uid;
+      if (uid != null) {
+        final userDoc = await _db.collection('users').doc(uid).get();
+        final isSuspended = userDoc.data()?['suspended'] ?? false;
+        if (isSuspended) {
+          await _auth.signOut();
+          return 'Tu cuenta ha sido suspendida. Contacta al administrador para más información.';
+        }
+      }
       return 'Inicio de sesión exitoso.';
     } on FirebaseAuthException catch (e) {
       if (e.code == 'user-not-found') return 'Usuario no encontrado.';
@@ -53,6 +65,17 @@ class AuthService {
         await _auth.signOut();
         await GoogleSignIn().signOut();
         return 'Debes verificar tu email antes de iniciar sesión.';
+      }
+
+      final uid = userCredential.user?.uid;
+      if (uid != null) {
+        final userDoc = await _db.collection('users').doc(uid).get();
+        final isSuspended = userDoc.data()?['suspended'] ?? false;
+        if (isSuspended) {
+          await _auth.signOut();
+          await GoogleSignIn().signOut();
+          return 'Tu cuenta ha sido suspendida. Contacta al administrador para más información.';
+        }
       }
 
       return 'Inicio de sesión exitoso.';
