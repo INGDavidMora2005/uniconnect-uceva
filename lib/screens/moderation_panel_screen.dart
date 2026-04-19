@@ -127,51 +127,134 @@ class _ReportCardState extends State<_ReportCard> {
     final isPublication = widget.report.type == ReportType.publication;
     final isPending = widget.report.status == ReportStatus.pending;
 
-    final result = await showDialog<String>(
+    bool isUserSuspended = false;
+    if (!isPublication) {
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(widget.report.targetId)
+          .get();
+      isUserSuspended = userDoc.data()?['suspended'] ?? false;
+    }
+
+    final result = await showModalBottomSheet<String>(
       context: context,
-      builder: (_) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text(
-          'Acciones deModeración',
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-        ),
-        content: Column(
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => Container(
+        color: Colors.white,
+        padding: const EdgeInsets.all(24),
+        child: Column(
           mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            const Center(
+              child: SizedBox(
+                width: 36,
+                height: 4,
+                child: Divider(color: AppColors.borderDefault, thickness: 2),
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Acciones de moderación',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: AppColors.textDark,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              widget.report.targetName,
+              style: const TextStyle(fontSize: 13, color: AppColors.textMedium),
+            ),
+            const Divider(height: 24),
             if (isPending && isPublication)
-              _actionTile(
-                'Eliminar publicación',
-                Icons.delete_outline,
-                Colors.redAccent,
-                () => Navigator.pop(context, 'delete'),
+              ListTile(
+                leading: const Icon(
+                  Icons.delete_outline,
+                  color: Colors.redAccent,
+                ),
+                title: const Text(
+                  'Eliminar publicación',
+                  style: TextStyle(color: Colors.redAccent),
+                ),
+                onTap: () => Navigator.pop(context, 'delete'),
+                contentPadding: EdgeInsets.zero,
+              ),
+            if (isPending && isPublication)
+              ListTile(
+                leading: const Icon(
+                  Icons.person_off_outlined,
+                  color: Colors.orange,
+                ),
+                title: const Text(
+                  'Suspender vendedor',
+                  style: TextStyle(color: AppColors.textDark),
+                ),
+                onTap: () => Navigator.pop(context, 'suspendVendor'),
+                contentPadding: EdgeInsets.zero,
+              ),
+            if (isPending && !isPublication && !isUserSuspended)
+              ListTile(
+                leading: const Icon(Icons.block, color: Colors.redAccent),
+                title: const Text(
+                  'Suspender usuario',
+                  style: TextStyle(color: Colors.redAccent),
+                ),
+                onTap: () => Navigator.pop(context, 'suspend'),
+                contentPadding: EdgeInsets.zero,
+              ),
+            if (isPending && !isPublication && isUserSuspended)
+              ListTile(
+                leading: const Icon(
+                  Icons.person_outline,
+                  color: AppColors.accentGreen,
+                ),
+                title: const Text(
+                  'Reactivar cuenta',
+                  style: TextStyle(color: AppColors.accentGreen),
+                ),
+                onTap: () => Navigator.pop(context, 'unsuspend'),
+                contentPadding: EdgeInsets.zero,
               ),
             if (isPending)
-              _actionTile(
-                'Suspender usuario',
-                Icons.block,
-                Colors.redAccent,
-                () => Navigator.pop(context, 'suspend'),
-              ),
-            if (isPending)
-              _actionTile(
-                'Descartar reporte',
-                Icons.close,
-                AppColors.textLight,
-                () => Navigator.pop(context, 'dismiss'),
+              ListTile(
+                leading: const Icon(
+                  Icons.check_circle_outline,
+                  color: AppColors.accentGreen,
+                ),
+                title: const Text(
+                  'Descartar reporte',
+                  style: TextStyle(color: AppColors.textDark),
+                ),
+                onTap: () => Navigator.pop(context, 'dismiss'),
+                contentPadding: EdgeInsets.zero,
               ),
             if (!isPending)
-              const Text(
-                'Reporte ya revisado',
-                style: TextStyle(color: AppColors.textLight),
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 12),
+                child: Center(
+                  child: Text(
+                    'Reporte ya revisado',
+                    style: TextStyle(color: AppColors.textLight),
+                  ),
+                ),
               ),
+            const SizedBox(height: 12),
+            Center(
+              child: TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text(
+                  'Cancelar',
+                  style: TextStyle(color: AppColors.textMedium),
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancelar'),
-          ),
-        ],
       ),
     );
 
@@ -204,6 +287,39 @@ class _ReportCardState extends State<_ReportCard> {
             widget.report.targetId,
             widget.report.targetName,
           );
+        }
+      } else if (result == 'suspendVendor') {
+        final confirm = await _confirmDialog(
+          '¿Suspender al vendedor?',
+          'El vendedor no podrá acceder a la app y será notificado.',
+        );
+        if (confirm == true) {
+          final productDoc = await FirebaseFirestore.instance
+              .collection('products')
+              .doc(widget.report.targetId)
+              .get();
+          final sellerId = productDoc.data()?['sellerId'] ?? '';
+          final sellerName = productDoc.data()?['sellerName'] ?? 'el vendedor';
+
+          if (sellerId.isEmpty) {
+            throw Exception('No se encontró el vendedor del producto.');
+          }
+
+          debugPrint('suspendiendo sellerId: $sellerId');
+          await ModerationService().suspendUser(
+            widget.report.id,
+            sellerId,
+            sellerName,
+          );
+        }
+      } else if (result == 'unsuspend') {
+        final confirm = await _confirmDialog(
+          '¿Reactivar esta cuenta?',
+          'El usuario podrá volver a acceder a la app.',
+        );
+        if (confirm == true) {
+          debugPrint('reactivando userId: ${widget.report.targetId}');
+          await ModerationService().unsuspendUser(widget.report.targetId);
         }
       } else if (result == 'dismiss') {
         await ModerationService().dismissReport(widget.report.id);
