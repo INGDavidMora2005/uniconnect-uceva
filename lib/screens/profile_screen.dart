@@ -7,6 +7,7 @@ import '../services/auth_service.dart';
 import '../models/user_model.dart';
 import 'edit_profile_screen.dart';
 import 'mis_publicaciones_screen.dart';
+import 'moderation_panel_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key, this.showBottomNav = true});
@@ -311,6 +312,51 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         ),
 
                         const SizedBox(height: 12),
+
+                        // ── Botón Panel de Moderación (admin) ─────────
+                        if (_user?.email == 'admin.00@uceva.edu.co')
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 20),
+                            child: SizedBox(
+                              width: double.infinity,
+                              height: 48,
+                              child: OutlinedButton(
+                                onPressed: () => Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) =>
+                                        const ModerationPanelScreen(),
+                                  ),
+                                ),
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: AppColors.primaryGreen,
+                                  side: const BorderSide(
+                                    color: AppColors.primaryGreen,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                ),
+                                child: const Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(Icons.admin_panel_settings, size: 18),
+                                    SizedBox(width: 8),
+                                    Text(
+                                      'Panel de Moderación',
+                                      style: TextStyle(
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+
+                        if (_user?.email == 'admin.00@uceva.edu.co')
+                          const SizedBox(height: 12),
 
                         // ── Botón Cerrar Sesión ──────────────
                         Padding(

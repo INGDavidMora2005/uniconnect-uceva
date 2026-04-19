@@ -4,10 +4,12 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../models/product_model.dart';
 import '../models/user_model.dart';
+import '../models/report_model.dart';
 import '../services/product_service.dart';
 import '../theme/app_theme.dart';
 import 'detalle_producto_screen.dart';
 import 'calificar_bazar_screen.dart';
+import 'report_form_screen.dart';
 
 class PerfilVendedorScreen extends StatefulWidget {
   final String sellerId;
@@ -272,6 +274,28 @@ class _PerfilVendedorScreenState extends State<PerfilVendedorScreen> {
                               side: const BorderSide(
                                 color: AppColors.primaryGreen,
                               ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          OutlinedButton.icon(
+                            onPressed: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => ReportFormScreen(
+                                  type: ReportType.user,
+                                  targetId: widget.sellerId,
+                                  targetName: widget.sellerName,
+                                ),
+                              ),
+                            ),
+                            icon: const Icon(Icons.flag_outlined, size: 18),
+                            label: const Text('Reportar usuario'),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: Colors.redAccent,
+                              side: const BorderSide(color: Colors.redAccent),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(10),
                               ),
