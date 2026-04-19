@@ -167,4 +167,8 @@ class ModerationService {
         .get();
     return snap.docs.length;
   }
+
+  Future<void> deleteReport(String reportId) async {
+    await _db.collection('reports').doc(reportId).delete();
+  }
 }
