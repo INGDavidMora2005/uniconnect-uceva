@@ -1,7 +1,13 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../models/user_model.dart';
+import 'crypto_service.dart';
+
+/// Servicio de autenticación con cifrado híbrido RSA-2048 + AES-256-CBC
+/// Implementación basada en Stallings - Cryptography and Network Security
+/// El cifrado añade una capa adicional de seguridad para credenciales
 
 class AuthService {
   static final AuthService _instance = AuthService._internal();
@@ -11,11 +17,45 @@ class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _db = FirebaseFirestore.instance;
 
+  /// Servicio de cifrado híbrido RSA + AES-256
+  /// ref: Stallings - Cap 10.2 Hybrid Cryptography
+  final CryptoService _cryptoService = CryptoService();
+
+  /// Almacenamiento seguro para credenciales cifradas
+  final FlutterSecureStorage _secureStorage = const FlutterSecureStorage(
+    aOptions: AndroidOptions(encryptedSharedPreferences: true),
+    iOptions: IOSOptions(accessibility: KeychainAccessibility.first_unlock),
+  );
+
   User? get currentUser => _auth.currentUser;
   Stream<User?> get authStateChanges => _auth.authStateChanges();
 
+  /// Inicio de sesión con cifrado híbrido RSA-2048 + AES-256-CBC
+  /// ref: Stallings cap 10.2 - Hybrid Cryptography
+  ///
+  /// Flujo de cifrado (patrón híbrido):
+  /// 1. Generar clave AES-256 aleatoria por sesión
+  /// 2. Cifrar contraseña con AES-256-CBC (cifrado simétrico rápido)
+  /// 3. Cifrar clave AES con RSA-2048 pública (cifrado asimétrico)
+  /// 4. Almacenar credenciales cifradas localmente de forma segura
+  /// 5. Firebase Auth verifica la contraseña (necesita texto plano)
+  ///
+  /// El cifrado añade capa adicional de seguridad para datos sensibles
   Future<String> login(String email, String password) async {
     try {
+      // Cifrar credenciales antes de cualquier operación
+      // ref: Stallings - Data Encryption in Transit
+      final encryptedPassword = await _cryptoService.encryptPassword(password);
+
+      // Almacenar credenciales cifradas de forma segura localmente
+      // Esto proporciona recuperación de credentials si es necesario
+      await _secureStorage.write(
+        key: 'encrypted_credentials_$email',
+        value: encryptedPassword.toJson(),
+      );
+
+      // Firebase Auth requiere contraseña en texto plano para verificación
+      // El cifrado anterior es para almacenamiento seguro local
       final credential = await _auth.signInWithEmailAndPassword(
         email: email,
         password: password,
@@ -89,6 +129,13 @@ class AuthService {
     }
   }
 
+  /// Registro con cifrado híbrido de contraseña
+  /// ref: Stallings cap 10.3 - Key Management
+  ///
+  /// El mismo flujo de cifrado que login():
+  /// 1. Cifrar contraseña con AES-256-CBC
+  /// 2. Cifrar clave AES con RSA-2048 pública
+  /// 3. Almacenar de forma segura para recuperación
   Future<String> register({
     required String fullName,
     required String studentCode,
@@ -103,6 +150,14 @@ class AuthService {
       if (normalizedPhone == null) {
         return 'Ingresa un número válido de 10 dígitos (ej: 3001234567)';
       }
+
+      // Cifrar contraseña para almacenamiento seguro local
+      // ref: Stallings - Secure Storage of Credentials
+      final encryptedPassword = await _cryptoService.encryptPassword(password);
+      await _secureStorage.write(
+        key: 'encrypted_credentials_$email',
+        value: encryptedPassword.toJson(),
+      );
 
       final credential = await _auth.createUserWithEmailAndPassword(
         email: email,

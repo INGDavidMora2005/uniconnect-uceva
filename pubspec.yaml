@@ -39,6 +39,12 @@ dependencies:
   # Imágenes
   image_picker: ^1.2.1
 
+  # Criptografía - Cifrado híbrido RSA + AES-256
+  # Basado en Stallings - Cryptography and Network Security
+  encrypt: ^5.0.3
+  pointycastle: ^3.7.3
+  flutter_secure_storage: ^9.0.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
