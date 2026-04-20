@@ -4,6 +4,48 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:pointycastle/export.dart';
 
+/// Función top-level para generar par de claves RSA en isolate separado
+/// Se ejecuta en hilo separado para no bloquear la UI
+/// ref: Stallings cap 9 - RSA Key Generation
+Map<String, String> _generateRSAKeyPairIsolate(int keySize) {
+  final secureRandom = _createSecureRandomIsolate();
+  final keyParams = RSAKeyGeneratorParameters(
+    BigInt.parse('65537'),
+    keySize,
+    64,
+  );
+
+  final params = ParametersWithRandom(keyParams, secureRandom);
+  final keyGenerator = RSAKeyGenerator();
+  keyGenerator.init(params);
+
+  final keyPair = keyGenerator.generateKeyPair();
+  final publicKey = keyPair.publicKey as RSAPublicKey;
+  final privateKey = keyPair.privateKey as RSAPrivateKey;
+
+  final modBytes = publicKey.modulus!.toRadixString(16);
+  final expBytes = publicKey.exponent!.toRadixString(16);
+  final publicKeyStr = base64.encode(utf8.encode('$modBytes:$expBytes'));
+
+  final pBytes = privateKey.p!.toRadixString(16);
+  final qBytes = privateKey.q!.toRadixString(16);
+  final dBytes = privateKey.privateExponent!.toRadixString(16);
+  final nBytes = privateKey.modulus!.toRadixString(16);
+  final privateKeyStr = base64.encode(
+    utf8.encode('$pBytes:$qBytes:$dBytes:$nBytes'),
+  );
+
+  return {'publicKey': publicKeyStr, 'privateKey': privateKeyStr};
+}
+
+SecureRandom _createSecureRandomIsolate() {
+  final random = Random.secure();
+  final secureRandom = FortunaRandom();
+  final seeds = List<int>.generate(32, (_) => random.nextInt(256));
+  secureRandom.seed(KeyParameter(Uint8List.fromList(seeds)));
+  return secureRandom;
+}
+
 /// Servicio de gestión de claves RSA-2048
 /// Implementación basada en Stallings - Cryptography and Network Security
 /// Capítulos 9 y 10 sobre cifrado de clave pública RSA
@@ -14,7 +56,6 @@ class KeyService {
 
   static const String _publicKeyKey = 'rsa_public_key';
   static const String _privateKeyKey = 'rsa_private_key';
-  static const int _keySize = 2048;
 
   final FlutterSecureStorage _secureStorage = const FlutterSecureStorage(
     aOptions: AndroidOptions(encryptedSharedPreferences: true),
@@ -22,36 +63,6 @@ class KeyService {
   );
 
   AsymmetricKeyPair<RSAPublicKey, RSAPrivateKey>? _cachedKeyPair;
-
-  /// Genera un par de claves RSA-2048
-  /// RSA: basado en la dificultad de factorizar números grandes
-  /// ref: Stallings cap 9 - The RSA Public-Ciphertext cryptosystem
-  AsymmetricKeyPair<RSAPublicKey, RSAPrivateKey> _generateKeyPair() {
-    final secureRandom = _createSecureRandom();
-    final keyParams = RSAKeyGeneratorParameters(
-      BigInt.parse('65537'),
-      _keySize,
-      64,
-    );
-
-    final params = ParametersWithRandom(keyParams, secureRandom);
-    final keyGenerator = RSAKeyGenerator();
-    keyGenerator.init(params);
-
-    final keyPair = keyGenerator.generateKeyPair();
-    return AsymmetricKeyPair<RSAPublicKey, RSAPrivateKey>(
-      keyPair.publicKey as RSAPublicKey,
-      keyPair.privateKey as RSAPrivateKey,
-    );
-  }
-
-  SecureRandom _createSecureRandom() {
-    final random = Random.secure();
-    final secureRandom = FortunaRandom();
-    final seeds = List<int>.generate(32, (_) => random.nextInt(256));
-    secureRandom.seed(KeyParameter(Uint8List.fromList(seeds)));
-    return secureRandom;
-  }
 
   /// Carga las claves RSA del almacenamiento seguro
   /// Si no existen, las genera por primera vez
@@ -80,18 +91,29 @@ class KeyService {
 
   /// Genera nuevas claves RSA y las almacena
   /// ref: Stallings - key generation para RSA
+  /// Usa compute() para ejecutar en isolate separado
   Future<AsymmetricKeyPair<RSAPublicKey, RSAPrivateKey>>
   generateNewKeys() async {
-    final keyPair = _generateKeyPair();
+    debugPrint('[KeyService] Generando par RSA-2048 en isolate separado...');
+    final stopwatch = Stopwatch()..start();
 
-    final publicKeyStr = _encodePublicKey(keyPair.publicKey);
-    final privateKeyStr = _encodePrivateKey(keyPair.privateKey);
+    final result = await compute(_generateRSAKeyPairIsolate, 2048);
+
+    stopwatch.stop();
+    debugPrint(
+      '[KeyService] Par RSA-2048 generado en ${stopwatch.elapsedMilliseconds} ms',
+    );
+
+    final publicKeyStr = result['publicKey']!;
+    final privateKeyStr = result['privateKey']!;
 
     await _secureStorage.write(key: _publicKeyKey, value: publicKeyStr);
     await _secureStorage.write(key: _privateKeyKey, value: privateKeyStr);
 
-    _cachedKeyPair = keyPair;
-    return keyPair;
+    final publicKey = _parsePublicKey(publicKeyStr);
+    final privateKey = _parsePrivateKey(privateKeyStr);
+    _cachedKeyPair = AsymmetricKeyPair(publicKey, privateKey);
+    return _cachedKeyPair!;
   }
 
   /// Obtiene la clave pública RSA para cifrar
@@ -106,13 +128,6 @@ class KeyService {
     return keyPair.privateKey;
   }
 
-  /// Codifica clave pública a string PEM-like
-  String _encodePublicKey(RSAPublicKey key) {
-    final modBytes = key.modulus!.toRadixString(16);
-    final expBytes = key.exponent!.toRadixString(16);
-    return base64.encode(utf8.encode('$modBytes:$expBytes'));
-  }
-
   /// Decodifica string a clave pública RSA
   RSAPublicKey _parsePublicKey(String encoded) {
     final decoded = utf8.decode(base64.decode(encoded));
@@ -120,15 +135,6 @@ class KeyService {
     final modulus = BigInt.parse(parts[0], radix: 16);
     final exponent = BigInt.parse(parts[1], radix: 16);
     return RSAPublicKey(modulus, exponent);
-  }
-
-  /// Codifica clave privada a string
-  String _encodePrivateKey(RSAPrivateKey key) {
-    final pBytes = key.p!.toRadixString(16);
-    final qBytes = key.q!.toRadixString(16);
-    final dBytes = key.privateExponent!.toRadixString(16);
-    final nBytes = key.modulus!.toRadixString(16);
-    return base64.encode(utf8.encode('$pBytes:$qBytes:$dBytes:$nBytes'));
   }
 
   /// Decodifica string a clave privada RSA

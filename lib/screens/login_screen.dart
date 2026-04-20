@@ -20,9 +20,24 @@ class _LoginScreenState extends State<LoginScreen> {
   final _passwordController = TextEditingController();
   bool _isLoading = false;
   bool _useGoogle = false;
+  bool _hasPassword = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _passwordController.addListener(_onPasswordChanged);
+  }
+
+  void _onPasswordChanged() {
+    final hasText = _passwordController.text.isNotEmpty;
+    if (hasText != _hasPassword) {
+      setState(() => _hasPassword = hasText);
+    }
+  }
 
   @override
   void dispose() {
+    _passwordController.removeListener(_onPasswordChanged);
     _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
@@ -49,10 +64,7 @@ class _LoginScreenState extends State<LoginScreen> {
       );
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(message),
-          backgroundColor: Colors.redAccent,
-        ),
+        SnackBar(content: Text(message), backgroundColor: Colors.redAccent),
       );
     }
   }
@@ -72,10 +84,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 const SizedBox(height: 60),
                 Text(
                   'Bienvenido a',
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: AppColors.textLight,
-                  ),
+                  style: TextStyle(fontSize: 16, color: AppColors.textLight),
                 ),
                 const Text(
                   'UniConnect',
@@ -99,8 +108,12 @@ class _LoginScreenState extends State<LoginScreen> {
                       child: ElevatedButton(
                         onPressed: () => setState(() => _useGoogle = true),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: _useGoogle ? AppColors.accentGreen : AppColors.backgroundWhite,
-                          foregroundColor: _useGoogle ? Colors.white : AppColors.textDark,
+                          backgroundColor: _useGoogle
+                              ? AppColors.accentGreen
+                              : AppColors.backgroundWhite,
+                          foregroundColor: _useGoogle
+                              ? Colors.white
+                              : AppColors.textDark,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(8),
                           ),
@@ -113,8 +126,12 @@ class _LoginScreenState extends State<LoginScreen> {
                       child: ElevatedButton(
                         onPressed: () => setState(() => _useGoogle = false),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: !_useGoogle ? AppColors.accentGreen : AppColors.backgroundWhite,
-                          foregroundColor: !_useGoogle ? Colors.white : AppColors.textDark,
+                          backgroundColor: !_useGoogle
+                              ? AppColors.accentGreen
+                              : AppColors.backgroundWhite,
+                          foregroundColor: !_useGoogle
+                              ? Colors.white
+                              : AppColors.textDark,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(8),
                           ),
@@ -146,15 +163,59 @@ class _LoginScreenState extends State<LoginScreen> {
                     isPassword: true,
                     controller: _passwordController,
                     validator: (v) {
-                      if (v == null || v.isEmpty) return 'Ingresa tu contraseña';
+                      if (v == null || v.isEmpty)
+                        return 'Ingresa tu contraseña';
                       if (v.length < 8) return 'Mínimo 8 caracteres';
                       return null;
                     },
                   ),
+                  if (_hasPassword) ...[
+                    const SizedBox(height: 8),
+                    GestureDetector(
+                      onTap: () => Navigator.pushNamed(context, '/crypto-test'),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(
+                            0xFF1B5E20,
+                          ).withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: const Color(0xFF2E7D32),
+                            width: 1,
+                          ),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.lock_outline,
+                              size: 12,
+                              color: Color(0xFF2E7D32),
+                            ),
+                            SizedBox(width: 4),
+                            Text(
+                              'AES-256 + RSA-2048 activo',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: Color(0xFF2E7D32),
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 30),
                 ],
                 PrimaryButton(
-                  text: _useGoogle ? 'Iniciar sesión con Google' : 'Iniciar sesión',
+                  text: _useGoogle
+                      ? 'Iniciar sesión con Google'
+                      : 'Iniciar sesión',
                   onPressed: _handleLogin,
                   isLoading: _isLoading,
                 ),
