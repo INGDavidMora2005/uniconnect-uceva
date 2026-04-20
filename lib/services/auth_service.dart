@@ -47,38 +47,46 @@ class AuthService {
     debugPrint('[AuthService] INICIO login para email: $email');
 
     try {
-      debugPrint(
-        '[AuthService] Iniciando cifrado de contraseña con CryptoService...',
-      );
-      final stopwatchCrypto = Stopwatch()..start();
-
-      // Cifrar credenciales antes de cualquier operación
+      // Intentar cifrar credenciales antes de cualquier operación
       // ref: Stallings - Data Encryption in Transit
-      final encryptedPassword = await _cryptoService.encryptPassword(password);
+      // Si el cifrado falla, hacemos fallback a Firebase Auth sin almacenamiento cifrado
+      try {
+        debugPrint(
+          '[AuthService] Iniciando cifrado de contraseña con CryptoService...',
+        );
+        final stopwatchCrypto = Stopwatch()..start();
 
-      stopwatchCrypto.stop();
-      final cryptoTime = stopwatchCrypto.elapsedMilliseconds;
-      debugPrint('[AuthService] Cifrado completado en $cryptoTime ms');
+        final encryptedPassword = await _cryptoService.encryptPassword(
+          password,
+        );
 
-      final cipherPreview = encryptedPassword.ciphertext.length > 20
-          ? '${encryptedPassword.ciphertext.substring(0, 20)}...'
-          : encryptedPassword.ciphertext;
-      debugPrint(
-        '[AuthService] Payload generado — ciphertext: $cipherPreview, iv: ${encryptedPassword.iv}, keyLen: ${encryptedPassword.encryptedKey.length}',
-      );
+        stopwatchCrypto.stop();
+        final cryptoTime = stopwatchCrypto.elapsedMilliseconds;
+        debugPrint('[AuthService] Cifrado completado en $cryptoTime ms');
 
-      // Almacenar credenciales cifradas de forma segura localmente
-      // Esto proporciona recuperación de credentials si es necesario
-      await _secureStorage.write(
-        key: 'encrypted_credentials_$email',
-        value: encryptedPassword.toJson(),
-      );
+        final cipherPreview = encryptedPassword.ciphertext.length > 20
+            ? '${encryptedPassword.ciphertext.substring(0, 20)}...'
+            : encryptedPassword.ciphertext;
+        debugPrint(
+          '[AuthService] Payload generado — ciphertext: $cipherPreview, iv: ${encryptedPassword.iv}, keyLen: ${encryptedPassword.encryptedKey.length}',
+        );
+
+        // Almacenar credenciales cifradas localmente si el cifrado fue exitoso
+        await _secureStorage.write(
+          key: 'encrypted_credentials_$email',
+          value: encryptedPassword.toJson(),
+        );
+      } catch (e) {
+        // Fallback si el cifrado falla: continuar con Firebase Auth
+        debugPrint(
+          '[AuthService] Advertencia: Cifrado falló — usando fallback. Error: $e',
+        );
+      }
 
       debugPrint('[AuthService] Enviando credenciales a Firebase Auth...');
       final stopwatchFirebase = Stopwatch()..start();
 
       // Firebase Auth requiere contraseña en texto plano para verificación
-      // El cifrado anterior es para almacenamiento seguro local
       final credential = await _auth.signInWithEmailAndPassword(
         email: email,
         password: password,
@@ -201,30 +209,38 @@ class AuthService {
         return 'Ingresa un número válido de 10 dígitos (ej: 3001234567)';
       }
 
-      debugPrint(
-        '[AuthService] Iniciando cifrado de contraseña con CryptoService...',
-      );
-      final stopwatchCrypto = Stopwatch()..start();
+      // Intentar cifrar contraseña para almacenamiento seguro local
+      // Si el cifrado falla, hacemos fallback a Firebase Auth
+      try {
+        debugPrint(
+          '[AuthService] Iniciando cifrado de contraseña con CryptoService...',
+        );
+        final stopwatchCrypto = Stopwatch()..start();
 
-      // Cifrar contraseña para almacenamiento seguro local
-      // ref: Stallings - Secure Storage of Credentials
-      final encryptedPassword = await _cryptoService.encryptPassword(password);
+        final encryptedPassword = await _cryptoService.encryptPassword(
+          password,
+        );
 
-      stopwatchCrypto.stop();
-      final cryptoTime = stopwatchCrypto.elapsedMilliseconds;
-      debugPrint('[AuthService] Cifrado completado en $cryptoTime ms');
+        stopwatchCrypto.stop();
+        final cryptoTime = stopwatchCrypto.elapsedMilliseconds;
+        debugPrint('[AuthService] Cifrado completado en $cryptoTime ms');
 
-      final cipherPreview = encryptedPassword.ciphertext.length > 20
-          ? '${encryptedPassword.ciphertext.substring(0, 20)}...'
-          : encryptedPassword.ciphertext;
-      debugPrint(
-        '[AuthService] Payload generado — ciphertext: $cipherPreview, iv: ${encryptedPassword.iv}, keyLen: ${encryptedPassword.encryptedKey.length}',
-      );
+        final cipherPreview = encryptedPassword.ciphertext.length > 20
+            ? '${encryptedPassword.ciphertext.substring(0, 20)}...'
+            : encryptedPassword.ciphertext;
+        debugPrint(
+          '[AuthService] Payload generado — ciphertext: $cipherPreview, iv: ${encryptedPassword.iv}, keyLen: ${encryptedPassword.encryptedKey.length}',
+        );
 
-      await _secureStorage.write(
-        key: 'encrypted_credentials_$email',
-        value: encryptedPassword.toJson(),
-      );
+        await _secureStorage.write(
+          key: 'encrypted_credentials_$email',
+          value: encryptedPassword.toJson(),
+        );
+      } catch (e) {
+        debugPrint(
+          '[AuthService] Advertencia: Cifrado falló — usando fallback. Error: $e',
+        );
+      }
 
       debugPrint('[AuthService] Enviando credenciales a Firebase Auth...');
       final stopwatchFirebase = Stopwatch()..start();

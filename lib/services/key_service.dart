@@ -27,12 +27,12 @@ Map<String, String> _generateRSAKeyPairIsolate(int keySize) {
   final expBytes = publicKey.exponent!.toRadixString(16);
   final publicKeyStr = base64.encode(utf8.encode('$modBytes:$expBytes'));
 
+  final nBytes = privateKey.modulus!.toRadixString(16);
+  final dBytes = privateKey.privateExponent!.toRadixString(16);
   final pBytes = privateKey.p!.toRadixString(16);
   final qBytes = privateKey.q!.toRadixString(16);
-  final dBytes = privateKey.privateExponent!.toRadixString(16);
-  final nBytes = privateKey.modulus!.toRadixString(16);
   final privateKeyStr = base64.encode(
-    utf8.encode('$pBytes:$qBytes:$dBytes:$nBytes'),
+    utf8.encode('$nBytes:$dBytes:$pBytes:$qBytes:$expBytes'),
   );
 
   return {'publicKey': publicKeyStr, 'privateKey': privateKeyStr};
@@ -83,7 +83,11 @@ class KeyService {
         return _cachedKeyPair!;
       }
     } catch (e) {
-      debugPrint('Error loading keys: $e');
+      debugPrint(
+        '[KeyService] Stored keys corrupted, clearing and regenerating: $e',
+      );
+      await clearKeys();
+      return generateNewKeys();
     }
 
     return generateNewKeys();
@@ -94,6 +98,9 @@ class KeyService {
   /// Usa compute() para ejecutar en isolate separado
   Future<AsymmetricKeyPair<RSAPublicKey, RSAPrivateKey>>
   generateNewKeys() async {
+    // Wipe any corrupted stored keys first
+    await clearKeys();
+
     debugPrint('[KeyService] Generando par RSA-2048 en isolate separado...');
     final stopwatch = Stopwatch()..start();
 
@@ -141,11 +148,11 @@ class KeyService {
   RSAPrivateKey _parsePrivateKey(String encoded) {
     final decoded = utf8.decode(base64.decode(encoded));
     final parts = decoded.split(':');
-    final p = BigInt.parse(parts[0], radix: 16);
-    final q = BigInt.parse(parts[1], radix: 16);
-    final d = BigInt.parse(parts[2], radix: 16);
-    final n = BigInt.parse(parts[3], radix: 16);
-    return RSAPrivateKey(p, q, d, n);
+    final n = BigInt.parse(parts[0], radix: 16);
+    final d = BigInt.parse(parts[1], radix: 16);
+    final p = BigInt.parse(parts[2], radix: 16);
+    final q = BigInt.parse(parts[3], radix: 16);
+    return RSAPrivateKey(n, d, p, q);
   }
 
   /// Elimina las claves almacenadas (para testing/reset)

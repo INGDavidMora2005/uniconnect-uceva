@@ -47,12 +47,43 @@ class _LoginScreenState extends State<LoginScreen> {
     if (!_useGoogle && !_formKey.currentState!.validate()) return;
     setState(() => _isLoading = true);
 
-    final message = _useGoogle
-        ? await AuthService().loginWithGoogle()
-        : await AuthService().login(
-            _emailController.text.trim(),
-            _passwordController.text,
+    String message;
+    try {
+      if (_useGoogle) {
+        final result = await AuthService().loginWithGoogle();
+        if (result.isEmpty ||
+            result.contains('cancelado') ||
+            result.contains('Error')) {
+          setState(() => _isLoading = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Google Sign-In no está disponible en este dispositivo',
+              ),
+              backgroundColor: Colors.redAccent,
+            ),
           );
+          return;
+        }
+        message = result;
+      } else {
+        message = await AuthService().login(
+          _emailController.text.trim(),
+          _passwordController.text,
+        );
+      }
+    } catch (e) {
+      setState(() => _isLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Google Sign-In no está disponible en este dispositivo',
+          ),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+      return;
+    }
 
     setState(() => _isLoading = false);
     if (!mounted) return;
