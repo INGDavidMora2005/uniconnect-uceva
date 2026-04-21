@@ -26,6 +26,12 @@ class _CryptoTestScreenState extends State<CryptoTestScreen> {
   EncryptedPayload? _lastPayload;
   List<String> _sessionIVs = [];
   String? _loginFlowResult;
+  String? _externalDecryptedResult;
+  bool? _externalDecryptSuccess;
+  final TextEditingController _externalCiphertextController =
+      TextEditingController();
+  final TextEditingController _externalIvController = TextEditingController();
+  final TextEditingController _externalKeyController = TextEditingController();
 
   @override
   void dispose() {
@@ -206,6 +212,56 @@ class _CryptoTestScreenState extends State<CryptoTestScreen> {
     );
   }
 
+  void _copyCurrentToExternalFields() {
+    if (_encryptedData == null || _iv == null || _encryptedKey == null) return;
+    setState(() {
+      _externalCiphertextController.text = _encryptedData!;
+      _externalIvController.text = _iv!;
+      _externalKeyController.text = _encryptedKey!;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Text('Datos copiados a campos externos'),
+        duration: const Duration(seconds: 1),
+        backgroundColor: Colors.green.shade700,
+      ),
+    );
+  }
+
+  Future<void> _decryptExternal() async {
+    final ciphertext = _externalCiphertextController.text.trim();
+    final iv = _externalIvController.text.trim();
+    final encryptedKey = _externalKeyController.text.trim();
+
+    if (ciphertext.isEmpty || iv.isEmpty || encryptedKey.isEmpty) {
+      setState(() {
+        _externalDecryptedResult = '✗ ERROR: Completar todos los campos';
+        _externalDecryptSuccess = false;
+      });
+      return;
+    }
+
+    try {
+      final payload = EncryptedPayload(
+        ciphertext: ciphertext,
+        iv: iv,
+        encryptedKey: encryptedKey,
+      );
+      final cryptoService = CryptoService();
+      final decrypted = await cryptoService.decryptPassword(payload);
+      setState(() {
+        _externalDecryptedResult = '✓ DESCIFRADO: $decrypted';
+        _externalDecryptSuccess = true;
+      });
+    } catch (e) {
+      setState(() {
+        _externalDecryptedResult =
+            '✗ ERROR: No se pudo descifrar. La clave privada de este dispositivo no corresponde al ciphertext.';
+        _externalDecryptSuccess = false;
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -285,6 +341,8 @@ class _CryptoTestScreenState extends State<CryptoTestScreen> {
               ),
               const SizedBox(height: 12),
               _buildButton('Descifrar', _decrypt, Colors.green),
+              const SizedBox(height: 8),
+              _buildCopyToExternalButton(),
             ],
 
             if (_decryptedData != null) ...[
@@ -369,6 +427,131 @@ class _CryptoTestScreenState extends State<CryptoTestScreen> {
                     fontFamily: 'monospace',
                   ),
                   textAlign: TextAlign.center,
+                ),
+              ),
+            ],
+
+            const SizedBox(height: 40),
+            const Divider(color: Color(0xFF333333)),
+            const SizedBox(height: 20),
+
+            _buildConsoleOutput(
+              'VERIFICAR CIPHERTEXT EXTERNO',
+              'Ingresa un ciphertext generado por este dispositivo para verificar',
+              showCopy: false,
+            ),
+            const SizedBox(height: 12),
+
+            TextField(
+              controller: _externalCiphertextController,
+              style: const TextStyle(
+                color: Color(0xFF00FF00),
+                fontFamily: 'monospace',
+                fontSize: 12,
+              ),
+              decoration: InputDecoration(
+                filled: true,
+                fillColor: const Color(0xFF0D0D0D),
+                border: OutlineInputBorder(
+                  borderSide: BorderSide(color: Colors.orange.shade700),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderSide: BorderSide(color: Colors.orange.shade700),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderSide: const BorderSide(color: Colors.orange),
+                ),
+                labelText: 'Ciphertext (Base64)',
+                labelStyle: TextStyle(color: Colors.orange.shade400),
+                hintText: 'Ingresa el ciphertext...',
+                hintStyle: TextStyle(color: Colors.grey.shade600),
+              ),
+              maxLines: 3,
+            ),
+            const SizedBox(height: 12),
+
+            TextField(
+              controller: _externalIvController,
+              style: const TextStyle(
+                color: Color(0xFF00FF00),
+                fontFamily: 'monospace',
+                fontSize: 12,
+              ),
+              decoration: InputDecoration(
+                filled: true,
+                fillColor: const Color(0xFF0D0D0D),
+                border: OutlineInputBorder(
+                  borderSide: BorderSide(color: Colors.orange.shade700),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderSide: BorderSide(color: Colors.orange.shade700),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderSide: const BorderSide(color: Colors.orange),
+                ),
+                labelText: 'IV (Base64)',
+                labelStyle: TextStyle(color: Colors.orange.shade400),
+                hintText: 'Ingresa el IV...',
+                hintStyle: TextStyle(color: Colors.grey.shade600),
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            TextField(
+              controller: _externalKeyController,
+              style: const TextStyle(
+                color: Color(0xFF00FF00),
+                fontFamily: 'monospace',
+                fontSize: 12,
+              ),
+              decoration: InputDecoration(
+                filled: true,
+                fillColor: const Color(0xFF0D0D0D),
+                border: OutlineInputBorder(
+                  borderSide: BorderSide(color: Colors.orange.shade700),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderSide: BorderSide(color: Colors.orange.shade700),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderSide: const BorderSide(color: Colors.orange),
+                ),
+                labelText: 'Encrypted Key RSA (Base64)',
+                labelStyle: TextStyle(color: Colors.orange.shade400),
+                hintText: 'Ingresa la clave RSA cifrada...',
+                hintStyle: TextStyle(color: Colors.grey.shade600),
+              ),
+              maxLines: 3,
+            ),
+            const SizedBox(height: 12),
+
+            _buildButton('Descifrar Externo', _decryptExternal, Colors.amber),
+
+            if (_externalDecryptedResult != null) ...[
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: _externalDecryptSuccess == true
+                      ? Colors.green.shade900.withValues(alpha: 0.3)
+                      : Colors.red.shade900.withValues(alpha: 0.3),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: _externalDecryptSuccess == true
+                        ? Colors.green
+                        : Colors.red,
+                    width: 2,
+                  ),
+                ),
+                child: Text(
+                  _externalDecryptedResult!,
+                  style: TextStyle(
+                    color: _externalDecryptSuccess == true
+                        ? Colors.green
+                        : Colors.red,
+                    fontFamily: 'monospace',
+                    fontSize: 13,
+                  ),
                 ),
               ),
             ],
@@ -475,6 +658,28 @@ class _CryptoTestScreenState extends State<CryptoTestScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildCopyToExternalButton() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        const Icon(Icons.input, size: 16, color: Colors.amber),
+        const SizedBox(width: 8),
+        TextButton.icon(
+          onPressed: _copyCurrentToExternalFields,
+          icon: const Icon(Icons.input, size: 16, color: Colors.amber),
+          label: const Text(
+            'Copiar al verificador',
+            style: TextStyle(
+              color: Colors.amber,
+              fontFamily: 'monospace',
+              fontSize: 12,
+            ),
+          ),
+        ),
+      ],
     );
   }
 
