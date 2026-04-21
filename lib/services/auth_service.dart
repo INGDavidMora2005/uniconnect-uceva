@@ -47,15 +47,18 @@ class AuthService {
     try {
       if (value == null) return '';
       final str = value.toString();
+      if (!str.contains('encryptedData') && !str.contains('ciphertext'))
+        return str;
       if (!str.startsWith('{')) return str;
       final map = jsonDecode(str) as Map<String, dynamic>;
-      return await _cryptoService.decryptData({
-        'encryptedData': map['encryptedData'] ?? map['ciphertext'],
-        'iv': map['iv'],
-        'encryptedKey': map['encryptedKey'],
+      final result = await _cryptoService.decryptData({
+        'encryptedData': map['encryptedData'] ?? map['ciphertext'] ?? '',
+        'iv': map['iv'] ?? '',
+        'encryptedKey': map['encryptedKey'] ?? '',
       });
+      return result.isEmpty ? '' : result;
     } catch (e) {
-      return value?.toString() ?? '';
+      return '';
     }
   }
 
