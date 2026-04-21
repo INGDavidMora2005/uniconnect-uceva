@@ -107,11 +107,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   String get _initials {
     if (_user == null) return '?';
-    final parts = _user!.fullName.trim().split(' ');
-    if (parts.length >= 2) {
+    final name = _user!.fullName;
+    if (name.isEmpty) return '?';
+    final parts = name.trim().split(' ');
+    if (parts.length >= 2 && parts[1].isNotEmpty) {
       return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
     }
-    return parts[0][0].toUpperCase();
+    return parts[0].isNotEmpty ? parts[0][0].toUpperCase() : '?';
   }
 
   // Stream en tiempo real del usuario para rating y viajes
@@ -150,11 +152,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
                   final profileImageUrl =
                       liveData?['profileImageUrl'] as String?;
-                  final initials = _user != null
-                      ? (_user!.fullName.trim().split(' ').length >= 2
-                            ? '${_user!.fullName[0]}${_user!.fullName.split(' ')[1][0]}'
-                                  .toUpperCase()
-                            : _user!.fullName[0].toUpperCase())
+                  final name = _user?.fullName ?? '';
+                  final initials = name.isNotEmpty
+                      ? (name.trim().split(' ').length >= 2
+                            ? '${name[0]}${name.split(' ')[1][0]}'.toUpperCase()
+                            : name[0].toUpperCase())
                       : '?';
 
                   return SingleChildScrollView(
