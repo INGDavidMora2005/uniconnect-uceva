@@ -5,10 +5,10 @@ import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:encrypt/encrypt.dart' as encrypt;
 import '../models/product_model.dart';
 import '../models/report_model.dart';
 import '../services/product_service.dart';
-import '../services/crypto_service.dart';
 import '../theme/app_theme.dart';
 import 'perfil_vendedor_screen.dart';
 import 'report_form_screen.dart';
@@ -47,18 +47,15 @@ class _DetalleProductoScreenState extends State<DetalleProductoScreen> {
       }
 
       // Descifrar el teléfono si está encriptado
-      var userPhone = userDoc.data()?['phone'] ?? '';
-      if (userPhone.toString().startsWith('{')) {
-        try {
-          final map = jsonDecode(userPhone) as Map<String, dynamic>;
-          userPhone = await CryptoService().decryptData({
-            'encryptedData': map['encryptedData'] ?? map['ciphertext'] ?? '',
-            'iv': map['iv'] ?? '',
-            'encryptedKey': map['encryptedKey'] ?? '',
-          });
-        } catch (e) {
-          userPhone = '';
-        }
+      final rawPhone = userDoc.data()?['phone'];
+      String userPhone = '';
+
+      if (rawPhone is Map<String, dynamic>) {
+        // Formato encriptado legacy (usuarios registrados antes del cambio)
+        // No se puede descifrar desde otro dispositivo, pedir al usuario que actualice su perfil
+        userPhone = '';
+      } else {
+        userPhone = rawPhone?.toString() ?? '';
       }
       final phone = userPhone.replaceAll(RegExp(r'\D'), '');
 
@@ -80,11 +77,14 @@ class _DetalleProductoScreenState extends State<DetalleProductoScreen> {
       final message = Uri.encodeComponent(
         '¡Hola! Vi tu publicación de "${widget.product.name}" en UniConnect y me interesa. ¿Sigue disponible?',
       );
-      final whatsappUri = Uri.parse('whatsapp://send?phone=$fullPhone&text=$message');
-      final webUri = Uri.parse('https://wa.me/$fullPhone?text=$message');
-
-      final launched = await launchUrl(whatsappUri, mode: LaunchMode.externalApplication)
-          || await launchUrl(webUri, mode: LaunchMode.externalApplication);
+      final waUri = Uri.parse('https://wa.me/$fullPhone?text=$message');
+      bool launched = false;
+      if (await canLaunchUrl(waUri)) {
+        launched = await launchUrl(waUri, mode: LaunchMode.externalApplication);
+      }
+      if (!launched) {
+        launched = await launchUrl(waUri, mode: LaunchMode.inAppBrowserView);
+      }
 
       if (!launched) {
         if (context.mounted) {

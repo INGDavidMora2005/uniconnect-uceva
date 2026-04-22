@@ -8,7 +8,6 @@ import '../models/product_model.dart';
 import '../models/user_model.dart';
 import '../models/report_model.dart';
 import '../services/product_service.dart';
-import '../services/crypto_service.dart';
 import '../theme/app_theme.dart';
 import 'detalle_producto_screen.dart';
 import 'calificar_bazar_screen.dart';
@@ -154,7 +153,10 @@ class _PerfilVendedorScreenState extends State<PerfilVendedorScreen> {
 
           final data = snapshot.data!.data() as Map<String, dynamic>;
           // Obtener el teléfono - intentar usar getUserData para obtener descifrado
-          final phone = (data['phone'] ?? '').toString();
+          final rawPhoneVendedor = data['phone'];
+          final phone = rawPhoneVendedor is Map
+              ? ''
+              : (rawPhoneVendedor?.toString() ?? '');
           final faculty = (data['faculty'] ?? '').toString();
           final rating = (data['rating'] ?? 0.0).toDouble();
           final trips = (data['tripsCompleted'] ?? 0) as int;
@@ -250,10 +252,10 @@ class _PerfilVendedorScreenState extends State<PerfilVendedorScreen> {
                             ],
                           ),
                           const SizedBox(height: 12),
-                          if (phone.isNotEmpty)
+                          if (rawPhoneVendedor != null)
                             ElevatedButton.icon(
                               onPressed: () =>
-                                  _contactarVendedor(phone),
+                                  _contactarVendedor(rawPhoneVendedor),
                               icon: const Icon(Icons.message, size: 18),
                               label: const Text('Contactar por WhatsApp'),
                               style: ElevatedButton.styleFrom(
@@ -438,25 +440,14 @@ class _PerfilVendedorScreenState extends State<PerfilVendedorScreen> {
 
   Future<void> _contactarVendedor(String phone) async {
     try {
-      // Descifrar el teléfono si está encriptado
-      if (phone.startsWith('{')) {
-        try {
-          final map = jsonDecode(phone) as Map<String, dynamic>;
-          phone = await CryptoService().decryptData({
-            'encryptedData': map['encryptedData'] ?? map['ciphertext'] ?? '',
-            'iv': map['iv'] ?? '',
-            'encryptedKey': map['encryptedKey'] ?? '',
-          });
-        } catch (e) {
-          // Si falla el descifrado, usar valor original
-        }
-      }
       final cleanPhone = phone.replaceAll(RegExp(r'\D'), '');
       if (cleanPhone.isEmpty) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('El número de teléfono no es válido'),
+              content: Text(
+                'El vendedor no tiene número de WhatsApp registrado',
+              ),
               backgroundColor: Colors.orange,
             ),
           );
@@ -469,16 +460,21 @@ class _PerfilVendedorScreenState extends State<PerfilVendedorScreen> {
       final message = Uri.encodeComponent(
         '¡Hola! Vi tu perfil en UniConnect y me interesa. ¿Estás disponible?',
       );
-      final whatsappUri = Uri.parse('whatsapp://send?phone=$fullPhone&text=$message');
-      final webUri = Uri.parse('https://wa.me/$fullPhone?text=$message');
-
-      final launched = await launchUrl(whatsappUri, mode: LaunchMode.externalApplication)
-          || await launchUrl(webUri, mode: LaunchMode.externalApplication);
+      final waUri = Uri.parse('https://wa.me/$fullPhone?text=$message');
+      bool launched = false;
+      if (await canLaunchUrl(waUri)) {
+        launched = await launchUrl(waUri, mode: LaunchMode.externalApplication);
+      }
+      if (!launched) {
+        launched = await launchUrl(waUri, mode: LaunchMode.inAppBrowserView);
+      }
 
       if (!launched && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('No se pudo abrir WhatsApp. Asegúrate de tenerlo instalado.'),
+            content: Text(
+              'No se pudo abrir WhatsApp. Asegúrate de tenerlo instalado.',
+            ),
             backgroundColor: Colors.redAccent,
           ),
         );
@@ -487,7 +483,7 @@ class _PerfilVendedorScreenState extends State<PerfilVendedorScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error: $e'),
+            content: Text('Error al contactar: $e'),
             backgroundColor: Colors.redAccent,
           ),
         );
