@@ -185,6 +185,20 @@ class ModerationService {
     }
     await batch.commit();
 
+    final routesSnap = await _db
+        .collection('routes')
+        .where('driverId', isEqualTo: userId)
+        .get();
+
+    final routesBatch = _db.batch();
+    for (final doc in routesSnap.docs) {
+      final routeStatus = doc.data()['status'] ?? '';
+      if (routeStatus != 'Finalizada') {
+        routesBatch.delete(doc.reference);
+      }
+    }
+    await routesBatch.commit();
+
     await _db.collection('reports').doc(reportId).update({
       'status': 'reviewed',
     });

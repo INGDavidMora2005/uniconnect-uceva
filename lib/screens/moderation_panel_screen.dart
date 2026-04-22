@@ -394,6 +394,7 @@ class _ReportCardState extends State<_ReportCard> {
 
   Future<void> _showActionDialog() async {
     final isPublication = widget.report.type == ReportType.publication;
+    final isRoute = widget.report.targetName.contains('→');
     bool isUserSuspended = false;
     if (!isPublication) {
       final userDoc = await FirebaseFirestore.instance
@@ -456,9 +457,9 @@ class _ReportCardState extends State<_ReportCard> {
                   Icons.person_off_outlined,
                   color: Colors.orange,
                 ),
-                title: const Text(
-                  'Suspender vendedor',
-                  style: TextStyle(color: AppColors.textDark),
+                title: Text(
+                  isRoute ? 'Suspender conductor' : 'Suspender vendedor',
+                  style: const TextStyle(color: AppColors.textDark),
                 ),
                 onTap: () => Navigator.pop(context, 'suspendVendor'),
                 contentPadding: EdgeInsets.zero,
@@ -549,26 +550,26 @@ class _ReportCardState extends State<_ReportCard> {
     try {
       if (result == 'delete') {
         final confirm = await _confirmDialog(
-          'Eliminar esta publicacion?',
-          'El producto sera eliminado y el vendedor sera notificado.',
+          isRoute ? '¿Eliminar esta ruta?' : '¿Eliminar esta publicacion?',
+          isRoute
+              ? 'La ruta será eliminada y el conductor será notificado.'
+              : 'El producto será eliminado y el vendedor será notificado.',
         );
         if (confirm == true) {
-          final isRoute = widget.report.targetName.contains('→');
           if (isRoute) {
             await ModerationService().deleteRouteFromReport(
               widget.report.id,
               widget.report.targetId,
               widget.report.reason,
             );
-            snackMessage = 'Ruta eliminada.';
           } else {
             await ModerationService().deletePublicationFromReport(
               widget.report.id,
               widget.report.targetId,
               widget.report.reason,
             );
-            snackMessage = 'Publicacion eliminada.';
           }
+          snackMessage = isRoute ? 'Ruta eliminada.' : 'Publicación eliminada.';
         }
       } else if (result == 'suspend') {
         final confirm = await _confirmDialog(
@@ -584,24 +585,40 @@ class _ReportCardState extends State<_ReportCard> {
           snackMessage = 'Usuario suspendido.';
         }
       } else if (result == 'suspendVendor') {
+        final isRoute = widget.report.targetName.contains('→');
         final confirm = await _confirmDialog(
-          'Suspender al vendedor?',
-          'El vendedor no podra acceder a la app.',
+          isRoute ? '¿Suspender al conductor?' : '¿Suspender al vendedor?',
+          isRoute
+              ? 'El conductor no podrá acceder a la app.'
+              : 'El vendedor no podrá acceder a la app.',
         );
         if (confirm == true) {
-          final productDoc = await FirebaseFirestore.instance
-              .collection('products')
-              .doc(widget.report.targetId)
-              .get();
-          final sellerId = productDoc.data()?['sellerId'] ?? '';
-          final sellerName = productDoc.data()?['sellerName'] ?? 'el vendedor';
-          if (sellerId.isEmpty) throw Exception('No se encontro el vendedor.');
+          String userId = '';
+          String userName = '';
+          if (isRoute) {
+            final routeDoc = await FirebaseFirestore.instance
+                .collection('routes')
+                .doc(widget.report.targetId)
+                .get();
+            userId = routeDoc.data()?['driverId'] ?? '';
+            userName = routeDoc.data()?['driverName'] ?? 'el conductor';
+          } else {
+            final productDoc = await FirebaseFirestore.instance
+                .collection('products')
+                .doc(widget.report.targetId)
+                .get();
+            userId = productDoc.data()?['sellerId'] ?? '';
+            userName = productDoc.data()?['sellerName'] ?? 'el vendedor';
+          }
+          if (userId.isEmpty) throw Exception('No se encontró el usuario.');
           await ModerationService().suspendUser(
             widget.report.id,
-            sellerId,
-            sellerName,
+            userId,
+            userName,
           );
-          snackMessage = 'Vendedor suspendido.';
+          snackMessage = isRoute
+              ? 'Conductor suspendido.'
+              : 'Vendedor suspendido.';
         }
       } else if (result == 'unsuspend') {
         final confirm = await _confirmDialog(
@@ -710,7 +727,7 @@ class _ReportCardState extends State<_ReportCard> {
               Expanded(
                 child: Column(
                   children: [
-                    if (showWarning && widget.report.type == ReportType.user)
+                    if (showWarning)
                       Container(
                         width: double.infinity,
                         padding: const EdgeInsets.symmetric(
