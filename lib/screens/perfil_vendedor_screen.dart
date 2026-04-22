@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -6,6 +8,7 @@ import '../models/product_model.dart';
 import '../models/user_model.dart';
 import '../models/report_model.dart';
 import '../services/product_service.dart';
+import '../services/crypto_service.dart';
 import '../theme/app_theme.dart';
 import 'detalle_producto_screen.dart';
 import 'calificar_bazar_screen.dart';
@@ -150,6 +153,7 @@ class _PerfilVendedorScreenState extends State<PerfilVendedorScreen> {
           }
 
           final data = snapshot.data!.data() as Map<String, dynamic>;
+          // Obtener el teléfono - intentar usar getUserData para obtener descifrado
           final phone = (data['phone'] ?? '').toString();
           final faculty = (data['faculty'] ?? '').toString();
           final rating = (data['rating'] ?? 0.0).toDouble();
@@ -434,6 +438,19 @@ class _PerfilVendedorScreenState extends State<PerfilVendedorScreen> {
 
   Future<void> _contactarVendedor(BuildContext context, String phone) async {
     try {
+      // Descifrar el teléfono si está encriptado
+      if (phone.startsWith('{')) {
+        try {
+          final map = jsonDecode(phone) as Map<String, dynamic>;
+          phone = await CryptoService().decryptData({
+            'encryptedData': map['encryptedData'] ?? map['ciphertext'] ?? '',
+            'iv': map['iv'] ?? '',
+            'encryptedKey': map['encryptedKey'] ?? '',
+          });
+        } catch (e) {
+          // Si falla el descifrado, usar valor original
+        }
+      }
       final cleanPhone = phone.replaceAll(RegExp(r'\D'), '');
       if (cleanPhone.isEmpty) {
         if (mounted) {

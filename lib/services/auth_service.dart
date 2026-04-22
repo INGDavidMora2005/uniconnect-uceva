@@ -1,3 +1,6 @@
+import 'dart:convert';
+
+import 'package:crypto/crypto.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_sign_in/google_sign_in.dart';
@@ -30,6 +33,76 @@ class AuthService {
 
   User? get currentUser => _auth.currentUser;
   Stream<User?> get authStateChanges => _auth.authStateChanges();
+
+  Future<String> _encryptFieldAsync(String plaintext) async {
+    try {
+      final encrypted = await _cryptoService.encryptData(plaintext);
+      return jsonEncode(encrypted);
+    } catch (e) {
+      return plaintext;
+    }
+  }
+
+  Future<String> _decryptFieldAsync(dynamic value) async {
+    try {
+      if (value == null) return '';
+      final str = value.toString();
+      if (!str.contains('encryptedData') && !str.contains('ciphertext'))
+        return str;
+      if (!str.startsWith('{')) return str;
+      final map = jsonDecode(str) as Map<String, dynamic>;
+      final result = await _cryptoService.decryptData({
+        'encryptedData': map['encryptedData'] ?? map['ciphertext'] ?? '',
+        'iv': map['iv'] ?? '',
+        'encryptedKey': map['encryptedKey'] ?? '',
+      });
+      return result.isEmpty ? '' : result;
+    } catch (e) {
+      return '';
+    }
+  }
+
+  String _hashPhone(String normalizedPhone) {
+    final bytes = utf8.encode(normalizedPhone);
+    return sha256.convert(bytes).toString();
+  }
+
+  String _hashStudentCode(String studentCode) {
+    final bytes = utf8.encode(studentCode);
+    return sha256.convert(bytes).toString();
+  }
+
+  Future<bool> _isPhoneTaken(
+    String normalizedDigits, {
+    String? excludeUid,
+  }) async {
+    final hashed = _hashPhone(normalizedDigits);
+    final snap = await _db
+        .collection('users')
+        .where('hashedPhone', isEqualTo: hashed)
+        .limit(1)
+        .get();
+    if (excludeUid != null) {
+      return snap.docs.any((doc) => doc.id != excludeUid);
+    }
+    return snap.docs.isNotEmpty;
+  }
+
+  Future<bool> _isStudentCodeTaken(
+    String studentCode, {
+    String? excludeUid,
+  }) async {
+    final hashed = _hashStudentCode(studentCode);
+    final snap = await _db
+        .collection('users')
+        .where('hashedStudentCode', isEqualTo: hashed)
+        .limit(1)
+        .get();
+    if (excludeUid != null) {
+      return snap.docs.any((doc) => doc.id != excludeUid);
+    }
+    return snap.docs.isNotEmpty;
+  }
 
   /// Inicio de sesión con cifrado híbrido RSA-2048 + AES-256-CBC
   /// ref: Stallings cap 10.2 - Hybrid Cryptography
@@ -164,6 +237,11 @@ class AuthService {
       final uid = userCredential.user?.uid;
       if (uid != null) {
         final userDoc = await _db.collection('users').doc(uid).get();
+        if (!userDoc.exists) {
+          await _auth.signOut();
+          await GoogleSignIn().signOut();
+          return 'No se encontró una cuenta registrada con este email. Por favor regístrate primero.';
+        }
         final isSuspended = userDoc.data()?['suspended'] ?? false;
         if (isSuspended) {
           await _auth.signOut();
@@ -261,11 +339,8 @@ class AuthService {
         return 'Este número ya está registrado en otra cuenta.';
       }
 
-      final studentCodeDoc = await _db
-          .collection('studentCodes')
-          .doc(studentCode)
-          .get();
-      if (studentCodeDoc.exists) {
+      // Verificar que el código estudiantil no esté en uso
+      if (await _isStudentCodeTaken(studentCode)) {
         await credential.user!.delete();
         debugPrint('[AuthService] Resultado: Código estudiantil ya registrado');
         return 'Este código estudiantil ya está registrado.';
@@ -273,11 +348,13 @@ class AuthService {
 
       await _db.collection('users').doc(credential.user!.uid).set({
         'fullName': fullName,
-        'studentCode': studentCode,
+        'studentCode': await _encryptFieldAsync(studentCode),
+        'hashedStudentCode': _hashStudentCode(studentCode),
         'email': email,
         'role': role,
         'faculty': faculty,
-        'phone': normalizedPhone,
+        'phone': await _encryptFieldAsync(normalizedPhone),
+        'hashedPhone': _hashPhone(normalizedPhone),
         'profileImageUrl': null,
         'description': '',
         'rating': 0.0,
@@ -385,13 +462,22 @@ class AuthService {
         return 'Este número ya está registrado en otra cuenta.';
       }
 
+      // Verificar que el código estudiantil no esté en uso
+      if (await _isStudentCodeTaken(studentCode)) {
+        await _auth.signOut();
+        await GoogleSignIn().signOut();
+        return 'Este código estudiantil ya está registrado.';
+      }
+
       await _db.collection('users').doc(userCredential.user!.uid).set({
         'fullName': googleUser.displayName ?? '',
-        'studentCode': studentCode,
+        'studentCode': await _encryptFieldAsync(studentCode),
+        'hashedStudentCode': _hashStudentCode(studentCode),
         'email': googleUser.email,
         'role': role,
         'faculty': faculty,
-        'phone': normalizedPhone,
+        'phone': await _encryptFieldAsync(normalizedPhone),
+        'hashedPhone': _hashPhone(normalizedPhone),
         'profileImageUrl': null,
         'description': '',
         'rating': 0.0,
@@ -421,7 +507,19 @@ class AuthService {
       if (uid == null) return null;
       final doc = await _db.collection('users').doc(uid).get();
       if (!doc.exists) return null;
-      return UserModel.fromMap({'id': uid, ...doc.data()!});
+
+      final data = doc.data()!;
+      final decryptedPhone = await _decryptFieldAsync(data['phone']);
+      final decryptedStudentCode = await _decryptFieldAsync(
+        data['studentCode'],
+      );
+
+      return UserModel.fromMap({
+        'id': uid,
+        ...data,
+        'phone': decryptedPhone,
+        'studentCode': decryptedStudentCode,
+      });
     } catch (e) {
       return null;
     }
@@ -454,7 +552,8 @@ class AuthService {
         'role': role,
         'faculty': faculty,
         'description': description,
-        'phone': normalizedPhone,
+        'phone': await _encryptFieldAsync(normalizedPhone),
+        'hashedPhone': _hashPhone(normalizedPhone),
       };
       if (profileImageUrl != null) data['profileImageUrl'] = profileImageUrl;
 
@@ -471,34 +570,6 @@ class AuthService {
     final digits = phone.replaceAll(RegExp(r'\D'), '');
     if (digits.length != 10) return null;
     return digits;
-  }
-
-  // Verifica si un número (normalizado a 10 dígitos) ya está registrado
-  Future<bool> _isPhoneTaken(
-    String normalizedDigits, {
-    String? excludeUid,
-  }) async {
-    // Buscar por el número sin prefijo
-    final snap1 = await _db
-        .collection('users')
-        .where('phone', isEqualTo: normalizedDigits)
-        .limit(1)
-        .get();
-
-    // También buscar por número con prefijo +57 (por si hay datos antiguos)
-    final withPrefix = '+57$normalizedDigits';
-    final snap2 = await _db
-        .collection('users')
-        .where('phone', isEqualTo: withPrefix)
-        .limit(1)
-        .get();
-
-    final allDocs = [...snap1.docs, ...snap2.docs];
-
-    if (excludeUid != null) {
-      return allDocs.any((doc) => doc.id != excludeUid);
-    }
-    return allDocs.isNotEmpty;
   }
 
   Future<String> forgotPassword(String email) async {
