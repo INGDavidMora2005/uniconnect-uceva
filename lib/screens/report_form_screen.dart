@@ -25,6 +25,7 @@ class _ReportFormScreenState extends State<ReportFormScreen> {
   String? _selectedReason;
   bool _loading = false;
   bool _isOwner = false;
+  final TextEditingController _descriptionController = TextEditingController();
 
   final List<String> _publicationReasons = [
     'Contenido inapropiado o explícito',
@@ -50,6 +51,12 @@ class _ReportFormScreenState extends State<ReportFormScreen> {
   void initState() {
     super.initState();
     _checkOwner();
+  }
+
+  @override
+  void dispose() {
+    _descriptionController.dispose();
+    super.dispose();
   }
 
   Future<void> _checkOwner() async {
@@ -86,6 +93,9 @@ class _ReportFormScreenState extends State<ReportFormScreen> {
         targetId: widget.targetId,
         targetName: widget.targetName,
         reason: _selectedReason!,
+        description: _descriptionController.text.trim().isEmpty
+            ? null
+            : _descriptionController.text.trim(),
       );
 
       if (mounted) {
@@ -294,6 +304,51 @@ class _ReportFormScreenState extends State<ReportFormScreen> {
                       ),
                     );
                   }),
+                  const SizedBox(height: 24),
+                  const Text(
+                    'DESCRIPCIÓN ADICIONAL (OPCIONAL)',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.textLight,
+                      letterSpacing: 1.0,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: _descriptionController,
+                    maxLines: 4,
+                    maxLength: 300,
+                    decoration: InputDecoration(
+                      hintText: 'Descripción adicional (opcional)',
+                      hintStyle: const TextStyle(
+                        color: AppColors.textLight,
+                        fontSize: 14,
+                      ),
+                      filled: true,
+                      fillColor: Colors.white,
+                      counterText: '',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(
+                          color: AppColors.borderDefault,
+                        ),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(
+                          color: AppColors.borderDefault,
+                        ),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(
+                          color: AppColors.accentGreen,
+                          width: 1.5,
+                        ),
+                      ),
+                    ),
+                  ),
                   const SizedBox(height: 32),
                   SizedBox(
                     width: double.infinity,
