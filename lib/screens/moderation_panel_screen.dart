@@ -553,12 +553,22 @@ class _ReportCardState extends State<_ReportCard> {
           'El producto sera eliminado y el vendedor sera notificado.',
         );
         if (confirm == true) {
-          await ModerationService().deletePublicationFromReport(
-            widget.report.id,
-            widget.report.targetId,
-            widget.report.reason,
-          );
-          snackMessage = 'Publicacion eliminada.';
+          final isRoute = widget.report.targetName.contains('→');
+          if (isRoute) {
+            await ModerationService().deleteRouteFromReport(
+              widget.report.id,
+              widget.report.targetId,
+              widget.report.reason,
+            );
+            snackMessage = 'Ruta eliminada.';
+          } else {
+            await ModerationService().deletePublicationFromReport(
+              widget.report.id,
+              widget.report.targetId,
+              widget.report.reason,
+            );
+            snackMessage = 'Publicacion eliminada.';
+          }
         }
       } else if (result == 'suspend') {
         final confirm = await _confirmDialog(

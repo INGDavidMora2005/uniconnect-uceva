@@ -10,6 +10,7 @@ class ReportModel {
   final String reportedByUserId;
   final String reportedByName;
   final String reason;
+  final String? description;
   final ReportStatus status;
   final DateTime createdAt;
 
@@ -21,6 +22,7 @@ class ReportModel {
     required this.reportedByUserId,
     required this.reportedByName,
     required this.reason,
+    this.description,
     required this.status,
     required this.createdAt,
   });
@@ -33,6 +35,7 @@ class ReportModel {
     reportedByUserId: map['reportedByUserId'] ?? '',
     reportedByName: map['reportedByName'] ?? '',
     reason: map['reason'] ?? '',
+    description: map['description'],
     status: _parseStatus(map['status']),
     createdAt: map['createdAt']?.toDate() ?? DateTime.now(),
   );
@@ -51,6 +54,7 @@ class ReportModel {
     'reportedByUserId': reportedByUserId,
     'reportedByName': reportedByName,
     'reason': reason,
+    'description': description,
     'status': status == ReportStatus.reviewed
         ? 'reviewed'
         : status == ReportStatus.reviewedNoAction
@@ -67,6 +71,7 @@ class ReportModel {
     String? reportedByUserId,
     String? reportedByName,
     String? reason,
+    String? description,
     ReportStatus? status,
     DateTime? createdAt,
   }) => ReportModel(
@@ -77,6 +82,7 @@ class ReportModel {
     reportedByUserId: reportedByUserId ?? this.reportedByUserId,
     reportedByName: reportedByName ?? this.reportedByName,
     reason: reason ?? this.reason,
+    description: description ?? this.description,
     status: status ?? this.status,
     createdAt: createdAt ?? this.createdAt,
   );
