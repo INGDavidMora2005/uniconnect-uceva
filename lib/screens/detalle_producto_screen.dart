@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -6,6 +8,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../models/product_model.dart';
 import '../models/report_model.dart';
 import '../services/product_service.dart';
+import '../services/crypto_service.dart';
 import '../theme/app_theme.dart';
 import 'perfil_vendedor_screen.dart';
 import 'report_form_screen.dart';
@@ -43,7 +46,20 @@ class _DetalleProductoScreenState extends State<DetalleProductoScreen> {
         return;
       }
 
-      final userPhone = userDoc.data()?['phone'] ?? '';
+      // Descifrar el teléfono si está encriptado
+      var userPhone = userDoc.data()?['phone'] ?? '';
+      if (userPhone.toString().startsWith('{')) {
+        try {
+          final map = jsonDecode(userPhone) as Map<String, dynamic>;
+          userPhone = await CryptoService().decryptData({
+            'encryptedData': map['encryptedData'] ?? map['ciphertext'] ?? '',
+            'iv': map['iv'] ?? '',
+            'encryptedKey': map['encryptedKey'] ?? '',
+          });
+        } catch (e) {
+          userPhone = '';
+        }
+      }
       final phone = userPhone.replaceAll(RegExp(r'\D'), '');
 
       if (phone.isEmpty) {

@@ -67,6 +67,11 @@ class AuthService {
     return sha256.convert(bytes).toString();
   }
 
+  String _hashStudentCode(String studentCode) {
+    final bytes = utf8.encode(studentCode);
+    return sha256.convert(bytes).toString();
+  }
+
   Future<bool> _isPhoneTaken(
     String normalizedDigits, {
     String? excludeUid,
@@ -75,6 +80,22 @@ class AuthService {
     final snap = await _db
         .collection('users')
         .where('hashedPhone', isEqualTo: hashed)
+        .limit(1)
+        .get();
+    if (excludeUid != null) {
+      return snap.docs.any((doc) => doc.id != excludeUid);
+    }
+    return snap.docs.isNotEmpty;
+  }
+
+  Future<bool> _isStudentCodeTaken(
+    String studentCode, {
+    String? excludeUid,
+  }) async {
+    final hashed = _hashStudentCode(studentCode);
+    final snap = await _db
+        .collection('users')
+        .where('hashedStudentCode', isEqualTo: hashed)
         .limit(1)
         .get();
     if (excludeUid != null) {
@@ -318,11 +339,8 @@ class AuthService {
         return 'Este número ya está registrado en otra cuenta.';
       }
 
-      final studentCodeDoc = await _db
-          .collection('studentCodes')
-          .doc(studentCode)
-          .get();
-      if (studentCodeDoc.exists) {
+      // Verificar que el código estudiantil no esté en uso
+      if (await _isStudentCodeTaken(studentCode)) {
         await credential.user!.delete();
         debugPrint('[AuthService] Resultado: Código estudiantil ya registrado');
         return 'Este código estudiantil ya está registrado.';
@@ -331,6 +349,7 @@ class AuthService {
       await _db.collection('users').doc(credential.user!.uid).set({
         'fullName': fullName,
         'studentCode': await _encryptFieldAsync(studentCode),
+        'hashedStudentCode': _hashStudentCode(studentCode),
         'email': email,
         'role': role,
         'faculty': faculty,
@@ -443,9 +462,17 @@ class AuthService {
         return 'Este número ya está registrado en otra cuenta.';
       }
 
+      // Verificar que el código estudiantil no esté en uso
+      if (await _isStudentCodeTaken(studentCode)) {
+        await _auth.signOut();
+        await GoogleSignIn().signOut();
+        return 'Este código estudiantil ya está registrado.';
+      }
+
       await _db.collection('users').doc(userCredential.user!.uid).set({
         'fullName': googleUser.displayName ?? '',
         'studentCode': await _encryptFieldAsync(studentCode),
+        'hashedStudentCode': _hashStudentCode(studentCode),
         'email': googleUser.email,
         'role': role,
         'faculty': faculty,
