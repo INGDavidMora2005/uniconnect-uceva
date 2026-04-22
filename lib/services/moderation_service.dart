@@ -37,6 +37,7 @@ class ModerationService {
     required String targetId,
     required String targetName,
     required String reason,
+    String? description,
   }) async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return;
@@ -63,9 +64,18 @@ class ModerationService {
       'reportedByUserId': uid,
       'reportedByName': userName,
       'reason': reason,
+      'description': description ?? '',
       'status': 'pending',
       'createdAt': FieldValue.serverTimestamp(),
     });
+
+    await NotificationService().saveNotification(
+      toUserId: uid,
+      title: 'Reporte recibido',
+      body:
+          'Hemos recibido tu reporte sobre "$targetName". Nuestro equipo lo revisará en 24 a 72 horas.',
+      type: 'moderation',
+    );
   }
 
   Future<void> deletePublicationFromReport(
@@ -79,6 +89,9 @@ class ModerationService {
 
     await _db.collection('products').doc(productId).delete();
 
+    final reportDoc = await _db.collection('reports').doc(reportId).get();
+    final reportedByUserId = reportDoc.data()?['reportedByUserId'] ?? '';
+
     await _db.collection('reports').doc(reportId).update({
       'status': 'reviewed',
     });
@@ -89,6 +102,57 @@ class ModerationService {
         title: 'Publicación retirada',
         body:
             'Tu publicación "$productName" fue retirada por: $reason. Si crees que es un error, contacta al administrador.',
+        type: 'moderation',
+      );
+    }
+
+    if (reportedByUserId.isNotEmpty) {
+      await NotificationService().saveNotification(
+        toUserId: reportedByUserId,
+        title: 'Reporte resuelto ✓',
+        body:
+            'Tu reporte sobre "$productName" fue revisado. La publicación fue eliminada por incumplir las normas de UniConnect.',
+        type: 'moderation',
+      );
+    }
+  }
+
+  Future<void> deleteRouteFromReport(
+    String reportId,
+    String routeId,
+    String reason,
+  ) async {
+    final routeDoc = await _db.collection('routes').doc(routeId).get();
+    final driverId = routeDoc.data()?['driverId'] ?? '';
+    final origin = routeDoc.data()?['origin'] ?? 'la ruta';
+    final destination = routeDoc.data()?['destination'] ?? '';
+    final routeName = '$origin → $destination';
+
+    await _db.collection('routes').doc(routeId).delete();
+
+    final reportDoc = await _db.collection('reports').doc(reportId).get();
+    final reportedByUserId = reportDoc.data()?['reportedByUserId'] ?? '';
+
+    await _db.collection('reports').doc(reportId).update({
+      'status': 'reviewed',
+    });
+
+    if (driverId.isNotEmpty) {
+      await NotificationService().saveNotification(
+        toUserId: driverId,
+        title: 'Ruta retirada',
+        body:
+            'Tu ruta "$routeName" została retirada por: $reason. Si crees que es un error, contacta al administrador.',
+        type: 'moderation',
+      );
+    }
+
+    if (reportedByUserId.isNotEmpty) {
+      await NotificationService().saveNotification(
+        toUserId: reportedByUserId,
+        title: 'Reporte resuelto ✓',
+        body:
+            'Tu reporte sobre "$routeName" fue revisado. La ruta fue eliminada por incumplir las normas de UniConnect.',
         type: 'moderation',
       );
     }
@@ -120,6 +184,20 @@ class ModerationService {
       batch.update(doc.reference, {'status': 'Suspendido'});
     }
     await batch.commit();
+
+    final routesSnap = await _db
+        .collection('routes')
+        .where('driverId', isEqualTo: userId)
+        .get();
+
+    final routesBatch = _db.batch();
+    for (final doc in routesSnap.docs) {
+      final routeStatus = doc.data()['status'] ?? '';
+      if (routeStatus != 'Finalizada') {
+        routesBatch.delete(doc.reference);
+      }
+    }
+    await routesBatch.commit();
 
     await _db.collection('reports').doc(reportId).update({
       'status': 'reviewed',
