@@ -253,7 +253,7 @@ class _PerfilVendedorScreenState extends State<PerfilVendedorScreen> {
                           if (phone.isNotEmpty)
                             ElevatedButton.icon(
                               onPressed: () =>
-                                  _contactarVendedor(context, phone),
+                                  _contactarVendedor(phone),
                               icon: const Icon(Icons.message, size: 18),
                               label: const Text('Contactar por WhatsApp'),
                               style: ElevatedButton.styleFrom(
@@ -436,7 +436,7 @@ class _PerfilVendedorScreenState extends State<PerfilVendedorScreen> {
     );
   }
 
-  Future<void> _contactarVendedor(BuildContext context, String phone) async {
+  Future<void> _contactarVendedor(String phone) async {
     try {
       // Descifrar el teléfono si está encriptado
       if (phone.startsWith('{')) {
@@ -469,16 +469,19 @@ class _PerfilVendedorScreenState extends State<PerfilVendedorScreen> {
       final message = Uri.encodeComponent(
         '¡Hola! Vi tu perfil en UniConnect y me interesa. ¿Estás disponible?',
       );
-      final url = Uri.parse('https://wa.me/$fullPhone?text=$message');
-      if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('No se pudo abrir WhatsApp'),
-              backgroundColor: Colors.redAccent,
-            ),
-          );
-        }
+      final whatsappUri = Uri.parse('whatsapp://send?phone=$fullPhone&text=$message');
+      final webUri = Uri.parse('https://wa.me/$fullPhone?text=$message');
+
+      final launched = await launchUrl(whatsappUri, mode: LaunchMode.externalApplication)
+          || await launchUrl(webUri, mode: LaunchMode.externalApplication);
+
+      if (!launched && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('No se pudo abrir WhatsApp. Asegúrate de tenerlo instalado.'),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
       }
     } catch (e) {
       if (mounted) {
