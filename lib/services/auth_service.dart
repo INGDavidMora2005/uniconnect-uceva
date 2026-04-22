@@ -18,6 +18,10 @@ class AuthService {
   factory AuthService() => _instance;
   AuthService._internal();
 
+  // Clave AES-256 fija para cifrar campos que deben ser legibles por otros usuarios
+  // 32 caracteres = 256 bits
+  static const String _sharedPhoneKey = 'UniConnectPhone2024SecureKey3256';
+
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _db = FirebaseFirestore.instance;
 
@@ -353,7 +357,7 @@ class AuthService {
         'email': email,
         'role': role,
         'faculty': faculty,
-        'phone': await _encryptFieldAsync(normalizedPhone),
+        'phone': normalizedPhone,
         'hashedPhone': _hashPhone(normalizedPhone),
         'profileImageUrl': null,
         'description': '',
@@ -476,7 +480,7 @@ class AuthService {
         'email': googleUser.email,
         'role': role,
         'faculty': faculty,
-        'phone': await _encryptFieldAsync(normalizedPhone),
+        'phone': normalizedPhone,
         'hashedPhone': _hashPhone(normalizedPhone),
         'profileImageUrl': null,
         'description': '',
@@ -509,7 +513,6 @@ class AuthService {
       if (!doc.exists) return null;
 
       final data = doc.data()!;
-      final decryptedPhone = await _decryptFieldAsync(data['phone']);
       final decryptedStudentCode = await _decryptFieldAsync(
         data['studentCode'],
       );
@@ -517,7 +520,7 @@ class AuthService {
       return UserModel.fromMap({
         'id': uid,
         ...data,
-        'phone': decryptedPhone,
+        'phone': data['phone'] is Map ? '' : (data['phone']?.toString() ?? ''),
         'studentCode': decryptedStudentCode,
       });
     } catch (e) {
@@ -552,7 +555,7 @@ class AuthService {
         'role': role,
         'faculty': faculty,
         'description': description,
-        'phone': await _encryptFieldAsync(normalizedPhone),
+        'phone': normalizedPhone,
         'hashedPhone': _hashPhone(normalizedPhone),
       };
       if (profileImageUrl != null) data['profileImageUrl'] = profileImageUrl;
