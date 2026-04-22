@@ -80,10 +80,13 @@ class _DetalleProductoScreenState extends State<DetalleProductoScreen> {
       final message = Uri.encodeComponent(
         '¡Hola! Vi tu publicación de "${widget.product.name}" en UniConnect y me interesa. ¿Sigue disponible?',
       );
-      final url = Uri.parse('https://wa.me/$fullPhone?text=$message');
+      final whatsappUri = Uri.parse('whatsapp://send?phone=$fullPhone&text=$message');
+      final webUri = Uri.parse('https://wa.me/$fullPhone?text=$message');
 
-      // Intentar abrir WhatsApp directamente
-      if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
+      final launched = await launchUrl(whatsappUri, mode: LaunchMode.externalApplication)
+          || await launchUrl(webUri, mode: LaunchMode.externalApplication);
+
+      if (!launched) {
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
