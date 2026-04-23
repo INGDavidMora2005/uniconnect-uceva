@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../models/route_model.dart';
+import '../models/report_model.dart';
 import '../theme/app_theme.dart';
 
 import 'mapa_trayecto_screen.dart';
+import 'report_form_screen.dart';
 
-class RouteDetailsScreen extends StatelessWidget {
+class RouteDetailsScreen extends StatefulWidget {
   final RouteModel route;
   final bool isDriver;
 
@@ -13,6 +16,20 @@ class RouteDetailsScreen extends StatelessWidget {
     required this.route,
     required this.isDriver,
   });
+
+  @override
+  State<RouteDetailsScreen> createState() => _RouteDetailsScreenState();
+}
+
+class _RouteDetailsScreenState extends State<RouteDetailsScreen> {
+  bool _isDriver = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    _isDriver = uid == widget.route.driverId;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -27,6 +44,39 @@ class RouteDetailsScreen extends StatelessWidget {
           icon: const Icon(Icons.arrow_back, color: Colors.white),
           onPressed: () => Navigator.pop(context),
         ),
+        actions: [
+          if (!_isDriver)
+            PopupMenuButton<String>(
+              icon: const Icon(Icons.more_vert, color: Colors.white),
+              onSelected: (value) {
+                if (value == 'report') {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => ReportFormScreen(
+                        type: ReportType.publication,
+                        targetId: widget.route.id,
+                        targetName:
+                            '${widget.route.origin} → ${widget.route.destination}',
+                      ),
+                    ),
+                  );
+                }
+              },
+              itemBuilder: (context) => [
+                const PopupMenuItem(
+                  value: 'report',
+                  child: Row(
+                    children: [
+                      Icon(Icons.flag_outlined, color: Colors.redAccent),
+                      SizedBox(width: 8),
+                      Text('Reportar ruta'),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+        ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
@@ -35,7 +85,7 @@ class RouteDetailsScreen extends StatelessWidget {
           children: [
             // Info principal
             Text(
-              '${route.origin} → ${route.destination}',
+              '${widget.route.origin} → ${widget.route.destination}',
               style: const TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
@@ -44,15 +94,12 @@ class RouteDetailsScreen extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              '${route.date} · ${route.time}',
-              style: const TextStyle(
-                fontSize: 14,
-                color: AppColors.textLight,
-              ),
+              '${widget.route.date} · ${widget.route.time}',
+              style: const TextStyle(fontSize: 14, color: AppColors.textLight),
             ),
             const SizedBox(height: 8),
             Text(
-              'Precio: ${route.priceFormatted}',
+              'Precio: ${widget.route.priceFormatted}',
               style: const TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.w600,
@@ -68,7 +115,7 @@ class RouteDetailsScreen extends StatelessWidget {
                   radius: 20,
                   backgroundColor: AppColors.accentGreen,
                   child: Text(
-                    route.driverInitials,
+                    widget.route.driverInitials,
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 14,
@@ -82,7 +129,7 @@ class RouteDetailsScreen extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        route.driverName,
+                        widget.route.driverName,
                         style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w600,
@@ -90,7 +137,7 @@ class RouteDetailsScreen extends StatelessWidget {
                         ),
                       ),
                       Text(
-                        '⭐ ${route.driverRating}',
+                        '⭐ ${widget.route.driverRating}',
                         style: const TextStyle(
                           fontSize: 14,
                           color: AppColors.textLight,
@@ -104,9 +151,9 @@ class RouteDetailsScreen extends StatelessWidget {
             const SizedBox(height: 16),
 
             // Detalles adicionales
-            if (route.meetingPoint.isNotEmpty) ...[
+            if (widget.route.meetingPoint.isNotEmpty) ...[
               Text(
-                'Punto de encuentro: ${route.meetingPoint}',
+                'Punto de encuentro: ${widget.route.meetingPoint}',
                 style: const TextStyle(
                   fontSize: 14,
                   color: AppColors.textLight,
@@ -114,9 +161,9 @@ class RouteDetailsScreen extends StatelessWidget {
               ),
               const SizedBox(height: 8),
             ],
-            if (route.note != null && route.note!.isNotEmpty) ...[
+            if (widget.route.note != null && widget.route.note!.isNotEmpty) ...[
               Text(
-                'Nota: ${route.note}',
+                'Nota: ${widget.route.note}',
                 style: const TextStyle(
                   fontSize: 14,
                   color: AppColors.textLight,
@@ -125,11 +172,8 @@ class RouteDetailsScreen extends StatelessWidget {
               const SizedBox(height: 8),
             ],
             Text(
-              'Cupos disponibles: ${route.availableSeats}/${route.totalSeats}',
-              style: const TextStyle(
-                fontSize: 14,
-                color: AppColors.textLight,
-              ),
+              'Cupos disponibles: ${widget.route.availableSeats}/${widget.route.totalSeats}',
+              style: const TextStyle(fontSize: 14, color: AppColors.textLight),
             ),
             const SizedBox(height: 16),
 
@@ -137,23 +181,23 @@ class RouteDetailsScreen extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               decoration: BoxDecoration(
-                color: route.statusColor.withOpacity(0.1),
+                color: widget.route.statusColor.withOpacity(0.1),
                 borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: route.statusColor),
+                border: Border.all(color: widget.route.statusColor),
               ),
               child: Text(
-                route.statusLabel,
+                widget.route.statusLabel,
                 style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
-                  color: route.statusColor,
+                  color: widget.route.statusColor,
                 ),
               ),
             ),
             const SizedBox(height: 24),
 
             // Mapa si en curso
-            if (route.status == RouteStatus.enCurso) ...[
+            if (widget.route.status == RouteStatus.enCurso) ...[
               const Text(
                 'Trayecto en vivo',
                 style: TextStyle(
@@ -166,8 +210,8 @@ class RouteDetailsScreen extends StatelessWidget {
               SizedBox(
                 height: 300,
                 child: MapaTrayectoScreen(
-                  route: route,
-                  isDriver: isDriver,
+                  route: widget.route,
+                  isDriver: widget.isDriver,
                   isEmbedded: true,
                 ),
               ),

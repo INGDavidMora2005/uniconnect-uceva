@@ -8,9 +8,12 @@ class UserModel {
   final String role;
   final String faculty;
   final String description;
+  final String phone;
+  final String? profileImageUrl; // ← NUEVO
   final double rating;
   final int tripsCompleted;
   final int bazarPurchases;
+  final bool suspended;
 
   const UserModel({
     required this.id,
@@ -20,41 +23,47 @@ class UserModel {
     required this.role,
     required this.faculty,
     this.description = '',
+    this.phone = '',
+    this.profileImageUrl,
     this.rating = 0.0,
     this.tripsCompleted = 0,
     this.bazarPurchases = 0,
+    this.suspended = false,
   });
 
-  // Crear desde Firestore
   factory UserModel.fromMap(Map<String, dynamic> map) => UserModel(
-        id: map['id'] ?? '',
-        fullName: map['fullName'] ?? '',
-        email: map['email'] ?? '',
-        studentCode: map['studentCode'] ?? '',
-        role: map['role'] ?? '',
-        faculty: map['faculty'] ?? '',
-        description: map['description'] ?? '',
-        rating: (map['rating'] ?? 0.0).toDouble(),
-        tripsCompleted: map['tripsCompleted'] ?? 0,
-        bazarPurchases: map['bazarPurchases'] ?? 0,
-      );
+    id: map['id'] ?? '',
+    fullName: map['fullName'] ?? '',
+    email: map['email'] ?? '',
+    studentCode: map['studentCode'] ?? '',
+    role: map['role'] ?? '',
+    faculty: map['faculty'] ?? '',
+    description: map['description'] ?? '',
+    phone: map['phone'] ?? '',
+    profileImageUrl: map['profileImageUrl'] as String?,
+    rating: (map['rating'] ?? 0.0).toDouble(),
+    tripsCompleted: map['tripsCompleted'] ?? 0,
+    bazarPurchases: map['bazarPurchases'] ?? 0,
+    suspended: map['suspended'] ?? false,
+  );
 
-  // Guardar en Firestore
   Map<String, dynamic> toMap() => {
-        'id': id,
-        'fullName': fullName,
-        'email': email,
-        'studentCode': studentCode,
-        'role': role,
-        'faculty': faculty,
-        'description': description,
-        'rating': rating,
-        'tripsCompleted': tripsCompleted,
-        'bazarPurchases': bazarPurchases,
-        'createdAt': FieldValue.serverTimestamp(),
-      };
+    'id': id,
+    'fullName': fullName,
+    'email': email,
+    'studentCode': studentCode,
+    'role': role,
+    'faculty': faculty,
+    'description': description,
+    'phone': phone,
+    'profileImageUrl': profileImageUrl,
+    'rating': rating,
+    'tripsCompleted': tripsCompleted,
+    'bazarPurchases': bazarPurchases,
+    'suspended': suspended,
+    'createdAt': FieldValue.serverTimestamp(),
+  };
 
-  // Iniciales para el avatar
   String get initials {
     final parts = fullName.trim().split(' ');
     if (parts.length >= 2) {
@@ -63,8 +72,5 @@ class UserModel {
     return fullName.isNotEmpty ? fullName[0].toUpperCase() : '?';
   }
 
-  // Primer nombre para el saludo
-  String get firstName {
-    return fullName.trim().split(' ').first;
-  }
+  String get firstName => fullName.trim().split(' ').first;
 }

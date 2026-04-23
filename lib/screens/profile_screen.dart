@@ -6,6 +6,8 @@ import '../widgets/bottom_nav_bar.dart';
 import '../services/auth_service.dart';
 import '../models/user_model.dart';
 import 'edit_profile_screen.dart';
+import 'mis_publicaciones_screen.dart';
+import 'moderation_panel_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key, this.showBottomNav = true});
@@ -36,13 +38,82 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
+  Future<void> _showResetConfirmDialog(BuildContext context) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text(
+          'Resetear estadísticas',
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+        ),
+        content: const Text(
+          '¿Estás seguro de que quieres resetear todas las estadísticas de usuarios? Esto establecerá tripsCompleted, bazarPurchases, bazarSales y rating a 0.',
+          style: TextStyle(fontSize: 13),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.redAccent,
+              elevation: 0,
+            ),
+            child: const Text(
+              'Confirmar',
+              style: TextStyle(color: Colors.white),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      try {
+        final snap = await FirebaseFirestore.instance.collection('users').get();
+        final batch = FirebaseFirestore.instance.batch();
+        for (final doc in snap.docs) {
+          batch.update(doc.reference, {
+            'tripsCompleted': 0,
+            'bazarPurchases': 0,
+            'bazarSales': 0,
+            'rating': 0.0,
+          });
+        }
+        await batch.commit();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Estadísticas reseteadas correctamente.'),
+              backgroundColor: AppColors.accentGreen,
+            ),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error: $e'),
+              backgroundColor: Colors.redAccent,
+            ),
+          );
+        }
+      }
+    }
+  }
+
   String get _initials {
     if (_user == null) return '?';
-    final parts = _user!.fullName.trim().split(' ');
-    if (parts.length >= 2) {
+    final name = _user!.fullName;
+    if (name.isEmpty) return '?';
+    final parts = name.trim().split(' ');
+    if (parts.length >= 2 && parts[1].isNotEmpty) {
       return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
     }
-    return parts[0][0].toUpperCase();
+    return parts[0].isNotEmpty ? parts[0][0].toUpperCase() : '?';
   }
 
   // Stream en tiempo real del usuario para rating y viajes
@@ -74,11 +145,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       .toDouble();
                   final tripsCompleted =
                       (liveData?['tripsCompleted'] ?? 0) as int;
-                  final bazarPurchases =
-                      (liveData?['bazarPurchases'] ?? 0) as int;
+                  final bazarSales = (liveData?['bazarSales'] ?? 0) as int;
                   final ratingText = rating > 0
                       ? '⭐ ${rating.toStringAsFixed(1)}'
                       : '⭐ Nuevo';
+
+                  final profileImageUrl =
+                      liveData?['profileImageUrl'] as String?;
+                  final name = _user?.fullName ?? '';
+                  final initials = name.isNotEmpty
+                      ? (name.trim().split(' ').length >= 2
+                            ? '${name[0]}${name.split(' ')[1][0]}'.toUpperCase()
+                            : name[0].toUpperCase())
+                      : '?';
 
                   return SingleChildScrollView(
                     child: Column(
@@ -93,14 +172,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               CircleAvatar(
                                 radius: 40,
                                 backgroundColor: AppColors.accentGreen,
-                                child: Text(
-                                  _initials,
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 24,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
+                                backgroundImage: profileImageUrl != null
+                                    ? NetworkImage(profileImageUrl)
+                                    : null,
+                                child: profileImageUrl == null
+                                    ? Text(
+                                        initials,
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 24,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      )
+                                    : null,
                               ),
                               const SizedBox(height: 12),
                               Text(
@@ -177,6 +261,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                         ? _user!.faculty
                                         : '-',
                                   ),
+                                  _InfoItem(
+                                    label: 'Teléfono',
+                                    value: _user?.phone.isNotEmpty == true
+                                        ? _user!.phone
+                                        : 'No registrado',
+                                  ),
                                 ],
                               ),
                             ],
@@ -208,8 +298,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                     value: '$tripsCompleted',
                                   ),
                                   _InfoItem(
-                                    label: 'Compras en el Bazar',
-                                    value: '$bazarPurchases',
+                                    label: 'Ventas en el Bazar',
+                                    value: '$bazarSales',
                                   ),
                                 ],
                               ),
@@ -255,6 +345,120 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         ),
 
                         const SizedBox(height: 12),
+
+                        // ── Botón Mis Publicaciones ─────────
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 20),
+                          child: SizedBox(
+                            width: double.infinity,
+                            height: 48,
+                            child: OutlinedButton(
+                              onPressed: () => Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) =>
+                                      const MisPublicacionesScreen(),
+                                ),
+                              ),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: AppColors.accentGreen,
+                                side: const BorderSide(
+                                  color: AppColors.accentGreen,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                              child: const Text(
+                                'Mis Publicaciones',
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+
+                        const SizedBox(height: 12),
+
+                        // ── Botón Panel de Moderación (admin) ─────────
+                        if (_user?.email == 'admin.00@uceva.edu.co')
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 20),
+                            child: SizedBox(
+                              width: double.infinity,
+                              height: 48,
+                              child: OutlinedButton(
+                                onPressed: () => Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) =>
+                                        const ModerationPanelScreen(),
+                                  ),
+                                ),
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: AppColors.primaryGreen,
+                                  side: const BorderSide(
+                                    color: AppColors.primaryGreen,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                ),
+                                child: const Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(Icons.admin_panel_settings, size: 18),
+                                    SizedBox(width: 8),
+                                    Text(
+                                      'Panel de Moderación',
+                                      style: TextStyle(
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+
+                        if (_user?.email == 'admin.00@uceva.edu.co')
+                          const SizedBox(height: 12),
+
+                        if (_user?.email == 'admin.00@uceva.edu.co')
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 20),
+                            child: SizedBox(
+                              width: double.infinity,
+                              height: 48,
+                              child: OutlinedButton.icon(
+                                onPressed: () =>
+                                    _showResetConfirmDialog(context),
+                                icon: const Icon(Icons.refresh, size: 18),
+                                label: const Text(
+                                  'Resetear estadísticas de usuarios',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: Colors.redAccent,
+                                  side: const BorderSide(
+                                    color: Colors.redAccent,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+
+                        if (_user?.email == 'admin.00@uceva.edu.co')
+                          const SizedBox(height: 12),
 
                         // ── Botón Cerrar Sesión ──────────────
                         Padding(

@@ -72,11 +72,13 @@ class _HomeRutasScreenState extends State<HomeRutasScreen> {
 
   String get _initials {
     if (_user == null) return '?';
-    final parts = _user!.fullName.trim().split(' ');
-    if (parts.length >= 2) {
+    final name = _user!.fullName;
+    if (name.isEmpty) return '?';
+    final parts = name.trim().split(' ');
+    if (parts.length >= 2 && parts[1].isNotEmpty) {
       return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
     }
-    return parts[0][0].toUpperCase();
+    return parts[0].isNotEmpty ? parts[0][0].toUpperCase() : '?';
   }
 
   String? get _currentUid => FirebaseAuth.instance.currentUser?.uid;
@@ -524,7 +526,9 @@ class _HomeRutasScreenState extends State<HomeRutasScreen> {
 
                 // ── Mis viajes ─────────────────────────────
                 StreamBuilder<List<RouteModel>>(
-                  stream: _currentUid != null ? RouteService().getMyBookedRoutes(_currentUid!) : Stream.value([]),
+                  stream: _currentUid != null
+                      ? RouteService().getMyBookedRoutes(_currentUid!)
+                      : Stream.value([]),
                   builder: (context, snapshot) {
                     final bookedRoutes = snapshot.data ?? [];
                     if (bookedRoutes.isEmpty) return const SizedBox.shrink();
