@@ -3,6 +3,7 @@ import '../theme/app_theme.dart';
 import '../widgets/custom_text_field.dart';
 import '../widgets/primary_button.dart';
 import '../services/auth_service.dart';
+import 'email_verification_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -79,13 +80,28 @@ class _RegisterScreenState extends State<RegisterScreen> {
       if (!mounted) return;
       setState(() => _isLoading = false);
 
-      if (message.startsWith('Cuenta creada')) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(message), backgroundColor: AppColors.accentGreen),
-        );
-        Navigator.pop(context);
+      if (_useGoogle) {
+        if (message.startsWith('Cuenta creada')) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(message), backgroundColor: AppColors.accentGreen),
+          );
+          Navigator.pop(context);
+        } else {
+          _showError(message);
+        }
       } else {
-        _showError(message);
+        if (message == 'verification_email_sent') {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (_) => EmailVerificationScreen(
+                email: _emailController.text.trim(),
+              ),
+            ),
+          );
+        } else {
+          _showError(message);
+        }
       }
     } catch (e) {
       if (!mounted) return;
@@ -187,17 +203,18 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   ),
                   const SizedBox(height: 16),
 
-                  CustomTextField(
-                    label: 'Correo Institucional (@uceva.edu.co)',
-                    hint: 'nombre@uceva.edu.co',
-                    controller: _emailController,
-                    keyboardType: TextInputType.emailAddress,
-                    validator: (v) {
-                      if (v == null || v.isEmpty) return 'Ingresa tu correo';
-                      if (!v.contains('@uceva.edu.co')) return 'Usa tu correo @uceva.edu.co';
-                      return null;
-                    },
-                  ),
+                   CustomTextField(
+                     label: 'Correo Institucional (@uceva.edu.co)',
+                     hint: 'nombre@uceva.edu.co',
+                     controller: _emailController,
+                     keyboardType: TextInputType.emailAddress,
+                     validator: (v) {
+                       if (v == null || v.isEmpty) return 'Ingresa tu correo';
+                       if (!RegExp(r'^[a-zA-Z0-9._%+\-]+@uceva\.edu\.co$').hasMatch(v))
+                         return 'Usa tu correo @uceva.edu.co';
+                       return null;
+                     },
+                   ),
                   const SizedBox(height: 16),
 
                   CustomTextField(

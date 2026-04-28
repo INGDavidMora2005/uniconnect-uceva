@@ -18,6 +18,11 @@ class AuthService {
   factory AuthService() => _instance;
   AuthService._internal();
 
+  // Validador estricto de dominio UCEVA
+  static final RegExp _ucevaEmailRegex = RegExp(
+    r'^[a-zA-Z0-9._%+\-]+@uceva\.edu\.co$',
+  );
+
   // Clave AES-256 fija para cifrar campos que deben ser legibles por otros usuarios
   // 32 caracteres = 256 bits
   static const String _sharedPhoneKey = 'UniConnectPhone2024SecureKey3256';
@@ -169,6 +174,12 @@ class AuthService {
         password: password,
       );
 
+      // Verificar que el email esté verificado
+      if (credential.user?.emailVerified == false) {
+        await _auth.signOut();
+        return 'email_not_verified:${email}';
+      }
+
       stopwatchFirebase.stop();
       final firebaseTime = stopwatchFirebase.elapsedMilliseconds;
       debugPrint('[AuthService] Firebase respondió en $firebaseTime ms');
@@ -218,7 +229,7 @@ class AuthService {
       final GoogleSignInAccount? googleUser = await GoogleSignIn().signIn();
       if (googleUser == null) return 'Inicio de sesión cancelado.';
 
-      if (!googleUser.email.endsWith('@uceva.edu.co')) {
+      if (!_ucevaEmailRegex.hasMatch(googleUser.email)) {
         await GoogleSignIn().signOut();
         return 'Solo se permiten emails @uceva.edu.co.';
       }
@@ -285,6 +296,11 @@ class AuthService {
     debugPrint('[AuthService] INICIO register para email: $email');
 
     try {
+      // Validación de dominio institucional
+      if (!_ucevaEmailRegex.hasMatch(email)) {
+        return 'Solo se permiten correos @uceva.edu.co.';
+      }
+
       final normalizedPhone = _normalizePhone(phone);
       if (normalizedPhone == null) {
         debugPrint('[AuthService] Resultado: Teléfono inválido');
@@ -371,11 +387,14 @@ class AuthService {
         'uid': credential.user!.uid,
       });
 
+      // Enviar correo de verificación
+      await credential.user!.sendEmailVerification();
+
       stopwatchTotal.stop();
       debugPrint(
         '[AuthService] Resultado: Cuenta creada exitosamente (total: ${stopwatchTotal.elapsedMilliseconds} ms)',
       );
-      return 'Cuenta creada exitosamente.';
+      return 'verification_email_sent';
     } on FirebaseAuthException catch (e) {
       if (e.code == 'email-already-in-use') {
         debugPrint('[AuthService] Resultado: Email ya registrado');
@@ -412,7 +431,7 @@ class AuthService {
       final GoogleSignInAccount? googleUser = await GoogleSignIn().signIn();
       if (googleUser == null) return 'Registro cancelado por el usuario.';
 
-      if (!googleUser.email.endsWith('@uceva.edu.co')) {
+      if (!_ucevaEmailRegex.hasMatch(googleUser.email)) {
         await GoogleSignIn().signOut();
         return 'Solo se permiten emails @uceva.edu.co.';
       }
@@ -578,7 +597,7 @@ class AuthService {
   Future<String> forgotPassword(String email) async {
     try {
       if (email.isEmpty) return 'El correo es obligatorio.';
-      if (!email.endsWith('@uceva.edu.co'))
+      if (!_ucevaEmailRegex.hasMatch(email))
         return 'Solo se permiten emails @uceva.edu.co.';
       await _auth.sendPasswordResetEmail(email: email);
       return 'Email de recuperación enviado. Revisa tu bandeja de entrada.';
@@ -592,4 +611,20 @@ class AuthService {
   }
 
   Future<void> logout() async => await _auth.signOut();
+
+  /// Reenvía el correo de verificación al usuario actual.
+  /// Retorna 'sent' si fue exitoso, o un mensaje de error.
+  Future<String> sendVerificationEmail() async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null) return 'No hay sesión activa.';
+      await user.sendEmailVerification();
+      return 'sent';
+    } on FirebaseAuthException catch (e) {
+      if (e.code == 'too-many-requests') return 'too_many_requests';
+      return 'Error al enviar correo: ${e.message}';
+    } catch (e) {
+      return 'Error inesperado: ${e.toString()}';
+    }
+  }
 }
