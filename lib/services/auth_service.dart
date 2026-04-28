@@ -600,6 +600,46 @@ class AuthService {
     }
   }
 
+  Future<String> updateStudentCode({
+    required String newStudentCode,
+  }) async {
+    try {
+      final uid = _auth.currentUser?.uid;
+      if (uid == null) return 'No hay sesión activa.';
+
+      if (newStudentCode.trim().isEmpty) return 'El código no puede estar vacío.';
+
+      // Verificar que el nuevo código no esté en uso por otro usuario
+      if (await _isStudentCodeTaken(newStudentCode.trim(), excludeUid: uid)) {
+        return 'Este código estudiantil ya está registrado por otro usuario.';
+      }
+
+      // Obtener el código anterior para eliminar su entrada en studentCodes
+      final userDoc = await _db.collection('users').doc(uid).get();
+      if (!userDoc.exists) return 'Usuario no encontrado.';
+
+      // Cifrar el nuevo código con el mismo método que register()
+      final encryptedCode = await _encryptFieldAsync(newStudentCode.trim());
+      final hashedCode = _hashStudentCode(newStudentCode.trim());
+
+      // Actualizar en la colección users
+      await _db.collection('users').doc(uid).update({
+        'studentCode': encryptedCode,
+        'hashedStudentCode': hashedCode,
+      });
+
+      // Registrar en studentCodes (el anterior se mantiene por integridad,
+      // el nuevo se agrega apuntando a este uid)
+      await _db.collection('studentCodes').doc(newStudentCode.trim()).set({
+        'uid': uid,
+      });
+
+      return 'Código estudiantil actualizado correctamente.';
+    } catch (e) {
+      return 'Error al actualizar el código: ${e.toString()}';
+    }
+  }
+
   // Normaliza a 10 dígitos (sin prefijo) para guardar y comparar
   String? _normalizePhone(String phone) {
     if (phone.isEmpty) return '';
