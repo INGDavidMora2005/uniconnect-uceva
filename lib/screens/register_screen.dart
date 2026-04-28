@@ -20,7 +20,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _emailController    = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmController  = TextEditingController();
-  final _phoneController    = TextEditingController(); // ← NUEVO
+  final _phoneController    = TextEditingController();
   String? _selectedRole;
   String? _selectedFaculty;
   bool _isLoading = false;
@@ -43,7 +43,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     _emailController.dispose();
     _passwordController.dispose();
     _confirmController.dispose();
-    _phoneController.dispose(); // ← NUEVO
+    _phoneController.dispose();
     super.dispose();
   }
 
@@ -66,7 +66,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
               studentCode: _codeController.text.trim(),
               role:        _selectedRole!,
               faculty:     _selectedFaculty!,
-              phone:       _phoneController.text.trim(), // ← NUEVO
+              phone:       _phoneController.text.trim(),
             )
           : await AuthService().register(
               fullName:    _nameController.text.trim(),
@@ -75,43 +75,29 @@ class _RegisterScreenState extends State<RegisterScreen> {
               password:    _passwordController.text,
               role:        _selectedRole!,
               faculty:     _selectedFaculty!,
-              phone:       _phoneController.text.trim(), // ← NUEVO
+              phone:       _phoneController.text.trim(),
             );
 
       if (!mounted) return;
       setState(() => _isLoading = false);
 
-      if (_useGoogle) {
-        if (message == 'verification_email_sent') {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(
-              builder: (_) => EmailVerificationScreen(
-                email: '',
-              ),
-            ),
-          );
-        } else if (message.startsWith('Cuenta creada')) {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (_) => const HomeRutasScreen()),
-          );
-        } else {
-          _showError(message);
-        }
+      if (message == 'verification_email_sent') {
+        final emailUsado = _useGoogle
+            ? (AuthService().currentUser?.email ?? '')
+            : _emailController.text.trim();
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (_) => EmailVerificationScreen(email: emailUsado),
+          ),
+        );
+      } else if (message.startsWith('Cuenta creada')) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const HomeRutasScreen()),
+        );
       } else {
-        if (message == 'verification_email_sent') {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(
-              builder: (_) => EmailVerificationScreen(
-                email: _emailController.text.trim(),
-              ),
-            ),
-          );
-        } else {
-          _showError(message);
-        }
+        _showError(message);
       }
     } catch (e) {
       if (!mounted) return;
@@ -213,18 +199,18 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   ),
                   const SizedBox(height: 16),
 
-                   CustomTextField(
-                     label: 'Correo Institucional (@uceva.edu.co)',
-                     hint: 'nombre@uceva.edu.co',
-                     controller: _emailController,
-                     keyboardType: TextInputType.emailAddress,
-                     validator: (v) {
-                       if (v == null || v.isEmpty) return 'Ingresa tu correo';
-                       if (!RegExp(r'^[a-zA-Z0-9._%+\-]+@uceva\.edu\.co$').hasMatch(v))
-                         return 'Usa tu correo @uceva.edu.co';
-                       return null;
-                     },
-                   ),
+                  CustomTextField(
+                    label: 'Correo Institucional (@uceva.edu.co)',
+                    hint: 'nombre@uceva.edu.co',
+                    controller: _emailController,
+                    keyboardType: TextInputType.emailAddress,
+                    validator: (v) {
+                      if (v == null || v.isEmpty) return 'Ingresa tu correo';
+                      if (!RegExp(r'^[a-zA-Z0-9._%+\-]+@uceva\.edu\.co$').hasMatch(v))
+                        return 'Usa tu correo @uceva.edu.co';
+                      return null;
+                    },
+                  ),
                   const SizedBox(height: 16),
 
                   CustomTextField(
@@ -258,7 +244,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   const SizedBox(height: 16),
                 ],
 
-                // ── Teléfono WhatsApp (aparece en AMBOS modos) ── NUEVO
+                // ── Teléfono WhatsApp (aparece en AMBOS modos) ──
                 CustomTextField(
                   label: 'Número de WhatsApp',
                   hint: 'Ej: 3001234567',

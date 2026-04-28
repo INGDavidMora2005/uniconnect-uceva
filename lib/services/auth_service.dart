@@ -521,18 +521,20 @@ class AuthService {
         'uid': userCredential.user!.uid,
       });
 
-      // Enviar verificación solo si el email no está ya verificado
-      // (Google a veces lo marca como verificado, a veces no)
-      if (userCredential.user?.emailVerified == false) {
+      // Enviar verificación institucional (excepto admin)
+      const adminEmail = 'admin.00@uceva.edu.co';
+      final isAdmin = (userCredential.user?.email?.toLowerCase() ?? '') == adminEmail;
+
+      if (!isAdmin) {
         try {
           await userCredential.user!.sendEmailVerification();
         } catch (_) {
           // Si falla el envío no bloqueamos el registro
         }
+        return 'verification_email_sent';
       }
 
-      final needsVerification = userCredential.user?.emailVerified == false;
-      return needsVerification ? 'verification_email_sent' : 'Cuenta creada exitosamente.';
+      return 'Cuenta creada exitosamente.';
     } on FirebaseAuthException catch (e) {
       if (e.code == 'account-exists-with-different-credential') {
         return 'Ya existe una cuenta con este email.';
