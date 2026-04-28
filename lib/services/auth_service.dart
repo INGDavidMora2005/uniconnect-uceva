@@ -174,12 +174,6 @@ class AuthService {
         password: password,
       );
 
-      // Verificar que el email esté verificado
-      if (credential.user?.emailVerified == false) {
-        await _auth.signOut();
-        return 'email_not_verified:${email}';
-      }
-
       stopwatchFirebase.stop();
       final firebaseTime = stopwatchFirebase.elapsedMilliseconds;
       debugPrint('[AuthService] Firebase respondió en $firebaseTime ms');
@@ -250,8 +244,8 @@ class AuthService {
 
       final userCredential = await _auth.signInWithCredential(credential);
 
-      if (!userCredential.user!.emailVerified &&
-          userCredential.user!.email?.toLowerCase() != 'admin.00@uceva.edu.co') {
+      final loginEmail = userCredential.user?.email?.toLowerCase() ?? '';
+      if (!userCredential.user!.emailVerified && loginEmail != 'admin.00@uceva.edu.co') {
         await _auth.signOut();
         await GoogleSignIn().signOut();
         return 'Debes verificar tu email antes de iniciar sesión.';
@@ -523,18 +517,17 @@ class AuthService {
 
       // Enviar verificación institucional (excepto admin)
       const adminEmail = 'admin.00@uceva.edu.co';
-      final isAdmin = (userCredential.user?.email?.toLowerCase() ?? '') == adminEmail;
+      final userEmail = userCredential.user?.email?.toLowerCase() ?? '';
+      final isAdmin = userEmail == adminEmail;
 
-      if (!isAdmin) {
-        try {
-          await userCredential.user!.sendEmailVerification();
-        } catch (_) {
-          // Si falla el envío no bloqueamos el registro
-        }
-        return 'verification_email_sent';
+      if (isAdmin) {
+        return 'Cuenta creada exitosamente.';
       }
 
-      return 'Cuenta creada exitosamente.';
+      try {
+        await userCredential.user!.sendEmailVerification();
+      } catch (_) {}
+      return 'verification_email_sent';
     } on FirebaseAuthException catch (e) {
       if (e.code == 'account-exists-with-different-credential') {
         return 'Ya existe una cuenta con este email.';
