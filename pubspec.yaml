@@ -66,3 +66,7 @@ flutter_launcher_icons:
     image_path: "assets/icon/icon_app.png"
     background_color: "#2EAE7D"
     theme_color: "#2EAE7D"
+
+dependency_overrides:
+  objective_c: ^4.0.0
+  path_provider_foundation: 2.4.0
