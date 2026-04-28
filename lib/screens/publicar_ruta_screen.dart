@@ -43,6 +43,14 @@ class _PublicarRutaScreenState extends State<PublicarRutaScreen> {
   bool _showOriginSuggestions = false;
   bool _showDestSuggestions = false;
 
+  // Anti race-condition para debounce
+  String _lastOriginQuery = '';
+  String _lastDestQuery = '';
+
+  // Indicadores de carga para sugerencias
+  bool _isLoadingOriginSugg = false;
+  bool _isLoadingDestSugg = false;
+
   @override
   void dispose() {
     _originController.dispose();
@@ -108,6 +116,11 @@ class _PublicarRutaScreenState extends State<PublicarRutaScreen> {
     return '$h:$m $period';
   }
 
+  String _shortName(String displayName) {
+    final parts = displayName.split(',');
+    return parts.first.trim();
+  }
+
   void _onOriginChanged(String value) {
     // Limpiar coordenadas cuando el usuario edita manualmente
     _originLat = null;
@@ -119,11 +132,16 @@ class _PublicarRutaScreenState extends State<PublicarRutaScreen> {
       return;
     }
     _originDebounce = Timer(const Duration(milliseconds: 400), () async {
-      final suggestions = await GeocodingService().getSuggestions(value);
-      if (mounted) {
+      final querySnapshot = value;
+      _lastOriginQuery = querySnapshot;
+      setState(() => _isLoadingOriginSugg = true);
+      final suggestions = await GeocodingService().getSuggestions(querySnapshot);
+      if (mounted && _lastOriginQuery == querySnapshot) {
         setState(() {
+          _isLoadingOriginSugg = false;
           _originSuggestions = suggestions;
           _showOriginSuggestions = suggestions.isNotEmpty;
+          _showDestSuggestions = false;
         });
       }
     });
@@ -140,25 +158,30 @@ class _PublicarRutaScreenState extends State<PublicarRutaScreen> {
       return;
     }
     _destDebounce = Timer(const Duration(milliseconds: 400), () async {
-      final suggestions = await GeocodingService().getSuggestions(value);
-      if (mounted) {
+      final querySnapshot = value;
+      _lastDestQuery = querySnapshot;
+      setState(() => _isLoadingDestSugg = true);
+      final suggestions = await GeocodingService().getSuggestions(querySnapshot);
+      if (mounted && _lastDestQuery == querySnapshot) {
         setState(() {
+          _isLoadingDestSugg = false;
           _destSuggestions = suggestions;
           _showDestSuggestions = suggestions.isNotEmpty;
+          _showOriginSuggestions = false;
         });
       }
     });
   }
 
   void _onOriginSuggestionSelected(PlaceSuggestion suggestion) {
-    _originController.text = suggestion.displayName;
+    _originController.text = _shortName(suggestion.displayName);
     _originLat = suggestion.lat;
     _originLng = suggestion.lng;
     setState(() => _showOriginSuggestions = false);
   }
 
   void _onDestSuggestionSelected(PlaceSuggestion suggestion) {
-    _destinationController.text = suggestion.displayName;
+    _destinationController.text = _shortName(suggestion.displayName);
     _destLat = suggestion.lat;
     _destLng = suggestion.lng;
     setState(() => _showDestSuggestions = false);
@@ -331,76 +354,96 @@ class _PublicarRutaScreenState extends State<PublicarRutaScreen> {
     required bool showSuggestions,
     required void Function(String) onChanged,
     required void Function(PlaceSuggestion) onSuggestionSelected,
+    required VoidCallback onDismiss,
+    required bool isLoading,
   }) {
-    return Stack(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Column(
-          children: [
-            TextFormField(
-              controller: controller,
-              style: const TextStyle(fontSize: 14, color: AppColors.textDark),
-              decoration: InputDecoration(
-                hintText: hint,
-                filled: true,
-                fillColor: AppColors.backgroundWhite,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                  borderSide: const BorderSide(color: AppColors.borderDefault),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                  borderSide: const BorderSide(color: AppColors.borderDefault),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                  borderSide: const BorderSide(color: AppColors.accentGreen, width: 1.5),
-                ),
-                errorBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                  borderSide: const BorderSide(color: Colors.redAccent),
-                ),
-              ),
-              validator: validator,
-              onChanged: onChanged,
+        TextFormField(
+          controller: controller,
+          style: const TextStyle(fontSize: 14, color: AppColors.textDark),
+          decoration: InputDecoration(
+            hintText: hint,
+            filled: true,
+            fillColor: AppColors.backgroundWhite,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: const BorderSide(color: AppColors.borderDefault),
             ),
-            SizedBox(height: showSuggestions ? 200 : 0),
-          ],
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: const BorderSide(color: AppColors.borderDefault),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: const BorderSide(color: AppColors.accentGreen, width: 1.5),
+            ),
+            errorBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: const BorderSide(color: Colors.redAccent),
+            ),
+            suffixIcon: isLoading
+                ? const Padding(
+                    padding: EdgeInsets.all(14),
+                    child: SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: AppColors.accentGreen,
+                      ),
+                    ),
+                  )
+                : null,
+          ),
+          validator: validator,
+          onChanged: onChanged,
+          onTapOutside: (_) {
+            onDismiss();
+            FocusManager.instance.primaryFocus?.unfocus();
+          },
         ),
         if (showSuggestions && suggestions.isNotEmpty)
-          Positioned(
-            top: 60,
-            left: 0,
-            right: 0,
-            child: Material(
-              elevation: 4,
-              borderRadius: BorderRadius.circular(10),
-              child: Container(
-                constraints: const BoxConstraints(maxHeight: 200),
-                decoration: BoxDecoration(
-                  color: AppColors.backgroundWhite,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: AppColors.borderDefault),
+          Material(
+            elevation: 4,
+            borderRadius: BorderRadius.circular(10),
+            child: Container(
+              constraints: const BoxConstraints(maxHeight: 200),
+              decoration: BoxDecoration(
+                color: AppColors.backgroundWhite,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: AppColors.borderDefault),
+              ),
+              child: ListView.separated(
+                shrinkWrap: true,
+                itemCount: suggestions.length,
+                separatorBuilder: (_, __) => const Divider(
+                  height: 1,
+                  color: AppColors.borderDefault,
                 ),
-                child: ListView.builder(
-                  shrinkWrap: true,
-                  itemCount: suggestions.length,
-                  itemBuilder: (context, index) {
-                    final suggestion = suggestions[index];
-                    return InkWell(
-                      onTap: () => onSuggestionSelected(suggestion),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                        child: Text(
-                          suggestion.displayName,
-                          style: const TextStyle(
-                            fontSize: 14,
-                            color: AppColors.textDark,
-                          ),
-                        ),
+                itemBuilder: (context, index) {
+                  final suggestion = suggestions[index];
+                  return InkWell(
+                    onTap: () => onSuggestionSelected(suggestion),
+                    borderRadius: BorderRadius.circular(10),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
                       ),
-                    );
-                  },
-                ),
+                      child: Text(
+                        suggestion.displayName,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          color: AppColors.textDark,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  );
+                },
               ),
             ),
           ),
@@ -505,6 +548,11 @@ class _PublicarRutaScreenState extends State<PublicarRutaScreen> {
                         showSuggestions: _showOriginSuggestions,
                         onChanged: _onOriginChanged,
                         onSuggestionSelected: _onOriginSuggestionSelected,
+                        onDismiss: () => setState(() {
+                          _showOriginSuggestions = false;
+                          _showDestSuggestions = false;
+                        }),
+                        isLoading: _isLoadingOriginSugg,
                       ),
                       const SizedBox(height: 16),
 
@@ -519,6 +567,11 @@ class _PublicarRutaScreenState extends State<PublicarRutaScreen> {
                         showSuggestions: _showDestSuggestions,
                         onChanged: _onDestChanged,
                         onSuggestionSelected: _onDestSuggestionSelected,
+                        onDismiss: () => setState(() {
+                          _showDestSuggestions = false;
+                          _showOriginSuggestions = false;
+                        }),
+                        isLoading: _isLoadingDestSugg,
                       ),
                       const SizedBox(height: 16),
 
@@ -611,13 +664,19 @@ class _PublicarRutaScreenState extends State<PublicarRutaScreen> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 _fieldLabel('Aporte por pasajero'),
-                                _inputDecoration(
-                                  hint: '\$ 0.000',
-                                  controller: _priceController,
-                                  keyboardType: TextInputType.number,
-                                  validator: (v) => v == null || v.isEmpty
-                                      ? 'Ingresa el aporte' : null,
-                                ),
+                                 _inputDecoration(
+                                   hint: '\$ 0.000',
+                                   controller: _priceController,
+                                   keyboardType: TextInputType.number,
+                                   validator: (v) {
+                                     if (v == null || v.isEmpty) return 'Ingresa el aporte';
+                                     final parsed = double.tryParse(
+                                       v.trim().replaceAll('.', '').replaceAll(',', ''),
+                                     );
+                                     if (parsed == null || parsed <= 0) return 'El aporte debe ser mayor a \$0';
+                                     return null;
+                                   },
+                                 ),
                               ],
                             ),
                           ),

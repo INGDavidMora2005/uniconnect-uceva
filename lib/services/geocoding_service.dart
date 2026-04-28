@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
@@ -15,7 +16,10 @@ class PlaceSuggestion {
 }
 
 class GeocodingService {
-  static const _baseUrl = 'https://nominatim.openstreetmap.org';
+  static final GeocodingService _instance = GeocodingService._internal();
+  factory GeocodingService() => _instance;
+  GeocodingService._internal();
+
   static const _headers = {
     'User-Agent': 'UniConnectUCEVA/1.0',
     'Accept-Language': 'es',
@@ -29,8 +33,20 @@ class GeocodingService {
   // Sugerencias de autocompletado (mínimo 3 caracteres para llamar)
   Future<List<PlaceSuggestion>> getSuggestions(String query) async {
     try {
-      final uri = Uri.parse('$_baseUrl/search?q=$query&format=json&limit=5&countrycodes=co');
-      final response = await http.get(uri, headers: _headers);
+      final uri = Uri(
+        scheme: 'https',
+        host: 'nominatim.openstreetmap.org',
+        path: '/search',
+        queryParameters: {
+          'q': query,
+          'format': 'json',
+          'limit': '5',
+          'countrycodes': 'co',
+        },
+      );
+      final response = await http
+          .get(uri, headers: _headers)
+          .timeout(const Duration(seconds: 8));
 
       if (response.statusCode == 200) {
         final List<dynamic> data = json.decode(response.body);
@@ -52,8 +68,20 @@ class GeocodingService {
   // Geocoding directo (fallback cuando no seleccionó sugerencia)
   Future<LatLng?> geocodeAddress(String address) async {
     try {
-      final uri = Uri.parse('$_baseUrl/search?q=$address&format=json&limit=1&countrycodes=co');
-      final response = await http.get(uri, headers: _headers);
+      final uri = Uri(
+        scheme: 'https',
+        host: 'nominatim.openstreetmap.org',
+        path: '/search',
+        queryParameters: {
+          'q': address,
+          'format': 'json',
+          'limit': '1',
+          'countrycodes': 'co',
+        },
+      );
+      final response = await http
+          .get(uri, headers: _headers)
+          .timeout(const Duration(seconds: 8));
 
       if (response.statusCode == 200) {
         final List<dynamic> data = json.decode(response.body);
