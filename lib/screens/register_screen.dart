@@ -4,6 +4,7 @@ import '../widgets/custom_text_field.dart';
 import '../widgets/primary_button.dart';
 import '../services/auth_service.dart';
 import 'email_verification_screen.dart';
+import 'home_rutas_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -81,11 +82,20 @@ class _RegisterScreenState extends State<RegisterScreen> {
       setState(() => _isLoading = false);
 
       if (_useGoogle) {
-        if (message.startsWith('Cuenta creada')) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(message), backgroundColor: AppColors.accentGreen),
+        if (message == 'verification_email_sent') {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (_) => EmailVerificationScreen(
+                email: '',
+              ),
+            ),
           );
-          Navigator.pop(context);
+        } else if (message.startsWith('Cuenta creada')) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (_) => const HomeRutasScreen()),
+          );
         } else {
           _showError(message);
         }
