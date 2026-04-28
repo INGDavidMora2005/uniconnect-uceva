@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../theme/app_theme.dart';
 import 'login_screen.dart';
 import 'home_rutas_screen.dart';
+import 'email_verification_screen.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -28,16 +29,25 @@ class _SplashScreenState extends State<SplashScreen>
 
     Future.delayed(const Duration(seconds: 3), () {
       if (!mounted) return;
-      // Si ya hay sesión activa va al Home, si no va al Login
       final user = FirebaseAuth.instance.currentUser;
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (_) => user != null
-              ? const HomeRutasScreen()
-              : const LoginScreen(),
-        ),
-      );
+      if (user == null) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const LoginScreen()),
+        );
+      } else if (!user.emailVerified) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (_) => EmailVerificationScreen(email: user.email ?? ''),
+          ),
+        );
+      } else {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const HomeRutasScreen()),
+        );
+      }
     });
   }
 
