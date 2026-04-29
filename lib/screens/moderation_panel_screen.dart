@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../models/report_model.dart';
 import '../services/moderation_service.dart';
 import '../theme/app_theme.dart';
@@ -15,10 +16,24 @@ class _ModerationPanelScreenState extends State<ModerationPanelScreen>
   late TabController _tabController;
   final ModerationService _service = ModerationService();
 
+  static const _adminEmail = 'admin.00@uceva.edu.co';
+
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 4, vsync: this);
+    _checkAdminAccess(); // ← AGREGAR
+  }
+
+  void _checkAdminAccess() {
+    final currentUser = FirebaseAuth.instance.currentUser;
+    final email = currentUser?.email?.toLowerCase() ?? '';
+    if (email != _adminEmail) {
+      // No es admin → expulsar inmediatamente
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) Navigator.of(context).pop();
+      });
+    }
   }
 
   @override
