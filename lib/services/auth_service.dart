@@ -18,6 +18,11 @@ class AuthService {
   factory AuthService() => _instance;
   AuthService._internal();
 
+  // Validador estricto de dominio UCEVA
+  static final RegExp _ucevaEmailRegex = RegExp(
+    r'^[a-zA-Z0-9._%+\-]+@uceva\.edu\.co$',
+  );
+
   // Clave AES-256 fija para cifrar campos que deben ser legibles por otros usuarios
   // 32 caracteres = 256 bits
   static const String _sharedPhoneKey = 'UniConnectPhone2024SecureKey3256';
@@ -173,6 +178,13 @@ class AuthService {
       final firebaseTime = stopwatchFirebase.elapsedMilliseconds;
       debugPrint('[AuthService] Firebase respondió en $firebaseTime ms');
 
+      // Verificar email (excepto admin)
+      if (credential.user?.emailVerified == false &&
+          email.trim().toLowerCase() != 'admin.00@uceva.edu.co') {
+        await _auth.signOut();
+        return 'email_not_verified:${email}';
+      }
+
       final uid = credential.user?.uid;
       if (uid != null) {
         final userDoc = await _db.collection('users').doc(uid).get();
@@ -218,7 +230,7 @@ class AuthService {
       final GoogleSignInAccount? googleUser = await GoogleSignIn().signIn();
       if (googleUser == null) return 'Inicio de sesión cancelado.';
 
-      if (!googleUser.email.endsWith('@uceva.edu.co')) {
+      if (!_ucevaEmailRegex.hasMatch(googleUser.email)) {
         await GoogleSignIn().signOut();
         return 'Solo se permiten emails @uceva.edu.co.';
       }
@@ -232,7 +244,8 @@ class AuthService {
 
       final userCredential = await _auth.signInWithCredential(credential);
 
-      if (!userCredential.user!.emailVerified) {
+      final loginEmail = userCredential.user?.email?.toLowerCase() ?? '';
+      if (!userCredential.user!.emailVerified && loginEmail != 'admin.00@uceva.edu.co') {
         await _auth.signOut();
         await GoogleSignIn().signOut();
         return 'Debes verificar tu email antes de iniciar sesión.';
@@ -285,6 +298,11 @@ class AuthService {
     debugPrint('[AuthService] INICIO register para email: $email');
 
     try {
+      // Validación de dominio institucional
+      if (!_ucevaEmailRegex.hasMatch(email)) {
+        return 'Solo se permiten correos @uceva.edu.co.';
+      }
+
       final normalizedPhone = _normalizePhone(phone);
       if (normalizedPhone == null) {
         debugPrint('[AuthService] Resultado: Teléfono inválido');
@@ -371,11 +389,14 @@ class AuthService {
         'uid': credential.user!.uid,
       });
 
+      // Enviar correo de verificación
+      await credential.user!.sendEmailVerification();
+
       stopwatchTotal.stop();
       debugPrint(
         '[AuthService] Resultado: Cuenta creada exitosamente (total: ${stopwatchTotal.elapsedMilliseconds} ms)',
       );
-      return 'Cuenta creada exitosamente.';
+      return 'verification_email_sent';
     } on FirebaseAuthException catch (e) {
       if (e.code == 'email-already-in-use') {
         debugPrint('[AuthService] Resultado: Email ya registrado');
@@ -412,7 +433,7 @@ class AuthService {
       final GoogleSignInAccount? googleUser = await GoogleSignIn().signIn();
       if (googleUser == null) return 'Registro cancelado por el usuario.';
 
-      if (!googleUser.email.endsWith('@uceva.edu.co')) {
+      if (!_ucevaEmailRegex.hasMatch(googleUser.email)) {
         await GoogleSignIn().signOut();
         return 'Solo se permiten emails @uceva.edu.co.';
       }
@@ -494,7 +515,19 @@ class AuthService {
         'uid': userCredential.user!.uid,
       });
 
-      return 'Cuenta creada exitosamente.';
+      // Enviar verificación institucional (excepto admin)
+      const adminEmail = 'admin.00@uceva.edu.co';
+      final userEmail = userCredential.user?.email?.toLowerCase() ?? '';
+      final isAdmin = userEmail == adminEmail;
+
+      if (isAdmin) {
+        return 'Cuenta creada exitosamente.';
+      }
+
+      try {
+        await userCredential.user!.sendEmailVerification();
+      } catch (_) {}
+      return 'verification_email_sent';
     } on FirebaseAuthException catch (e) {
       if (e.code == 'account-exists-with-different-credential') {
         return 'Ya existe una cuenta con este email.';
@@ -567,6 +600,46 @@ class AuthService {
     }
   }
 
+  Future<String> updateStudentCode({
+    required String newStudentCode,
+  }) async {
+    try {
+      final uid = _auth.currentUser?.uid;
+      if (uid == null) return 'No hay sesión activa.';
+
+      if (newStudentCode.trim().isEmpty) return 'El código no puede estar vacío.';
+
+      // Verificar que el nuevo código no esté en uso por otro usuario
+      if (await _isStudentCodeTaken(newStudentCode.trim(), excludeUid: uid)) {
+        return 'Este código estudiantil ya está registrado por otro usuario.';
+      }
+
+      // Obtener el código anterior para eliminar su entrada en studentCodes
+      final userDoc = await _db.collection('users').doc(uid).get();
+      if (!userDoc.exists) return 'Usuario no encontrado.';
+
+      // Cifrar el nuevo código con el mismo método que register()
+      final encryptedCode = await _encryptFieldAsync(newStudentCode.trim());
+      final hashedCode = _hashStudentCode(newStudentCode.trim());
+
+      // Actualizar en la colección users
+      await _db.collection('users').doc(uid).update({
+        'studentCode': encryptedCode,
+        'hashedStudentCode': hashedCode,
+      });
+
+      // Registrar en studentCodes (el anterior se mantiene por integridad,
+      // el nuevo se agrega apuntando a este uid)
+      await _db.collection('studentCodes').doc(newStudentCode.trim()).set({
+        'uid': uid,
+      });
+
+      return 'Código estudiantil actualizado correctamente.';
+    } catch (e) {
+      return 'Error al actualizar el código: ${e.toString()}';
+    }
+  }
+
   // Normaliza a 10 dígitos (sin prefijo) para guardar y comparar
   String? _normalizePhone(String phone) {
     if (phone.isEmpty) return '';
@@ -578,7 +651,7 @@ class AuthService {
   Future<String> forgotPassword(String email) async {
     try {
       if (email.isEmpty) return 'El correo es obligatorio.';
-      if (!email.endsWith('@uceva.edu.co'))
+      if (!_ucevaEmailRegex.hasMatch(email))
         return 'Solo se permiten emails @uceva.edu.co.';
       await _auth.sendPasswordResetEmail(email: email);
       return 'Email de recuperación enviado. Revisa tu bandeja de entrada.';
@@ -592,4 +665,20 @@ class AuthService {
   }
 
   Future<void> logout() async => await _auth.signOut();
+
+  /// Reenvía el correo de verificación al usuario actual.
+  /// Retorna 'sent' si fue exitoso, o un mensaje de error.
+  Future<String> sendVerificationEmail() async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null) return 'No hay sesión activa.';
+      await user.sendEmailVerification();
+      return 'sent';
+    } on FirebaseAuthException catch (e) {
+      if (e.code == 'too-many-requests') return 'too_many_requests';
+      return 'Error al enviar correo: ${e.message}';
+    } catch (e) {
+      return 'Error inesperado: ${e.toString()}';
+    }
+  }
 }
