@@ -18,13 +18,15 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _descriptionController = TextEditingController();
   final TextEditingController _phoneController = TextEditingController();
+  final TextEditingController _studentCodeController = TextEditingController();
 
   String? _selectedFaculty;
   String? _selectedRole;
   bool _loading = true;
   bool _saving = false;
   bool _uploadingImage = false;
-  String? _profileImageUrl; // URL de la imagen de perfil
+  String? _profileImageUrl;
+  String _originalStudentCode = ''; // URL de la imagen de perfil
 
   // ── Listas de opciones ─────────────────────────────────────
   final List<String> _roles = [
@@ -56,6 +58,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       _descriptionController.text = user.description;
       _phoneController.text = user.phone;
       _profileImageUrl = user.profileImageUrl;
+
+      _originalStudentCode = user.studentCode ?? '';
+      _studentCodeController.text = _originalStudentCode;
 
       _selectedRole = _roles.contains(user.role) ? user.role : null;
       _selectedFaculty = _faculties.contains(user.faculty)
@@ -92,7 +97,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _saving = true);
 
-    final result = await AuthService().updateProfile(
+    // 1. Guardar perfil
+    final profileResult = await AuthService().updateProfile(
       fullName: _nameController.text.trim(),
       role: _selectedRole ?? '',
       faculty: _selectedFaculty ?? '',
@@ -104,16 +110,43 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     if (!mounted) return;
     setState(() => _saving = false);
 
+    if (!profileResult.startsWith('Perfil actualizado')) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(profileResult),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+      return;
+    }
+
+    // 2. Actualizar código estudiantil si cambió
+    final newCode = _studentCodeController.text.trim();
+    if (newCode != _originalStudentCode) {
+      final codeResult = await AuthService().updateStudentCode(
+        newStudentCode: newCode,
+      );
+
+      if (!codeResult.startsWith('Código estudiantil actualizado')) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(codeResult),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+        return;
+      }
+    }
+
+    // 3. Éxito
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(result),
-        backgroundColor: result == 'Perfil actualizado correctamente.'
-            ? AppColors.accentGreen
-            : Colors.redAccent,
+      const SnackBar(
+        content: Text('Perfil actualizado correctamente.'),
+        backgroundColor: AppColors.accentGreen,
       ),
     );
 
-    if (result == 'Perfil actualizado correctamente.') {
+    if (mounted) {
       Navigator.pop(context, true);
     }
   }
@@ -123,6 +156,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     _nameController.dispose();
     _descriptionController.dispose();
     _phoneController.dispose();
+    _studentCodeController.dispose();
     super.dispose();
   }
 
@@ -312,10 +346,25 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                             : null,
                         onChanged: (v) => setState(() => _selectedFaculty = v),
                       ),
-                      const SizedBox(height: 12),
+                       const SizedBox(height: 12),
 
-                      // ── Teléfono ─────────────────────────────
-                      _sectionLabel('Teléfono WhatsApp'),
+                       // ── Código Estudiantil ─────────────────────
+                       _sectionLabel('Código Estudiantil'),
+                       TextFormField(
+                         controller: _studentCodeController,
+                         decoration: _inputDecoration('Ej: 230231053'),
+                         keyboardType: TextInputType.number,
+                         validator: (v) {
+                           if (v == null || v.trim().isEmpty) {
+                             return 'Ingresa tu código estudiantil';
+                           }
+                           return null;
+                         },
+                       ),
+                       const SizedBox(height: 12),
+
+                       // ── Teléfono ─────────────────────────────
+                       _sectionLabel('Teléfono WhatsApp'),
                       TextFormField(
                         controller: _phoneController,
                         decoration: _inputDecoration('Ej: 3001234567'),

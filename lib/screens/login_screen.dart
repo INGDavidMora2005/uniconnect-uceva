@@ -6,6 +6,7 @@ import '../services/auth_service.dart';
 import 'register_screen.dart';
 import 'home_rutas_screen.dart';
 import 'forgot_password_screen.dart';
+import 'email_verification_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -87,6 +88,19 @@ class _LoginScreenState extends State<LoginScreen> {
 
     setState(() => _isLoading = false);
     if (!mounted) return;
+
+    if (message.startsWith('email_not_verified:')) {
+      final emailFromMsg = message.split(':').length > 1
+          ? message.substring('email_not_verified:'.length)
+          : '';
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => EmailVerificationScreen(email: emailFromMsg),
+        ),
+      );
+      return;
+    }
 
     if (message.startsWith('Inicio de sesión exitoso')) {
       Navigator.pushReplacement(
@@ -174,19 +188,19 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
                 const SizedBox(height: 24),
                 if (!_useGoogle) ...[
-                  CustomTextField(
-                    label: 'Correo',
-                    hint: 'Correo institucional',
-                    controller: _emailController,
-                    keyboardType: TextInputType.emailAddress,
-                    validator: (v) {
-                      if (v == null || v.isEmpty) return 'Ingresa tu correo';
-                      if (!v.contains('@uceva.edu.co')) {
-                        return 'Usa tu correo @uceva.edu.co';
-                      }
-                      return null;
-                    },
-                  ),
+                   CustomTextField(
+                     label: 'Correo',
+                     hint: 'Correo institucional',
+                     controller: _emailController,
+                     keyboardType: TextInputType.emailAddress,
+                     validator: (v) {
+                       if (v == null || v.isEmpty) return 'Ingresa tu correo';
+                       if (!RegExp(r'^[a-zA-Z0-9._%+\-]+@uceva\.edu\.co$').hasMatch(v)) {
+                         return 'Usa tu correo @uceva.edu.co';
+                       }
+                       return null;
+                     },
+                   ),
                   const SizedBox(height: 20),
                   CustomTextField(
                     label: 'Contraseña',
