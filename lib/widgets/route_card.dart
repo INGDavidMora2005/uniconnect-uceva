@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -167,7 +168,7 @@ class _RouteCardState extends State<RouteCard> {
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
         content: const Text(
-          '¿Confirmas que la ruta ya comenzó? Los pacientes podrán '
+          '¿Confirmas que la ruta ya comenzó? Los pasajeros podrán '
           'ver tu ubicación en tiempo real.',
         ),
         actions: [
@@ -782,7 +783,7 @@ class _RouteCardState extends State<RouteCard> {
 
   @override
   void dispose() {
-    if (_isSharingLocation) _stopPassengerSharing();
+    if (_isSharingLocation) unawaited(_stopPassengerSharing());
     super.dispose();
   }
 }

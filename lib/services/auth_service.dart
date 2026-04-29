@@ -125,15 +125,18 @@ class AuthService {
   ///
   /// El cifrado añade capa adicional de seguridad para datos sensibles
   Future<String> login(String email, String password) async {
-    final stopwatchTotal = Stopwatch()..start();
-    debugPrint('[AuthService] INICIO login para email: $email');
+    Stopwatch? stopwatchTotal;
+    if (kDebugMode) {
+      stopwatchTotal = Stopwatch()..start();
+      debugPrint('[AuthService] INICIO login para email: $email');
+    }
 
     try {
       // Intentar cifrar credenciales antes de cualquier operación
       // ref: Stallings - Data Encryption in Transit
       // Si el cifrado falla, hacemos fallback a Firebase Auth sin almacenamiento cifrado
       try {
-        debugPrint(
+        if (kDebugMode) debugPrint(
           '[AuthService] Iniciando cifrado de contraseña con CryptoService...',
         );
         final stopwatchCrypto = Stopwatch()..start();
@@ -142,16 +145,18 @@ class AuthService {
           password,
         );
 
-        stopwatchCrypto.stop();
-        final cryptoTime = stopwatchCrypto.elapsedMilliseconds;
-        debugPrint('[AuthService] Cifrado completado en $cryptoTime ms');
+        if (kDebugMode) {
+          stopwatchCrypto.stop();
+          final cryptoTime = stopwatchCrypto.elapsedMilliseconds;
+          debugPrint('[AuthService] Cifrado completado en $cryptoTime ms');
 
-        final cipherPreview = encryptedPassword.ciphertext.length > 20
-            ? '${encryptedPassword.ciphertext.substring(0, 20)}...'
-            : encryptedPassword.ciphertext;
-        debugPrint(
-          '[AuthService] Payload generado — ciphertext: $cipherPreview, iv: ${encryptedPassword.iv}, keyLen: ${encryptedPassword.encryptedKey.length}',
-        );
+          final cipherPreview = encryptedPassword.ciphertext.length > 20
+              ? '${encryptedPassword.ciphertext.substring(0, 20)}...'
+              : encryptedPassword.ciphertext;
+          debugPrint(
+            '[AuthService] Payload generado — ciphertext: $cipherPreview, iv: ${encryptedPassword.iv}, keyLen: ${encryptedPassword.encryptedKey.length}',
+          );
+        }
 
         // Almacenar credenciales cifradas localmente si el cifrado fue exitoso
         await _secureStorage.write(
@@ -160,12 +165,12 @@ class AuthService {
         );
       } catch (e) {
         // Fallback si el cifrado falla: continuar con Firebase Auth
-        debugPrint(
+        if (kDebugMode) debugPrint(
           '[AuthService] Advertencia: Cifrado falló — usando fallback. Error: $e',
         );
       }
 
-      debugPrint('[AuthService] Enviando credenciales a Firebase Auth...');
+      if (kDebugMode) debugPrint('[AuthService] Enviando credenciales a Firebase Auth...');
       final stopwatchFirebase = Stopwatch()..start();
 
       // Firebase Auth requiere contraseña en texto plano para verificación
@@ -174,9 +179,11 @@ class AuthService {
         password: password,
       );
 
-      stopwatchFirebase.stop();
-      final firebaseTime = stopwatchFirebase.elapsedMilliseconds;
-      debugPrint('[AuthService] Firebase respondió en $firebaseTime ms');
+      if (kDebugMode) {
+        stopwatchFirebase.stop();
+        final firebaseTime = stopwatchFirebase.elapsedMilliseconds;
+        debugPrint('[AuthService] Firebase respondió en $firebaseTime ms');
+      }
 
       // Verificar email (excepto admin)
       if (credential.user?.emailVerified == false &&
@@ -191,36 +198,34 @@ class AuthService {
         final isSuspended = userDoc.data()?['suspended'] ?? false;
         if (isSuspended) {
           await _auth.signOut();
-          debugPrint('[AuthService] Resultado: Cuenta suspendida');
+          if (kDebugMode) debugPrint('[AuthService] Resultado: Cuenta suspendida');
           return 'Tu cuenta ha sido suspendida. Contacta al administrador para más información.';
         }
       }
-      stopwatchTotal.stop();
-      debugPrint(
-        '[AuthService] Resultado: Inicio de sesión exitoso (total: ${stopwatchTotal.elapsedMilliseconds} ms)',
-      );
+      if (kDebugMode && stopwatchTotal != null) {
+        stopwatchTotal.stop();
+        debugPrint(
+          '[AuthService] Resultado: Inicio de sesión exitoso (total: ${stopwatchTotal.elapsedMilliseconds} ms)',
+        );
+      }
       return 'Inicio de sesión exitoso.';
     } on FirebaseAuthException catch (e) {
-      if (e.code == 'user-not-found') {
-        debugPrint('[AuthService] Resultado: Usuario no encontrado');
-        return 'Usuario no encontrado.';
-      }
-      if (e.code == 'wrong-password') {
-        debugPrint('[AuthService] Resultado: Contraseña incorrecta');
-        return 'Contraseña incorrecta.';
+      if (e.code == 'invalid-credential') {
+        if (kDebugMode) debugPrint('[AuthService] Resultado: Credenciales incorrectas');
+        return 'Correo o contraseña incorrectos.';
       }
       if (e.code == 'invalid-email') {
-        debugPrint('[AuthService] Resultado: Correo electrónico inválido');
+        if (kDebugMode) debugPrint('[AuthService] Resultado: Correo electrónico inválido');
         return 'Correo electrónico inválido.';
       }
       if (e.code == 'user-disabled') {
-        debugPrint('[AuthService] Resultado: Cuenta deshabilitada');
+        if (kDebugMode) debugPrint('[AuthService] Resultado: Cuenta deshabilitada');
         return 'Esta cuenta ha sido deshabilitada.';
       }
-      debugPrint('[AuthService] Resultado: Error Firebase — ${e.message}');
+      if (kDebugMode) debugPrint('[AuthService] Resultado: Error Firebase — ${e.message}');
       return 'Error al iniciar sesión: ${e.message}';
     } catch (e) {
-      debugPrint('[AuthService] Resultado: Error inesperado — ${e.toString()}');
+      if (kDebugMode) debugPrint('[AuthService] Resultado: Error inesperado — ${e.toString()}');
       return 'Error inesperado: ${e.toString()}';
     }
   }
@@ -294,8 +299,11 @@ class AuthService {
     required String faculty,
     required String phone,
   }) async {
-    final stopwatchTotal = Stopwatch()..start();
-    debugPrint('[AuthService] INICIO register para email: $email');
+    Stopwatch? stopwatchTotal;
+    if (kDebugMode) {
+      stopwatchTotal = Stopwatch()..start();
+      debugPrint('[AuthService] INICIO register para email: $email');
+    }
 
     try {
       // Validación de dominio institucional
@@ -305,14 +313,23 @@ class AuthService {
 
       final normalizedPhone = _normalizePhone(phone);
       if (normalizedPhone == null) {
-        debugPrint('[AuthService] Resultado: Teléfono inválido');
+        if (kDebugMode) debugPrint('[AuthService] Resultado: Teléfono inválido');
         return 'Ingresa un número válido de 10 dígitos (ej: 3001234567)';
       }
 
-      // Intentar cifrar contraseña para almacenamiento seguro local
-      // Si el cifrado falla, hacemos fallback a Firebase Auth
+      // 1. Validar teléfono ANTES de crear la cuenta
+      if (await _isPhoneTaken(normalizedPhone)) {
+        return 'Este número ya está registrado en otra cuenta.';
+      }
+
+      // 2. Validar código estudiantil ANTES de crear la cuenta
+      if (await _isStudentCodeTaken(studentCode)) {
+        return 'Este código estudiantil ya está registrado.';
+      }
+
+      // 3. Solo aquí, intentar cifrar (puede fallar sin consecuencias)
       try {
-        debugPrint(
+        if (kDebugMode) debugPrint(
           '[AuthService] Iniciando cifrado de contraseña con CryptoService...',
         );
         final stopwatchCrypto = Stopwatch()..start();
@@ -321,51 +338,42 @@ class AuthService {
           password,
         );
 
-        stopwatchCrypto.stop();
-        final cryptoTime = stopwatchCrypto.elapsedMilliseconds;
-        debugPrint('[AuthService] Cifrado completado en $cryptoTime ms');
+        if (kDebugMode) {
+          stopwatchCrypto.stop();
+          final cryptoTime = stopwatchCrypto.elapsedMilliseconds;
+          debugPrint('[AuthService] Cifrado completado en $cryptoTime ms');
 
-        final cipherPreview = encryptedPassword.ciphertext.length > 20
-            ? '${encryptedPassword.ciphertext.substring(0, 20)}...'
-            : encryptedPassword.ciphertext;
-        debugPrint(
-          '[AuthService] Payload generado — ciphertext: $cipherPreview, iv: ${encryptedPassword.iv}, keyLen: ${encryptedPassword.encryptedKey.length}',
-        );
+          final cipherPreview = encryptedPassword.ciphertext.length > 20
+              ? '${encryptedPassword.ciphertext.substring(0, 20)}...'
+              : encryptedPassword.ciphertext;
+          debugPrint(
+            '[AuthService] Payload generado — ciphertext: $cipherPreview, iv: ${encryptedPassword.iv}, keyLen: ${encryptedPassword.encryptedKey.length}',
+          );
+        }
 
         await _secureStorage.write(
           key: 'encrypted_credentials_$email',
           value: encryptedPassword.toJson(),
         );
       } catch (e) {
-        debugPrint(
+        if (kDebugMode) debugPrint(
           '[AuthService] Advertencia: Cifrado falló — usando fallback. Error: $e',
         );
       }
 
-      debugPrint('[AuthService] Enviando credenciales a Firebase Auth...');
+      if (kDebugMode) debugPrint('[AuthService] Enviando credenciales a Firebase Auth...');
       final stopwatchFirebase = Stopwatch()..start();
 
+      // 4. Crear la cuenta — ahora sin riesgo de cuenta huérfana
       final credential = await _auth.createUserWithEmailAndPassword(
         email: email,
         password: password,
       );
 
-      stopwatchFirebase.stop();
-      final firebaseTime = stopwatchFirebase.elapsedMilliseconds;
-      debugPrint('[AuthService] Firebase respondió en $firebaseTime ms');
-
-      // Verificar que el teléfono no esté en uso (ahora hay sesión activa)
-      if (await _isPhoneTaken(normalizedPhone)) {
-        await credential.user!.delete();
-        debugPrint('[AuthService] Resultado: Teléfono ya registrado');
-        return 'Este número ya está registrado en otra cuenta.';
-      }
-
-      // Verificar que el código estudiantil no esté en uso
-      if (await _isStudentCodeTaken(studentCode)) {
-        await credential.user!.delete();
-        debugPrint('[AuthService] Resultado: Código estudiantil ya registrado');
-        return 'Este código estudiantil ya está registrado.';
+      if (kDebugMode) {
+        stopwatchFirebase.stop();
+        final firebaseTime = stopwatchFirebase.elapsedMilliseconds;
+        debugPrint('[AuthService] Firebase respondió en $firebaseTime ms');
       }
 
       await _db.collection('users').doc(credential.user!.uid).set({
@@ -392,28 +400,30 @@ class AuthService {
       // Enviar correo de verificación
       await credential.user!.sendEmailVerification();
 
-      stopwatchTotal.stop();
-      debugPrint(
-        '[AuthService] Resultado: Cuenta creada exitosamente (total: ${stopwatchTotal.elapsedMilliseconds} ms)',
-      );
+      if (kDebugMode && stopwatchTotal != null) {
+        stopwatchTotal.stop();
+        debugPrint(
+          '[AuthService] Resultado: Cuenta creada exitosamente (total: ${stopwatchTotal.elapsedMilliseconds} ms)',
+        );
+      }
       return 'verification_email_sent';
     } on FirebaseAuthException catch (e) {
       if (e.code == 'email-already-in-use') {
-        debugPrint('[AuthService] Resultado: Email ya registrado');
+        if (kDebugMode) debugPrint('[AuthService] Resultado: Email ya registrado');
         return 'Este correo ya está registrado.';
       }
       if (e.code == 'weak-password') {
-        debugPrint('[AuthService] Resultado: Contraseña débil');
+        if (kDebugMode) debugPrint('[AuthService] Resultado: Contraseña débil');
         return 'La contraseña es demasiado débil.';
       }
       if (e.code == 'invalid-email') {
-        debugPrint('[AuthService] Resultado: Email inválido');
+        if (kDebugMode) debugPrint('[AuthService] Resultado: Email inválido');
         return 'El correo no es válido.';
       }
-      debugPrint('[AuthService] Resultado: Error Firebase — ${e.message}');
+      if (kDebugMode) debugPrint('[AuthService] Resultado: Error Firebase — ${e.message}');
       return 'Error al crear la cuenta: ${e.message}';
     } catch (e) {
-      debugPrint('[AuthService] Resultado: Error inesperado — ${e.toString()}');
+      if (kDebugMode) debugPrint('[AuthService] Resultado: Error inesperado — ${e.toString()}');
       return 'Error inesperado: ${e.toString()}';
     }
   }
@@ -642,7 +652,7 @@ class AuthService {
 
   // Normaliza a 10 dígitos (sin prefijo) para guardar y comparar
   String? _normalizePhone(String phone) {
-    if (phone.isEmpty) return '';
+    if (phone.isEmpty) return null;
     final digits = phone.replaceAll(RegExp(r'\D'), '');
     if (digits.length != 10) return null;
     return digits;
@@ -657,6 +667,7 @@ class AuthService {
       return 'Email de recuperación enviado. Revisa tu bandeja de entrada.';
     } on FirebaseAuthException catch (e) {
       if (e.code == 'user-not-found') return 'Usuario no encontrado.';
+      if (e.code == 'invalid-credential') return 'Correo o contraseña incorrectos.';
       if (e.code == 'invalid-email') return 'Correo inválido.';
       return 'Error al enviar email: ${e.message}';
     } catch (e) {
