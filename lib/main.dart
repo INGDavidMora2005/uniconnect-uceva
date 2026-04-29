@@ -4,7 +4,6 @@ import 'theme/app_theme.dart';
 import 'screens/splash_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/moderation_panel_screen.dart';
-import 'screens/crypto_test_screen.dart';
 import 'screens/email_verification_screen.dart';
 import 'services/notification_service.dart';
 
@@ -29,7 +28,6 @@ class UniConnectApp extends StatelessWidget {
         '/': (context) => const SplashScreen(),
         '/login': (context) => const LoginScreen(),
         '/admin/moderation': (context) => const ModerationPanelScreen(),
-        '/crypto-test': (context) => const CryptoTestScreen(),
         '/email-verification': (context) => const EmailVerificationScreen(email: ''),
       },
     );
