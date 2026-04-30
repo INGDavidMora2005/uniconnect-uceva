@@ -6,6 +6,12 @@ import 'screens/login_screen.dart';
 import 'screens/moderation_panel_screen.dart';
 import 'screens/email_verification_screen.dart';
 import 'services/notification_service.dart';
+import 'screens/profile_screen.dart';
+import 'screens/home_rutas_screen.dart';
+import 'screens/notification_settings_screen.dart';
+import 'screens/notifications_screen.dart';
+
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -14,12 +20,27 @@ void main() async {
   runApp(const UniConnectApp());
 }
 
-class UniConnectApp extends StatelessWidget {
+class UniConnectApp extends StatefulWidget {
   const UniConnectApp({super.key});
+
+  @override
+  State<UniConnectApp> createState() => _UniConnectAppState();
+}
+
+class _UniConnectAppState extends State<UniConnectApp> {
+  @override
+  void initState() {
+    super.initState();
+    // Process initial message after first frame
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      NotificationService().processInitialMessage(context);
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      navigatorKey: navigatorKey,
       title: 'UniConnect',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.theme,
@@ -29,6 +50,15 @@ class UniConnectApp extends StatelessWidget {
         '/login': (context) => const LoginScreen(),
         '/admin/moderation': (context) => const ModerationPanelScreen(),
         '/email-verification': (context) => const EmailVerificationScreen(email: ''),
+        '/perfil': (context) => const ProfileScreen(showBottomNav: false),
+        '/mis-rutas': (context) => const HomeRutasScreen(),
+        '/solicitudes-cupo': (context) => const NotificationsScreen(),
+        '/notification-settings': (context) => const NotificationSettingsScreen(),
+        '/chat': (context) => const Scaffold(
+          body: Center(
+            child: Text('Chat screen placeholder'),
+          ),
+        ),
       },
     );
   }
