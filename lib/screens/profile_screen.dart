@@ -344,41 +344,77 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           ),
                         ),
 
-                        const SizedBox(height: 12),
+                          const SizedBox(height: 12),
 
-                        // ── Botón Mis Publicaciones ─────────
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 20),
-                          child: SizedBox(
-                            width: double.infinity,
-                            height: 48,
-                            child: OutlinedButton(
-                              onPressed: () => Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) =>
-                                      const MisPublicacionesScreen(),
+                          // ── Ajustes de notificaciones ────────
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 20),
+                            child: SizedBox(
+                              width: double.infinity,
+                              child: OutlinedButton(
+                                onPressed: () => Navigator.pushNamed(context, '/notification-settings'),
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: AppColors.accentGreen,
+                                  side: const BorderSide(
+                                    color: AppColors.accentGreen,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
                                 ),
-                              ),
-                              style: OutlinedButton.styleFrom(
-                                foregroundColor: AppColors.accentGreen,
-                                side: const BorderSide(
-                                  color: AppColors.accentGreen,
-                                ),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                              ),
-                              child: const Text(
-                                'Mis Publicaciones',
-                                style: TextStyle(
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.bold,
+                                child: const Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(Icons.notifications_outlined, color: AppColors.accentGreen),
+                                    SizedBox(width: 8),
+                                    Text(
+                                      'Ajustes de notificaciones',
+                                      style: TextStyle(
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
                             ),
                           ),
-                        ),
+
+                          const SizedBox(height: 12),
+
+                         // ── Botón Mis Publicaciones ─────────
+                         Padding(
+                           padding: const EdgeInsets.symmetric(horizontal: 20),
+                           child: SizedBox(
+                             width: double.infinity,
+                             height: 48,
+                             child: OutlinedButton(
+                               onPressed: () => Navigator.push(
+                                 context,
+                                 MaterialPageRoute(
+                                   builder: (_) =>
+                                       const MisPublicacionesScreen(),
+                                 ),
+                               ),
+                               style: OutlinedButton.styleFrom(
+                                 foregroundColor: AppColors.accentGreen,
+                                 side: const BorderSide(
+                                   color: AppColors.accentGreen,
+                                 ),
+                                 shape: RoundedRectangleBorder(
+                                   borderRadius: BorderRadius.circular(12),
+                                 ),
+                               ),
+                               child: const Text(
+                                 'Mis Publicaciones',
+                                 style: TextStyle(
+                                   fontSize: 15,
+                                   fontWeight: FontWeight.bold,
+                                 ),
+                               ),
+                             ),
+                           ),
+                         ),
 
                         const SizedBox(height: 12),
 
