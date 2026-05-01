@@ -8,6 +8,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../models/user_model.dart';
 import 'crypto_service.dart';
+import 'notification_service.dart';
 
 /// Servicio de autenticación con cifrado híbrido RSA-2048 + AES-256-CBC
 /// Implementación basada en Stallings - Cryptography and Network Security
@@ -193,22 +194,28 @@ class AuthService {
       }
 
       final uid = credential.user?.uid;
-      if (uid != null) {
-        final userDoc = await _db.collection('users').doc(uid).get();
-        final isSuspended = userDoc.data()?['suspended'] ?? false;
-        if (isSuspended) {
-          await _auth.signOut();
-          if (kDebugMode) debugPrint('[AuthService] Resultado: Cuenta suspendida');
-          return 'Tu cuenta ha sido suspendida. Contacta al administrador para más información.';
-        }
-      }
-      if (kDebugMode && stopwatchTotal != null) {
-        stopwatchTotal.stop();
-        debugPrint(
-          '[AuthService] Resultado: Inicio de sesión exitoso (total: ${stopwatchTotal.elapsedMilliseconds} ms)',
-        );
-      }
-      return 'Inicio de sesión exitoso.';
+       if (uid != null) {
+         final userDoc = await _db.collection('users').doc(uid).get();
+         final isSuspended = userDoc.data()?['suspended'] ?? false;
+         if (isSuspended) {
+           await _auth.signOut();
+           if (kDebugMode) debugPrint('[AuthService] Resultado: Cuenta suspendida');
+           return 'Tu cuenta ha sido suspendida. Contacta al administrador para más información.';
+         }
+       }
+
+       // Guardar FCM token después del login exitoso
+       try {
+         await NotificationService().saveTokenForCurrentUser();
+       } catch (_) {}
+
+       if (kDebugMode && stopwatchTotal != null) {
+         stopwatchTotal.stop();
+         debugPrint(
+           '[AuthService] Resultado: Inicio de sesión exitoso (total: ${stopwatchTotal.elapsedMilliseconds} ms)',
+         );
+       }
+       return 'Inicio de sesión exitoso.';
     } on FirebaseAuthException catch (e) {
       if (e.code == 'invalid-credential') {
         if (kDebugMode) debugPrint('[AuthService] Resultado: Credenciales incorrectas');
@@ -264,15 +271,20 @@ class AuthService {
           await GoogleSignIn().signOut();
           return 'No se encontró una cuenta registrada con este email. Por favor regístrate primero.';
         }
-        final isSuspended = userDoc.data()?['suspended'] ?? false;
-        if (isSuspended) {
-          await _auth.signOut();
-          await GoogleSignIn().signOut();
-          return 'Tu cuenta ha sido suspendida. Contacta al administrador para más información.';
-        }
-      }
+         final isSuspended = userDoc.data()?['suspended'] ?? false;
+         if (isSuspended) {
+           await _auth.signOut();
+           await GoogleSignIn().signOut();
+           return 'Tu cuenta ha sido suspendida. Contacta al administrador para más información.';
+         }
+       }
 
-      return 'Inicio de sesión exitoso.';
+       // Guardar FCM token después del login exitoso
+       try {
+         await NotificationService().saveTokenForCurrentUser();
+       } catch (_) {}
+
+       return 'Inicio de sesión exitoso.';
     } on FirebaseAuthException catch (e) {
       if (e.code == 'account-exists-with-different-credential') {
         return 'Ya existe una cuenta con este email usando otro método.';
@@ -317,16 +329,6 @@ class AuthService {
         return 'Ingresa un número válido de 10 dígitos (ej: 3001234567)';
       }
 
-      // 1. Validar teléfono ANTES de crear la cuenta
-      if (await _isPhoneTaken(normalizedPhone)) {
-        return 'Este número ya está registrado en otra cuenta.';
-      }
-
-      // 2. Validar código estudiantil ANTES de crear la cuenta
-      if (await _isStudentCodeTaken(studentCode)) {
-        return 'Este código estudiantil ya está registrado.';
-      }
-
       // 3. Solo aquí, intentar cifrar (puede fallar sin consecuencias)
       try {
         if (kDebugMode) debugPrint(
@@ -365,12 +367,27 @@ class AuthService {
       final stopwatchFirebase = Stopwatch()..start();
 
       // 4. Crear la cuenta — ahora sin riesgo de cuenta huérfana
-      final credential = await _auth.createUserWithEmailAndPassword(
-        email: email,
-        password: password,
-      );
+       final credential = await _auth.createUserWithEmailAndPassword(
+         email: email,
+         password: password,
+       );
 
-      if (kDebugMode) {
+       // Forzar refresh del token para que Firestore reconozca el uid
+       await credential.user!.getIdToken(true);
+
+       // Validar teléfono (ahora con sesión activa)
+       if (await _isPhoneTaken(normalizedPhone)) {
+         await credential.user!.delete();
+         return 'Este número ya está registrado en otra cuenta.';
+       }
+
+       // Validar código estudiantil (ahora con sesión activa)
+       if (await _isStudentCodeTaken(studentCode)) {
+         await credential.user!.delete();
+         return 'Este código estudiantil ya está registrado.';
+       }
+
+       if (kDebugMode) {
         stopwatchFirebase.stop();
         final firebaseTime = stopwatchFirebase.elapsedMilliseconds;
         debugPrint('[AuthService] Firebase respondió en $firebaseTime ms');
@@ -675,7 +692,15 @@ class AuthService {
     }
   }
 
-  Future<void> logout() async => await _auth.signOut();
+   Future<void> logout() async {
+    try {
+      final uid = _auth.currentUser?.uid;
+      if (uid != null) {
+        await _db.collection('users').doc(uid).update({'fcmToken': null});
+      }
+    } catch (_) {}
+    await _auth.signOut();
+  }
 
   /// Reenvía el correo de verificación al usuario actual.
   /// Retorna 'sent' si fue exitoso, o un mensaje de error.
