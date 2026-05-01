@@ -11,6 +11,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:http/http.dart' as http;
 import 'package:geolocator/geolocator.dart';
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 
 import '../models/route_model.dart';
 import '../services/location_service.dart';
@@ -37,6 +38,14 @@ import '../theme/app_theme.dart';
 /// ─ Fix #20: Badge "Sin señal" si la posición del conductor no se
 ///   actualizó en los últimos 30 s.
 /// ─ Fix #21: userAgentPackageName correcto.
+///
+/// Bug B-06 (UU-40) — Fallback mejorado para OSRM:
+/// ─ Si OSRM tarda más de 12 s o devuelve error, se dibuja una línea
+///   recta segmentada (8 tramos) entre origen y destino.
+/// ─ Badge "Trayecto aproximado" visible cuando se usa el fallback.
+/// ─ Reintento automático cada 30 s hasta 3 veces.
+/// ─ Todos los errores se reportan a Firebase Crashlytics con código
+///   HTTP y URL.
 class MapaTrayectoScreen extends StatefulWidget {
   final RouteModel route;
   final bool isDriver;
@@ -74,6 +83,14 @@ class _MapaTrayectoScreenState extends State<MapaTrayectoScreen> {
   bool _polylineLoading = false;
   bool _usingRouteFallback = false;
   bool _usingPickupFallback = false;
+
+  // ── UU-40 — fallback mejorado con reintentos ──────────────────────────
+  int _routeRetryCount = 0;
+  Timer? _routeRetryTimer;
+  int _pickupRetryCount = 0;
+  Timer? _pickupRetryTimer;
+  static const int _maxOsrmRetries = 3;
+  static const Duration _osrmRetryInterval = Duration(seconds: 30);
 
   // ── Cambio 2 — control de recalculo del pickup ────────────────────────
   bool _isCalculatingPickup = false;
@@ -297,6 +314,20 @@ class _MapaTrayectoScreenState extends State<MapaTrayectoScreen> {
     return r * 2 * atan2(sqrt(h), sqrt(1 - h));
   }
 
+  /// UU-40: Interpolación segmentada para fallback de polylines.
+  /// Genera [segments] puntos igualmente espaciados entre [from] y [to],
+  /// produciendo una línea recta visualmente suavizada en el mapa.
+  List<LatLng> _interpolateSegmented(LatLng from, LatLng to, {int segments = 8}) {
+    final points = <LatLng>[];
+    for (int i = 0; i <= segments; i++) {
+      final fraction = i / segments;
+      final lat = from.latitude + (to.latitude - from.latitude) * fraction;
+      final lng = from.longitude + (to.longitude - from.longitude) * fraction;
+      points.add(LatLng(lat, lng));
+    }
+    return points;
+  }
+
   /// Retorna la posición del pasajero más cercano al conductor.
   LatLng? _nearestPassenger() {
     if (_driverPosition == null || _passengerPositions.isEmpty) return null;
@@ -328,7 +359,7 @@ class _MapaTrayectoScreenState extends State<MapaTrayectoScreen> {
   }
 
   /// Obtiene la polyline de pickup vía OSRM.
-  /// Fallback: línea recta si OSRM no responde.
+  /// Fallback: línea recta segmentada si OSRM no responde.
   Future<void> _fetchPickupPolyline() async {
     if (_driverPosition == null || _passengerPositions.isEmpty) return;
 
@@ -337,15 +368,14 @@ class _MapaTrayectoScreenState extends State<MapaTrayectoScreen> {
 
     if (mounted) setState(() => _isCalculatingPickup = true);
 
-    try {
-      final driver = _driverPosition!;
-      final uri = Uri.parse(
-        'https://router.project-osrm.org/route/v1/driving/'
-        '${driver.longitude},${driver.latitude};'
-        '${nearest.longitude},${nearest.latitude}'
-        '?overview=full&geometries=geojson',
-      );
+    final Uri uri = Uri.parse(
+      'https://router.project-osrm.org/route/v1/driving/'
+      '${_driverPosition!.longitude},${_driverPosition!.latitude};'
+      '${nearest.longitude},${nearest.latitude}'
+      '?overview=full&geometries=geojson',
+    );
 
+    try {
       final response = await http
           .get(uri, headers: {'User-Agent': 'UniConnectUCEVA/1.0'})
           .timeout(const Duration(seconds: 10));
@@ -368,11 +398,24 @@ class _MapaTrayectoScreenState extends State<MapaTrayectoScreen> {
             _isCalculatingPickup = false;
             _usingPickupFallback = false;
           });
+          _pickupRetryTimer?.cancel();
+          _pickupRetryCount = 0;
           return;
         }
+      } else {
+        await FirebaseCrashlytics.instance.recordError(
+          Exception('OSRM HTTP ${response.statusCode}'),
+          null,
+          reason: 'OSRM [pickup_polyline] status ${response.statusCode} — url: ${uri.toString()}',
+        );
       }
       _applyPickupFallback(nearest);
-    } catch (_) {
+    } catch (e, stack) {
+      await FirebaseCrashlytics.instance.recordError(
+        e,
+        stack,
+        reason: 'OSRM [pickup_polyline] failed — url: ${uri.toString()}',
+      );
       if (mounted) _applyPickupFallback(_nearestPassenger());
     }
   }
@@ -381,11 +424,17 @@ class _MapaTrayectoScreenState extends State<MapaTrayectoScreen> {
     if (!mounted) return;
     setState(() {
       _pickupPolyline = (_driverPosition != null && target != null)
-          ? [_driverPosition!, target]
+          ? _interpolateSegmented(_driverPosition!, target)
           : [];
       _isCalculatingPickup = false;
       _usingPickupFallback = true;
     });
+    if (_pickupRetryCount < _maxOsrmRetries) {
+      _pickupRetryTimer = Timer(_osrmRetryInterval, () {
+        _pickupRetryCount++;
+        _fetchPickupPolyline();
+      });
+    }
   }
 
   // ════════════════════════════════════════════════════════════════════
@@ -396,15 +445,15 @@ class _MapaTrayectoScreenState extends State<MapaTrayectoScreen> {
     if (_originPoint == null || _destPoint == null) return;
     if (mounted) setState(() => _polylineLoading = true);
 
-    try {
-      final uri = Uri.parse(
+    final Uri uri = Uri.parse(
         'https://router.project-osrm.org/route/v1/driving/'
         '${_originPoint!.longitude},${_originPoint!.latitude};'
         '${_destPoint!.longitude},${_destPoint!.latitude}'
         '?overview=full&geometries=geojson',
       );
 
-      final response = await http
+      try {
+        final response = await http
           .get(uri, headers: {'User-Agent': 'UniConnectUCEVA/1.0'})
           .timeout(const Duration(seconds: 12));
 
@@ -427,11 +476,24 @@ class _MapaTrayectoScreenState extends State<MapaTrayectoScreen> {
             _polylineLoading = false;
             _usingRouteFallback = false;
           });
+          _routeRetryTimer?.cancel();
+          _routeRetryCount = 0;
           return;
         }
+      } else {
+        await FirebaseCrashlytics.instance.recordError(
+          Exception('OSRM HTTP ${response.statusCode}'),
+          null,
+          reason: 'OSRM [route_polyline] status ${response.statusCode} — url: ${uri.toString()}',
+        );
       }
       _applyRouteFallback();
-    } catch (_) {
+    } catch (e, stack) {
+      await FirebaseCrashlytics.instance.recordError(
+        e,
+        stack,
+        reason: 'OSRM [route_polyline] failed — url: ${uri.toString()}',
+      );
       if (mounted) _applyRouteFallback();
     }
   }
@@ -440,11 +502,17 @@ class _MapaTrayectoScreenState extends State<MapaTrayectoScreen> {
     if (!mounted) return;
     setState(() {
       _routePolyline = (_originPoint != null && _destPoint != null)
-          ? [_originPoint!, _destPoint!]
+          ? _interpolateSegmented(_originPoint!, _destPoint!)
           : [];
       _polylineLoading = false;
       _usingRouteFallback = true;
     });
+    if (_routeRetryCount < _maxOsrmRetries) {
+      _routeRetryTimer = Timer(_osrmRetryInterval, () {
+        _routeRetryCount++;
+        _fetchRoutePolyline();
+      });
+    }
   }
 
   // ════════════════════════════════════════════════════════════════════
@@ -515,8 +583,8 @@ class _MapaTrayectoScreenState extends State<MapaTrayectoScreen> {
     _driverBroadcastSub?.cancel();
     _routeDocSub?.cancel();
     _stalenessTimer?.cancel();
-
-
+    _routeRetryTimer?.cancel();
+    _pickupRetryTimer?.cancel();
 
     super.dispose();
   }
@@ -791,6 +859,10 @@ class _MapaTrayectoScreenState extends State<MapaTrayectoScreen> {
       _routePolyline = [];
       _pickupPolyline = [];
     });
+    _routeRetryCount = 0;
+    _pickupRetryCount = 0;
+    _routeRetryTimer?.cancel();
+    _pickupRetryTimer?.cancel();
     _fetchRoutePolyline();
     _tryRecalculatePickupPolyline();
   }
@@ -921,9 +993,41 @@ class _MapaTrayectoScreenState extends State<MapaTrayectoScreen> {
             ),
           ),
 
+        // UU-40: Badge "Trayecto aproximado" cuando se usa fallback
+        if (_usingRouteFallback && !_polylineLoading)
+          Positioned(
+            top: 52,
+            left: 0,
+            right: 0,
+            child: Center(
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                decoration: BoxDecoration(
+                  color: Colors.orange.shade50,
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.12),
+                      blurRadius: 6,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.warning_amber_rounded, size: 14, color: Colors.orange.shade800),
+                    const SizedBox(width: 6),
+                    Text('Trayecto aproximado', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.orange.shade800)),
+                  ],
+                ),
+              ),
+            ),
+          ),
+
         // Fix #20: Badge de estado del conductor (solo pasajeros,
         // y solo cuando no hay otro badge cargando)
-        if (!widget.isDriver && !_polylineLoading && !_isCalculatingPickup)
+        if (!widget.isDriver && !_polylineLoading && !_isCalculatingPickup && !_usingRouteFallback)
           Positioned(
             top: 14,
             left: 0,
