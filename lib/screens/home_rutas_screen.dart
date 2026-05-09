@@ -22,7 +22,11 @@ class HomeRutasScreen extends StatefulWidget {
 }
 
 class _HomeRutasScreenState extends State<HomeRutasScreen> {
+  // índice del IndexedStack (0=Rutas, 1=Bazar, 2=Avisos, 3=Perfil)
   int _currentNavIndex = 0;
+  // índice del BottomNavBar (0=Rutas, 1=Bazar, 2=Chats, 3=Avisos, 4=Perfil)
+  int _navBarIndex = 0;
+
   int _selectedFilter = 0;
   final TextEditingController _searchController = TextEditingController();
   final TextEditingController _originController = TextEditingController();
@@ -150,6 +154,14 @@ class _HomeRutasScreenState extends State<HomeRutasScreen> {
     );
   }
 
+  /// Navega al tab de Perfil correctamente
+  void _goToProfile() {
+    setState(() {
+      _currentNavIndex = 3; // IndexedStack: posición 3 = ProfileScreen
+      _navBarIndex = 4;     // BottomNavBar: posición 4 = Perfil
+    });
+  }
+
   Widget _buildRutasContent() {
     return Column(
       children: [
@@ -189,7 +201,7 @@ class _HomeRutasScreenState extends State<HomeRutasScreen> {
                 ],
               ),
               GestureDetector(
-                onTap: () => setState(() => _currentNavIndex = 3),
+                onTap: _goToProfile,
                 child: CircleAvatar(
                   radius: 20,
                   backgroundColor: AppColors.accentGreen,
@@ -469,7 +481,6 @@ class _HomeRutasScreenState extends State<HomeRutasScreen> {
                           r.status != RouteStatus.disponible &&
                           r.status != RouteStatus.llena)
                         return false;
-                      // Ocultar rutas donde el pasajero fue rechazado
                       if (_rejectedRouteIds.contains(r.id)) return false;
                       return true;
                     }).toList();
@@ -516,7 +527,6 @@ class _HomeRutasScreenState extends State<HomeRutasScreen> {
                       itemBuilder: (_, i) => RouteCard(
                         route: filtered[i],
                         onTap: () {},
-                        //  Recargar rutas rechazadas al volver
                         onRefreshRejected: _loadRejectedRoutes,
                       ),
                     );
@@ -622,7 +632,7 @@ class _HomeRutasScreenState extends State<HomeRutasScreen> {
       backgroundColor: AppColors.backgroundApp,
       body: SafeArea(
         child: IndexedStack(
-          index: _currentNavIndex,
+          index: _currentNavIndex, // 0=Rutas, 1=Bazar, 2=Avisos, 3=Perfil
           children: [
             _buildRutasContent(),
             const BazarScreen(),
@@ -642,20 +652,17 @@ class _HomeRutasScreenState extends State<HomeRutasScreen> {
         ),
       ),
       bottomNavigationBar: BottomNavBar(
-        currentIndex: _currentNavIndex,
+        currentIndex: _navBarIndex, // resalta el tab correcto en el nav bar
         onTap: (i) {
           if (i == 2) {
-            // Chats
+            // Chats — navega aparte, no cambia el IndexedStack
             Navigator.pushNamed(context, '/chats');
             return;
           }
-          // Mapear: 0→0, 1→1, 3→2, 4→3
+          // nav 0→page 0, nav 1→page 1, nav 3→page 2, nav 4→page 3
           setState(() {
-            if (i > 2) {
-              _currentNavIndex = i - 1;
-            } else {
-              _currentNavIndex = i;
-            }
+            _navBarIndex = i;
+            _currentNavIndex = i > 2 ? i - 1 : i;
           });
         },
       ),

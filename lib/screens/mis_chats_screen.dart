@@ -59,7 +59,6 @@ class _MisChatsScreenState extends State<MisChatsScreen> {
         _updateChats(driverDocs: snapshot.docs);
       },
       onError: (error) {
-        // Log error pero no romper la UI
         debugPrint('Error en driverChatsStream: $error');
       },
     );
@@ -81,8 +80,6 @@ class _MisChatsScreenState extends State<MisChatsScreen> {
     List<QueryDocumentSnapshot>? driverDocs,
     List<QueryDocumentSnapshot>? passengerDocs,
   }) {
-    // Remover chats que ya no existen en la nueva emisión
-    // (identificados por los que ya no aparecen)
     if (driverDocs != null) {
       final driverIds = driverDocs.map((d) => d.id).toSet();
       _chatsMap.removeWhere((id, _) =>
@@ -92,10 +89,6 @@ class _MisChatsScreenState extends State<MisChatsScreen> {
       }
     }
     if (passengerDocs != null) {
-      final passengerIds =
-          passengerDocs.map((d) => d.id).toSet();
-      // No remover chats que vinieron del driver stream
-      // Solo actualizar/add
       for (final doc in passengerDocs) {
         _chatsMap[doc.id] = doc;
       }
@@ -121,10 +114,12 @@ class _MisChatsScreenState extends State<MisChatsScreen> {
 
   /// Navegar a la pantalla de chat
   void _navigateToChat(BuildContext context, ChatModel chat) {
-    // Determinar el nombre del otro usuario y la info de la ruta
     final otherUserName = chat.driverId == _uid
         ? chat.passengerName
         : chat.driverName;
+    final otherUserId = chat.driverId == _uid
+        ? chat.passengerId
+        : chat.driverId;
     final routeInfo = '${chat.origin} → ${chat.destination}';
 
     Navigator.pushNamed(
@@ -133,6 +128,7 @@ class _MisChatsScreenState extends State<MisChatsScreen> {
       arguments: {
         'chatId': chat.id,
         'otherUserName': otherUserName,
+        'otherUserId': otherUserId,
         'routeInfo': routeInfo,
       },
     );
@@ -165,7 +161,7 @@ class _MisChatsScreenState extends State<MisChatsScreen> {
                   ),
                 ),
                 Text(
-                  '$count active chats',
+                  '$count chats activos',
                   style: TextStyle(
                     fontSize: 12,
                     color: Colors.white.withValues(alpha: 0.8),
@@ -187,7 +183,7 @@ class _MisChatsScreenState extends State<MisChatsScreen> {
                 });
               },
               decoration: InputDecoration(
-                hintText: 'Search chats...',
+                hintText: 'Buscar chats...',
                 prefixIcon: const Icon(
                   Icons.search,
                   color: AppColors.textPlaceholder,
@@ -239,7 +235,7 @@ class _MisChatsScreenState extends State<MisChatsScreen> {
                         ),
                         const SizedBox(height: 16),
                         Text(
-                          'No chats yet',
+                          'Aún no tienes chats',
                           style: TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.bold,
@@ -248,7 +244,7 @@ class _MisChatsScreenState extends State<MisChatsScreen> {
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          'Your route chats will appear here',
+                          'Aquí aparecerán tus chats de rutas',
                           style: TextStyle(
                             fontSize: 14,
                             color: AppColors.textMedium,
@@ -266,7 +262,6 @@ class _MisChatsScreenState extends State<MisChatsScreen> {
                     final chatDoc = filteredChats[index];
                     final chat = ChatModel.fromFirestore(chatDoc);
 
-                    // Determinar el nombre del otro participante
                     final otherName = chat.driverId == _uid
                         ? chat.passengerName
                         : chat.driverName;
@@ -314,7 +309,6 @@ class _ChatTile extends StatelessWidget {
     required this.onTap,
   });
 
-  /// Formatea la hora para mostrar en el chat
   String _formatTime(DateTime time) {
     final hour = time.hour.toString().padLeft(2, '0');
     final minute = time.minute.toString().padLeft(2, '0');
@@ -396,7 +390,7 @@ class _ChatTile extends StatelessWidget {
               // Badge de cerrado o flecha
               if (isClosed)
                 Text(
-                  'Closed',
+                  'Cerrado',
                   style: TextStyle(
                     fontSize: 12,
                     color: AppColors.textLight,
