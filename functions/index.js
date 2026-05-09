@@ -1,6 +1,7 @@
 const { onDocumentCreated, onDocumentUpdated } = require("firebase-functions/v2/firestore");
 const { getFirestore, FieldValue } = require("firebase-admin/firestore");
 const { getMessaging } = require("firebase-admin/messaging");
+const functions = require("firebase-functions");
 
 // Initialize Firebase Admin SDK
 const admin = require("firebase-admin");
@@ -153,3 +154,34 @@ exports.scheduledCloseChatAfter24h = functions.pubsub
       console.error("scheduledCloseChatAfter24h — Error:", error);
     }
   });
+
+// Migration function to add suspended field to existing users
+exports.migrateAddSuspendedField = functions.https.onRequest(async (req, res) => {
+  try {
+    const db = admin.firestore();
+    const usersSnap = await db.collection('users').get();
+    
+    const batch = db.batch();
+    let count = 0;
+    
+    usersSnap.docs.forEach((doc) => {
+      const data = doc.data();
+      // Solo actualizar documentos que NO tienen el campo suspended
+      if (data.suspended === undefined) {
+        batch.update(doc.ref, { suspended: false });
+        count++;
+      }
+    });
+    
+    if (count > 0) {
+      await batch.commit();
+    }
+    
+    res.json({ 
+      success: true, 
+      message: `Updated ${count} users with suspended: false` 
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});

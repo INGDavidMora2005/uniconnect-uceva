@@ -1,23 +1,31 @@
+import 'dart:io';
+
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:image_picker/image_picker.dart';
 import '../theme/app_theme.dart';
 import '../models/chat_model.dart';
-import '../models/user_model.dart';
 import '../services/chat_service.dart';
+import '../services/cloudinary_service.dart';
 
-/// Pantalla de conversación individual entre un conductor y un pasajero.
-/// Recibe [chatId], [otherUserName] y [routeInfo] como argumentos de navegación.
+/// Pantalla de conversación entre dos usuarios.
+/// Soporta chat de rutas (isDirectChat=false) y chat directo (isDirectChat=true).
+/// Permite enviar mensajes de texto e imágenes.
 class ChatScreen extends StatefulWidget {
   final String chatId;
   final String otherUserName;
   final String routeInfo;
+  final bool isDirectChat;
+  final String collectionName;
 
   const ChatScreen({
     super.key,
     required this.chatId,
     required this.otherUserName,
     required this.routeInfo,
+    this.isDirectChat = false,
+    this.collectionName = 'chats',
   });
 
   @override
@@ -28,10 +36,13 @@ class _ChatScreenState extends State<ChatScreen> {
   final _messageController = TextEditingController();
   final _scrollController = ScrollController();
   final _chatService = ChatService();
+  final _picker = ImagePicker();
 
   // UID del usuario actual
   String get _currentUserId =>
       FirebaseAuth.instance.currentUser?.uid ?? '';
+
+  bool _isUploading = false;
 
   @override
   void initState() {
@@ -52,6 +63,7 @@ class _ChatScreenState extends State<ChatScreen> {
       await _chatService.markMessagesAsRead(
         chatId: widget.chatId,
         currentUserId: _currentUserId,
+        collectionName: widget.collectionName,
       );
     } catch (e) {
       // Ignorar errores para no bloquear la UI
@@ -80,6 +92,7 @@ class _ChatScreenState extends State<ChatScreen> {
       chatId: widget.chatId,
       senderId: _currentUserId,
       text: text,
+      collectionName: widget.collectionName,
     );
 
     if (result == 'ok') {
@@ -103,6 +116,51 @@ class _ChatScreenState extends State<ChatScreen> {
           ),
         );
       }
+    }
+  }
+
+  /// Seleccionar imagen de la galería, subirla a Cloudinary y enviarla
+  Future<void> _pickAndSendImage() async {
+    if (_isUploading) return;
+
+    try {
+      final XFile? image =
+          await _picker.pickImage(source: ImageSource.gallery);
+      if (image == null) return;
+
+      setState(() => _isUploading = true);
+
+      final imageUrl =
+          await CloudinaryService.uploadImage(File(image.path));
+
+      if (!mounted) return;
+
+      final result = await _chatService.sendImageMessage(
+        collectionName: widget.collectionName,
+        chatId: widget.chatId,
+        senderId: _currentUserId,
+        imageUrl: imageUrl,
+      );
+
+      if (result != 'ok' && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al enviar imagen: $result'),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al subir imagen: $e'),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isUploading = false);
     }
   }
 
@@ -160,7 +218,7 @@ class _ChatScreenState extends State<ChatScreen> {
           // ── Stream para detectar si el chat está cerrado ──────────
           StreamBuilder<DocumentSnapshot>(
             stream: FirebaseFirestore.instance
-                .collection('chats')
+                .collection(widget.collectionName)
                 .doc(widget.chatId)
                 .snapshots(),
             builder: (context, chatSnapshot) {
@@ -174,7 +232,10 @@ class _ChatScreenState extends State<ChatScreen> {
                   children: [
                     // ── Mensajes ──────────────────────────────────
                     StreamBuilder<QuerySnapshot>(
-                      stream: _chatService.messagesStream(widget.chatId),
+                      stream: _chatService.messagesStream(
+                        widget.chatId,
+                        collectionName: widget.collectionName,
+                      ),
                       builder: (context, snapshot) {
                         if (!snapshot.hasData) {
                           return const Center(
@@ -202,6 +263,12 @@ class _ChatScreenState extends State<ChatScreen> {
                             );
                             final isMine =
                                 msg.senderId == _currentUserId;
+                            // Leer imageUrl directamente del snapshot
+                            // sin modificar MessageModel
+                            final data = messages[index]
+                                .data() as Map<String, dynamic>;
+                            final imageUrl =
+                                data['imageUrl'] as String?;
 
                             return Container(
                               margin:
@@ -271,15 +338,39 @@ class _ChatScreenState extends State<ChatScreen> {
                                       crossAxisAlignment:
                                           CrossAxisAlignment.start,
                                       children: [
-                                        Text(
-                                          msg.text,
-                                          style: TextStyle(
-                                            fontSize: 15,
-                                            color: isMine
-                                                ? Colors.white
-                                                : AppColors.textDark,
+                                        if (imageUrl != null &&
+                                            imageUrl.isNotEmpty)
+                                          // Mostrar imagen
+                                          ClipRRect(
+                                            borderRadius:
+                                                BorderRadius.circular(
+                                                    12),
+                                            child: Image.network(
+                                              imageUrl,
+                                              fit: BoxFit.cover,
+                                              width: 200,
+                                              errorBuilder: (context,
+                                                  error, stackTrace) {
+                                                return const Icon(
+                                                  Icons
+                                                      .broken_image,
+                                                  size: 48,
+                                                );
+                                              },
+                                            ),
+                                          )
+                                        else
+                                          // Mostrar texto
+                                          Text(
+                                            msg.text,
+                                            style: TextStyle(
+                                              fontSize: 15,
+                                              color: isMine
+                                                  ? Colors.white
+                                                  : AppColors
+                                                      .textDark,
+                                            ),
                                           ),
-                                        ),
                                         const SizedBox(height: 4),
                                         Row(
                                           mainAxisSize: MainAxisSize.min,
@@ -342,7 +433,7 @@ class _ChatScreenState extends State<ChatScreen> {
           // ── Input de mensaje ──────────────────────────────────
           StreamBuilder<DocumentSnapshot>(
             stream: FirebaseFirestore.instance
-                .collection('chats')
+                .collection(widget.collectionName)
                 .doc(widget.chatId)
                 .snapshots(),
             builder: (context, chatSnapshot) {
@@ -374,6 +465,14 @@ class _ChatScreenState extends State<ChatScreen> {
                 ),
                 child: Row(
                   children: [
+                    // Botón de galería para enviar imágenes
+                    IconButton(
+                      icon: const Icon(Icons.image_outlined,
+                          color: AppColors.textPlaceholder),
+                      onPressed: isClosed ? null : _pickAndSendImage,
+                      tooltip: 'Enviar imagen',
+                    ),
+                    const SizedBox(width: 4),
                     Expanded(
                       child: TextField(
                         controller: _messageController,
@@ -384,9 +483,7 @@ class _ChatScreenState extends State<ChatScreen> {
                               ? 'Chat cerrado'
                               : 'Escribe un mensaje...',
                           hintStyle: TextStyle(
-                            color: isClosed
-                                ? AppColors.textPlaceholder
-                                : AppColors.textPlaceholder,
+                            color: AppColors.textPlaceholder,
                           ),
                           border: OutlineInputBorder(
                             borderRadius:
@@ -425,8 +522,27 @@ class _ChatScreenState extends State<ChatScreen> {
                       ),
                     ),
                     const SizedBox(width: 8),
-                    // Contador y botón de enviar
-                    _buildSendButton(isClosed),
+                    // Indicador de subida o botón enviar
+                    _isUploading
+                        ? Container(
+                            width: 40,
+                            height: 40,
+                            decoration: BoxDecoration(
+                              color: AppColors.primaryGreen,
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Center(
+                              child: SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                          )
+                        : _buildSendButton(isClosed),
                   ],
                 ),
               );

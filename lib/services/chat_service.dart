@@ -72,6 +72,7 @@ class ChatService {
     required String chatId,
     required String senderId,
     required String text,
+    String collectionName = 'chats',
   }) async {
     try {
       if (text.trim().isEmpty) {
@@ -82,7 +83,7 @@ class ChatService {
       }
 
       // Verificar que el chat no esté cerrado
-      final chatDoc = await _db.collection('chats').doc(chatId).get();
+      final chatDoc = await _db.collection(collectionName).doc(chatId).get();
       if (!chatDoc.exists) {
         return 'error:chat_no_existe';
       }
@@ -93,7 +94,7 @@ class ChatService {
 
       // Guardar mensaje en la subcolección messages
       final messageRef = _db
-          .collection('chats')
+          .collection(collectionName)
           .doc(chatId)
           .collection('messages')
           .doc();
@@ -119,11 +120,12 @@ class ChatService {
   Future<void> markMessagesAsRead({
     required String chatId,
     required String currentUserId,
+    String collectionName = 'chats',
   }) async {
     try {
       // Query: mensajes donde senderId != currentUserId AND status != 'read'
       final unreadMessages = await _db
-          .collection('chats')
+          .collection(collectionName)
           .doc(chatId)
           .collection('messages')
           .where('senderId', isNotEqualTo: currentUserId)
@@ -145,9 +147,12 @@ class ChatService {
   // ─────────────────────────────────────────────
   // 4. Stream de mensajes de un chat
   // ─────────────────────────────────────────────
-  Stream<QuerySnapshot> messagesStream(String chatId) {
+  Stream<QuerySnapshot> messagesStream(
+    String chatId, {
+    String collectionName = 'chats',
+  }) {
     return _db
-        .collection('chats')
+        .collection(collectionName)
         .doc(chatId)
         .collection('messages')
         .orderBy('sentAt', descending: false)
@@ -191,5 +196,99 @@ class ChatService {
     } catch (e) {
       // Manejar error
     }
+  }
+
+  // ─────────────────────────────────────────────
+  // 7. Enviar mensaje con imagen
+  // ─────────────────────────────────────────────
+  Future<String> sendImageMessage({
+    required String chatId,
+    required String senderId,
+    required String imageUrl,
+    String collectionName = 'chats',
+  }) async {
+    try {
+      await _db
+          .collection(collectionName)
+          .doc(chatId)
+          .collection('messages')
+          .add({
+        'senderId': senderId,
+        'text': '',
+        'imageUrl': imageUrl,
+        'sentAt': FieldValue.serverTimestamp(),
+        'status': 'sent',
+      });
+      return 'ok';
+    } catch (e) {
+      return 'error:$e';
+    }
+  }
+
+  // ─────────────────────────────────────────────
+  // 8. Obtener o crear un chat directo entre dos usuarios
+  // ─────────────────────────────────────────────
+  Future<String> getOrCreateDirectChat({
+    required String currentUserId,
+    required String currentUserName,
+    required String otherUserId,
+    required String otherUserName,
+  }) async {
+    try {
+      // IDs ordenados alfabéticamente para generar un chatId único
+      final ids = [currentUserId, otherUserId]..sort();
+      final chatId = ids.join('_');
+
+      // Verificar si el chat directo ya existe
+      final chatDoc =
+          await _db.collection('direct_chats').doc(chatId).get();
+      if (chatDoc.exists) {
+        return chatId;
+      }
+
+      // Determinar user1 y user2 por orden alfabético de IDs
+      final user1Id = ids[0];
+      final user2Id = ids[1];
+      final user1Name =
+          user1Id == currentUserId ? currentUserName : otherUserName;
+      final user2Name =
+          user2Id == currentUserId ? currentUserName : otherUserName;
+
+      await _db.collection('direct_chats').doc(chatId).set({
+        'user1Id':     user1Id,
+        'user2Id':     user2Id,
+        'user1Name':   user1Name,
+        'user2Name':   user2Name,
+        'createdAt':   FieldValue.serverTimestamp(),
+        'lastMessage': null,
+        'lastMessageAt': null,
+        'adminVisible': true,
+      });
+      return chatId;
+    } catch (e) {
+      return 'error:$e';
+    }
+  }
+
+  // ─────────────────────────────────────────────
+  // 10. Streams de chats directos del usuario
+  // NOTA: se usan dos consultas separadas porque rxdart
+  // no está disponible. La pantalla combina ambas en el UI.
+  // ─────────────────────────────────────────────
+
+  /// Chats directos donde el usuario es user1
+  Stream<QuerySnapshot> user1DirectChatsStream(String userId) {
+    return _db
+        .collection('direct_chats')
+        .where('user1Id', isEqualTo: userId)
+        .snapshots();
+  }
+
+  /// Chats directos donde el usuario es user2
+  Stream<QuerySnapshot> user2DirectChatsStream(String userId) {
+    return _db
+        .collection('direct_chats')
+        .where('user2Id', isEqualTo: userId)
+        .snapshots();
   }
 }

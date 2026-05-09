@@ -18,7 +18,7 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  int _currentNavIndex = 3;
+  int _currentNavIndex = 4;
   UserModel? _user;
   bool _loading = true;
 
