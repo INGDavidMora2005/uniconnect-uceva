@@ -3,11 +3,9 @@ import 'dart:async';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import '../theme/app_theme.dart';
 import '../models/chat_model.dart';
 import '../services/chat_service.dart';
-import 'chat_screen.dart';
 
 /// Pantalla que lista todos los chats del usuario actual, tanto como
 /// conductor como pasajero. Combina dos streams separados porque
@@ -34,6 +32,9 @@ class _MisChatsScreenState extends State<MisChatsScreen> {
 
   StreamSubscription? _driverSub;
   StreamSubscription? _passengerSub;
+
+  // Texto de búsqueda para filtrar chats
+  String _searchQuery = '';
 
   @override
   void initState() {
@@ -143,15 +144,60 @@ class _MisChatsScreenState extends State<MisChatsScreen> {
       appBar: AppBar(
         backgroundColor: AppColors.primaryGreen,
         foregroundColor: Colors.white,
-        title: const Text(
-          'Mis chats',
-          style: TextStyle(
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
-            color: Colors.white,
-          ),
+        title: StreamBuilder<List<QueryDocumentSnapshot>>(
+          stream: _combinedController.stream,
+          builder: (context, snapshot) {
+            final count = snapshot.hasData
+                ? snapshot.data!.where((doc) {
+                    final chat = ChatModel.fromFirestore(doc);
+                    return !chat.isClosed;
+                  }).length
+                : 0;
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Chats',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+                Text(
+                  '$count active chats',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.white.withValues(alpha: 0.8),
+                  ),
+                ),
+              ],
+            );
+          },
         ),
         centerTitle: false,
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(48),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: TextField(
+              onChanged: (value) {
+                setState(() {
+                  _searchQuery = value;
+                });
+              },
+              decoration: InputDecoration(
+                hintText: 'Search chats...',
+                prefixIcon: const Icon(
+                  Icons.search,
+                  color: AppColors.textPlaceholder,
+                  size: 20,
+                ),
+                contentPadding: const EdgeInsets.symmetric(vertical: 8),
+              ),
+            ),
+          ),
+        ),
       ),
       body: _uid.isEmpty
           ? const Center(
@@ -168,22 +214,44 @@ class _MisChatsScreenState extends State<MisChatsScreen> {
 
                 final chats = combinedSnapshot.data!;
 
-                if (chats.isEmpty) {
+                // Filtrar chats por nombre del otro usuario
+                final filteredChats = _searchQuery.isEmpty
+                    ? chats
+                    : chats.where((chatDoc) {
+                        final chat = ChatModel.fromFirestore(chatDoc);
+                        final otherName = chat.driverId == _uid
+                            ? chat.passengerName
+                            : chat.driverName;
+                        return otherName
+                            .toLowerCase()
+                            .contains(_searchQuery.toLowerCase());
+                      }).toList();
+
+                if (filteredChats.isEmpty) {
                   return Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Icon(
                           Icons.chat_bubble_outline,
-                          size: 64,
-                          color: AppColors.textLight,
+                          size: 80,
+                          color: AppColors.accentGreen,
                         ),
                         const SizedBox(height: 16),
                         Text(
-                          'No tienes chats activos',
+                          'No chats yet',
                           style: TextStyle(
-                            fontSize: 16,
-                            color: AppColors.textLight,
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.textDark,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Your route chats will appear here',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: AppColors.textMedium,
                           ),
                         ),
                       ],
@@ -192,10 +260,10 @@ class _MisChatsScreenState extends State<MisChatsScreen> {
                 }
 
                 return ListView.builder(
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  itemCount: chats.length,
+                  padding: const EdgeInsets.only(top: 8, bottom: 80),
+                  itemCount: filteredChats.length,
                   itemBuilder: (context, index) {
-                    final chatDoc = chats[index];
+                    final chatDoc = filteredChats[index];
                     final chat = ChatModel.fromFirestore(chatDoc);
 
                     // Determinar el nombre del otro participante
@@ -205,11 +273,22 @@ class _MisChatsScreenState extends State<MisChatsScreen> {
                     final routeInfo =
                         '${chat.origin} → ${chat.destination}';
 
-                    return _ChatTile(
-                      otherUserName: otherName,
-                      routeInfo: routeInfo,
-                      isClosed: chat.isClosed,
-                      onTap: () => _navigateToChat(context, chat),
+                    return Column(
+                      children: [
+                        _ChatTile(
+                          otherUserName: otherName,
+                          routeInfo: routeInfo,
+                          isClosed: chat.isClosed,
+                          createdAt: chat.createdAt,
+                          onTap: () => _navigateToChat(context, chat),
+                        ),
+                        if (index < filteredChats.length - 1)
+                          const Divider(
+                            height: 1,
+                            indent: 80,
+                            color: AppColors.borderDefault,
+                          ),
+                      ],
                     );
                   },
                 );
@@ -224,57 +303,115 @@ class _ChatTile extends StatelessWidget {
   final String otherUserName;
   final String routeInfo;
   final bool isClosed;
+  final DateTime createdAt;
   final VoidCallback onTap;
 
   const _ChatTile({
     required this.otherUserName,
     required this.routeInfo,
     required this.isClosed,
+    required this.createdAt,
     required this.onTap,
   });
 
+  /// Formatea la hora para mostrar en el chat
+  String _formatTime(DateTime time) {
+    final hour = time.hour.toString().padLeft(2, '0');
+    final minute = time.minute.toString().padLeft(2, '0');
+    return '$hour:$minute';
+  }
+
   @override
   Widget build(BuildContext context) {
-    return ListTile(
+    return InkWell(
       onTap: isClosed ? null : onTap,
-      leading: CircleAvatar(
-        backgroundColor: isClosed
-            ? AppColors.textLight
-            : AppColors.accentGreen,
-        child: const Icon(
-          Icons.person,
-          color: Colors.white,
-          size: 24,
+      child: SizedBox(
+        height: 72,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Row(
+            children: [
+              // Avatar con iniciales
+              CircleAvatar(
+                radius: 26,
+                backgroundColor: isClosed
+                    ? AppColors.textLight
+                    : AppColors.accentGreen,
+                child: Text(
+                  otherUserName.isNotEmpty
+                      ? otherUserName[0].toUpperCase()
+                      : '?',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              // Contenido principal
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            otherUserName,
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                              color: isClosed
+                                  ? AppColors.textLight
+                                  : AppColors.textDark,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        Text(
+                          _formatTime(createdAt),
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: AppColors.textLight,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      routeInfo,
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: AppColors.textMedium,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              // Badge de cerrado o flecha
+              if (isClosed)
+                Text(
+                  'Closed',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: AppColors.textLight,
+                  ),
+                )
+              else
+                const Icon(
+                  Icons.arrow_forward_ios,
+                  size: 16,
+                  color: AppColors.textLight,
+                ),
+            ],
+          ),
         ),
       ),
-      title: Text(
-        otherUserName,
-        style: TextStyle(
-          fontWeight: FontWeight.w600,
-          fontSize: 16,
-          color: isClosed
-              ? AppColors.textLight
-              : AppColors.textDark,
-        ),
-      ),
-      subtitle: Text(
-        routeInfo,
-        style: const TextStyle(
-          fontSize: 13,
-          color: AppColors.textMedium,
-        ),
-      ),
-      trailing: isClosed
-          ? const Icon(
-              Icons.lock_outline,
-              size: 20,
-              color: AppColors.textLight,
-            )
-          : const Icon(
-              Icons.arrow_forward_ios,
-              size: 16,
-              color: AppColors.textLight,
-            ),
     );
   }
 }

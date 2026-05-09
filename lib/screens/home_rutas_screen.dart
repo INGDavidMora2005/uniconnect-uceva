@@ -643,7 +643,21 @@ class _HomeRutasScreenState extends State<HomeRutasScreen> {
       ),
       bottomNavigationBar: BottomNavBar(
         currentIndex: _currentNavIndex,
-        onTap: (i) => setState(() => _currentNavIndex = i),
+        onTap: (i) {
+          if (i == 2) {
+            // Chats
+            Navigator.pushNamed(context, '/chats');
+            return;
+          }
+          // Mapear: 0→0, 1→1, 3→2, 4→3
+          setState(() {
+            if (i > 2) {
+              _currentNavIndex = i - 1;
+            } else {
+              _currentNavIndex = i;
+            }
+          });
+        },
       ),
     );
   }
