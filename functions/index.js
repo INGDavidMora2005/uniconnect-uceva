@@ -46,7 +46,6 @@ exports.onCupoResponded = onDocumentUpdated("cupo_requests/{requestId}", async (
   const before = event.data.before.data();
   const after = event.data.after.data();
   if (!before || !after) return;
-  // Only act if status changed from pending to accepted/rejected
   if (before.status !== "pending") return;
   if (after.status !== "accepted" && after.status !== "rejected") return;
   const { passengerId, origin, destination } = after;
@@ -60,16 +59,21 @@ exports.onCupoResponded = onDocumentUpdated("cupo_requests/{requestId}", async (
   });
 });
 
-// 3. onNewMessage
-exports.onNewMessage = onDocumentCreated("messages/{chatId}/messages/{messageId}", async (event) => {
+// 3. onNewMessage — CORREGIDO: ruta apunta a chats/{chatId}/messages/{messageId}
+exports.onNewMessage = onDocumentCreated("chats/{chatId}/messages/{messageId}", async (event) => {
   const snapshot = event.data;
   if (!snapshot) return;
   const data = snapshot.data();
-  const { receiverId, senderName, text } = data;
+  const { receiverId, senderId, text } = data;
   if (!receiverId) return;
   const token = await getFcmToken(receiverId);
+  // Obtener nombre del remitente desde Firestore
+  const senderDoc = await getFirestore().doc(`users/${senderId}`).get();
+  const senderName = senderDoc.exists ? (senderDoc.data()?.name ?? "Alguien") : "Alguien";
   const title = `Nuevo mensaje de ${senderName}`;
-  const body = text.substring(0, 50) + (text.length > 50 ? "..." : "");
+  const body = text && text.length > 0
+    ? text.substring(0, 50) + (text.length > 50 ? "..." : "")
+    : "Te envió un mensaje";
   await sendPush(token, title, body, { type: "new_message", chatId: event.params.chatId });
 });
 
@@ -87,7 +91,6 @@ exports.onRatingReceived = onDocumentCreated("ratings/{ratingId}", async (event)
 });
 
 // 5. scheduledCloseChatAfter24h — Ejecutarse cada hora
-// Busca rutas finalizadas hace más de 24h y cierra los chats asociados que aún estén abiertos.
 exports.scheduledCloseChatAfter24h = functions.pubsub
   .schedule("every 1 hours")
   .onRun(async (context) => {
@@ -96,8 +99,6 @@ exports.scheduledCloseChatAfter24h = functions.pubsub
     let closedCount = 0;
 
     try {
-      // Paso 1: Obtener todas las rutas con estado "Completada" (o similar)
-      // Se asume que las rutas finalizadas tienen un campo `status` con valor "Completada"
       const completedRoutes = await db
         .collection("routes")
         .where("status", "==", "Completada")
@@ -109,7 +110,6 @@ exports.scheduledCloseChatAfter24h = functions.pubsub
         const routeData = routeDoc.data();
         const updatedAt = routeData.updatedAt;
 
-        // Si no tiene updatedAt, saltar
         if (!updatedAt) continue;
 
         const updatedAtTimestamp =
@@ -119,13 +119,11 @@ exports.scheduledCloseChatAfter24h = functions.pubsub
                 new Date(updatedAt.seconds * 1000)
               );
 
-        // Verificar si han pasado al menos 24 horas desde la última actualización
         const diffMs = now.toMillis() - updatedAtTimestamp.toMillis();
         const twentyFourHoursMs = 24 * 60 * 60 * 1000;
 
         if (diffMs < twentyFourHoursMs) continue;
 
-        // Paso 2: Buscar chats asociados a esta ruta que aún no estén cerrados
         const chatsSnapshot = await db
           .collection("chats")
           .where("routeId", "==", routeDoc.id)
@@ -141,12 +139,9 @@ exports.scheduledCloseChatAfter24h = functions.pubsub
         }
       }
 
-      // Ejecutar el batch
       if (closedCount > 0) {
         await batch.commit();
-        console.log(
-          `scheduledCloseChatAfter24h: Se cerraron ${closedCount} chat(s).`
-        );
+        console.log(`scheduledCloseChatAfter24h: Se cerraron ${closedCount} chat(s).`);
       } else {
         console.log("scheduledCloseChatAfter24h: No se encontraron chats para cerrar.");
       }
@@ -160,26 +155,25 @@ exports.migrateAddSuspendedField = functions.https.onRequest(async (req, res) =>
   try {
     const db = admin.firestore();
     const usersSnap = await db.collection('users').get();
-    
+
     const batch = db.batch();
     let count = 0;
-    
+
     usersSnap.docs.forEach((doc) => {
       const data = doc.data();
-      // Solo actualizar documentos que NO tienen el campo suspended
       if (data.suspended === undefined) {
         batch.update(doc.ref, { suspended: false });
         count++;
       }
     });
-    
+
     if (count > 0) {
       await batch.commit();
     }
-    
-    res.json({ 
-      success: true, 
-      message: `Updated ${count} users with suspended: false` 
+
+    res.json({
+      success: true,
+      message: `Updated ${count} users with suspended: false`
     });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });

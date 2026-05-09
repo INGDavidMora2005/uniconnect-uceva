@@ -1,20 +1,16 @@
-import 'dart:io';
-
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
 import '../theme/app_theme.dart';
 import '../models/chat_model.dart';
 import '../services/chat_service.dart';
-import '../services/cloudinary_service.dart';
 
 /// Pantalla de conversación entre dos usuarios.
 /// Soporta chat de rutas (isDirectChat=false) y chat directo (isDirectChat=true).
-/// Permite enviar mensajes de texto e imágenes.
 class ChatScreen extends StatefulWidget {
   final String chatId;
   final String otherUserName;
+  final String otherUserId;
   final String routeInfo;
   final bool isDirectChat;
   final String collectionName;
@@ -23,6 +19,7 @@ class ChatScreen extends StatefulWidget {
     super.key,
     required this.chatId,
     required this.otherUserName,
+    required this.otherUserId,
     required this.routeInfo,
     this.isDirectChat = false,
     this.collectionName = 'chats',
@@ -36,18 +33,15 @@ class _ChatScreenState extends State<ChatScreen> {
   final _messageController = TextEditingController();
   final _scrollController = ScrollController();
   final _chatService = ChatService();
-  final _picker = ImagePicker();
 
   // UID del usuario actual
   String get _currentUserId =>
       FirebaseAuth.instance.currentUser?.uid ?? '';
 
-  bool _isUploading = false;
-
   @override
   void initState() {
     super.initState();
-    // Marcar mensajes como leídos al abrir el chat
+    // Marcar mensajes como recibidos y leídos al abrir el chat
     _markAsRead();
   }
 
@@ -60,6 +54,11 @@ class _ChatScreenState extends State<ChatScreen> {
 
   Future<void> _markAsRead() async {
     try {
+      await _chatService.markMessagesAsReceived(
+        chatId: widget.chatId,
+        currentUserId: _currentUserId,
+        collectionName: widget.collectionName,
+      );
       await _chatService.markMessagesAsRead(
         chatId: widget.chatId,
         currentUserId: _currentUserId,
@@ -91,6 +90,7 @@ class _ChatScreenState extends State<ChatScreen> {
     final result = await _chatService.sendMessage(
       chatId: widget.chatId,
       senderId: _currentUserId,
+      receiverId: widget.otherUserId,
       text: text,
       collectionName: widget.collectionName,
     );
@@ -119,51 +119,6 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
-  /// Seleccionar imagen de la galería, subirla a Cloudinary y enviarla
-  Future<void> _pickAndSendImage() async {
-    if (_isUploading) return;
-
-    try {
-      final XFile? image =
-          await _picker.pickImage(source: ImageSource.gallery);
-      if (image == null) return;
-
-      setState(() => _isUploading = true);
-
-      final imageUrl =
-          await CloudinaryService.uploadImage(File(image.path));
-
-      if (!mounted) return;
-
-      final result = await _chatService.sendImageMessage(
-        collectionName: widget.collectionName,
-        chatId: widget.chatId,
-        senderId: _currentUserId,
-        imageUrl: imageUrl,
-      );
-
-      if (result != 'ok' && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error al enviar imagen: $result'),
-            backgroundColor: Colors.redAccent,
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error al subir imagen: $e'),
-            backgroundColor: Colors.redAccent,
-          ),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _isUploading = false);
-    }
-  }
-
   /// Construir ícono de estado del mensaje
   Widget _buildStatusIcon(String status) {
     switch (status) {
@@ -171,8 +126,10 @@ class _ChatScreenState extends State<ChatScreen> {
         return Icon(Icons.done_all,
             size: 16, color: AppColors.accentGreen);
       case 'received':
-      case 'sent':
         return Icon(Icons.done_all,
+            size: 16, color: AppColors.textLight);
+      case 'sent':
+        return Icon(Icons.done,
             size: 16, color: AppColors.textLight);
       default:
         return Icon(Icons.done, size: 16, color: AppColors.textLight);
@@ -263,12 +220,6 @@ class _ChatScreenState extends State<ChatScreen> {
                             );
                             final isMine =
                                 msg.senderId == _currentUserId;
-                            // Leer imageUrl directamente del snapshot
-                            // sin modificar MessageModel
-                            final data = messages[index]
-                                .data() as Map<String, dynamic>;
-                            final imageUrl =
-                                data['imageUrl'] as String?;
 
                             return Container(
                               margin:
@@ -338,46 +289,21 @@ class _ChatScreenState extends State<ChatScreen> {
                                       crossAxisAlignment:
                                           CrossAxisAlignment.start,
                                       children: [
-                                        if (imageUrl != null &&
-                                            imageUrl.isNotEmpty)
-                                          // Mostrar imagen
-                                          ClipRRect(
-                                            borderRadius:
-                                                BorderRadius.circular(
-                                                    12),
-                                            child: Image.network(
-                                              imageUrl,
-                                              fit: BoxFit.cover,
-                                              width: 200,
-                                              errorBuilder: (context,
-                                                  error, stackTrace) {
-                                                return const Icon(
-                                                  Icons
-                                                      .broken_image,
-                                                  size: 48,
-                                                );
-                                              },
-                                            ),
-                                          )
-                                        else
-                                          // Mostrar texto
-                                          Text(
-                                            msg.text,
-                                            style: TextStyle(
-                                              fontSize: 15,
-                                              color: isMine
-                                                  ? Colors.white
-                                                  : AppColors
-                                                      .textDark,
-                                            ),
+                                        Text(
+                                          msg.text,
+                                          style: TextStyle(
+                                            fontSize: 15,
+                                            color: isMine
+                                                ? Colors.white
+                                                : AppColors.textDark,
                                           ),
+                                        ),
                                         const SizedBox(height: 4),
                                         Row(
                                           mainAxisSize: MainAxisSize.min,
                                           children: [
                                             Text(
-                                              _formatTime(
-                                                  msg.sentAt),
+                                              _formatTime(msg.sentAt),
                                               style: TextStyle(
                                                 fontSize: 11,
                                                 color: isMine
@@ -387,8 +313,7 @@ class _ChatScreenState extends State<ChatScreen> {
                                               ),
                                             ),
                                             const SizedBox(width: 4),
-                                            _buildStatusIcon(
-                                                msg.status),
+                                            _buildStatusIcon(msg.status),
                                           ],
                                         ),
                                       ],
@@ -465,14 +390,6 @@ class _ChatScreenState extends State<ChatScreen> {
                 ),
                 child: Row(
                   children: [
-                    // Botón de galería para enviar imágenes
-                    IconButton(
-                      icon: const Icon(Icons.image_outlined,
-                          color: AppColors.textPlaceholder),
-                      onPressed: isClosed ? null : _pickAndSendImage,
-                      tooltip: 'Enviar imagen',
-                    ),
-                    const SizedBox(width: 4),
                     Expanded(
                       child: TextField(
                         controller: _messageController,
@@ -513,36 +430,13 @@ class _ChatScreenState extends State<ChatScreen> {
                           contentPadding:
                               const EdgeInsets.symmetric(
                                   horizontal: 16, vertical: 8),
-                          counterText: isClosed
-                              ? null
-                              : null,
                         ),
                         onSubmitted: (_) => _sendMessage(),
                         onChanged: (_) => setState(() {}),
                       ),
                     ),
                     const SizedBox(width: 8),
-                    // Indicador de subida o botón enviar
-                    _isUploading
-                        ? Container(
-                            width: 40,
-                            height: 40,
-                            decoration: BoxDecoration(
-                              color: AppColors.primaryGreen,
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Center(
-                              child: SizedBox(
-                                width: 20,
-                                height: 20,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: Colors.white,
-                                ),
-                              ),
-                            ),
-                          )
-                        : _buildSendButton(isClosed),
+                    _buildSendButton(isClosed),
                   ],
                 ),
               );
@@ -553,7 +447,7 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
-  /// Botón de enviar con contador de caracteres
+  /// Botón de enviar
   Widget _buildSendButton(bool isClosed) {
     final length = _messageController.text.length;
     final canSend = length > 0 && length <= 500 && !isClosed;

@@ -71,6 +71,7 @@ class ChatService {
   Future<String> sendMessage({
     required String chatId,
     required String senderId,
+    required String receiverId,
     required String text,
     String collectionName = 'chats',
   }) async {
@@ -107,7 +108,10 @@ class ChatService {
         status:    'sent',
       );
 
-      await messageRef.set(message.toMap());
+      await messageRef.set({
+        ...message.toMap(),
+        'receiverId': receiverId,
+      });
       return 'ok';
     } catch (e) {
       return 'error:$e';
@@ -115,7 +119,36 @@ class ChatService {
   }
 
   // ─────────────────────────────────────────────
-  // 3. Marcar mensajes como leídos
+  // 3. Marcar mensajes como recibidos
+  // ─────────────────────────────────────────────
+  Future<void> markMessagesAsReceived({
+    required String chatId,
+    required String currentUserId,
+    String collectionName = 'chats',
+  }) async {
+    try {
+      final undelivered = await _db
+          .collection(collectionName)
+          .doc(chatId)
+          .collection('messages')
+          .where('senderId', isNotEqualTo: currentUserId)
+          .where('status', isEqualTo: 'sent')
+          .get();
+
+      if (undelivered.docs.isEmpty) return;
+
+      final batch = _db.batch();
+      for (final doc in undelivered.docs) {
+        batch.update(doc.reference, {'status': 'received'});
+      }
+      await batch.commit();
+    } catch (e) {
+      // Ignorar para no bloquear la UI
+    }
+  }
+
+  // ─────────────────────────────────────────────
+  // 4. Marcar mensajes como leídos
   // ─────────────────────────────────────────────
   Future<void> markMessagesAsRead({
     required String chatId,
@@ -123,7 +156,6 @@ class ChatService {
     String collectionName = 'chats',
   }) async {
     try {
-      // Query: mensajes donde senderId != currentUserId AND status != 'read'
       final unreadMessages = await _db
           .collection(collectionName)
           .doc(chatId)
@@ -145,7 +177,7 @@ class ChatService {
   }
 
   // ─────────────────────────────────────────────
-  // 4. Stream de mensajes de un chat
+  // 5. Stream de mensajes de un chat
   // ─────────────────────────────────────────────
   Stream<QuerySnapshot> messagesStream(
     String chatId, {
@@ -160,7 +192,7 @@ class ChatService {
   }
 
   // ─────────────────────────────────────────────
-  // 5. Streams de chats del usuario
+  // 6. Streams de chats del usuario
   // NOTA: rxdart no está disponible, por lo que se exponen dos streams
   // separados. La pantalla los combina en el UI.
   // ─────────────────────────────────────────────
@@ -182,7 +214,7 @@ class ChatService {
   }
 
   // ─────────────────────────────────────────────
-  // 6. Cerrar chat
+  // 7. Cerrar chat
   // ─────────────────────────────────────────────
   Future<void> closeChat(String chatId) async {
     try {
@@ -195,33 +227,6 @@ class ChatService {
           });
     } catch (e) {
       // Manejar error
-    }
-  }
-
-  // ─────────────────────────────────────────────
-  // 7. Enviar mensaje con imagen
-  // ─────────────────────────────────────────────
-  Future<String> sendImageMessage({
-    required String chatId,
-    required String senderId,
-    required String imageUrl,
-    String collectionName = 'chats',
-  }) async {
-    try {
-      await _db
-          .collection(collectionName)
-          .doc(chatId)
-          .collection('messages')
-          .add({
-        'senderId': senderId,
-        'text': '',
-        'imageUrl': imageUrl,
-        'sentAt': FieldValue.serverTimestamp(),
-        'status': 'sent',
-      });
-      return 'ok';
-    } catch (e) {
-      return 'error:$e';
     }
   }
 
@@ -255,14 +260,14 @@ class ChatService {
           user2Id == currentUserId ? currentUserName : otherUserName;
 
       await _db.collection('direct_chats').doc(chatId).set({
-        'user1Id':     user1Id,
-        'user2Id':     user2Id,
-        'user1Name':   user1Name,
-        'user2Name':   user2Name,
-        'createdAt':   FieldValue.serverTimestamp(),
-        'lastMessage': null,
+        'user1Id':       user1Id,
+        'user2Id':       user2Id,
+        'user1Name':     user1Name,
+        'user2Name':     user2Name,
+        'createdAt':     FieldValue.serverTimestamp(),
+        'lastMessage':   null,
         'lastMessageAt': null,
-        'adminVisible': true,
+        'adminVisible':  true,
       });
       return chatId;
     } catch (e) {
@@ -271,9 +276,7 @@ class ChatService {
   }
 
   // ─────────────────────────────────────────────
-  // 10. Streams de chats directos del usuario
-  // NOTA: se usan dos consultas separadas porque rxdart
-  // no está disponible. La pantalla combina ambas en el UI.
+  // 9. Streams de chats directos del usuario
   // ─────────────────────────────────────────────
 
   /// Chats directos donde el usuario es user1

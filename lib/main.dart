@@ -63,6 +63,7 @@ class _UniConnectAppState extends State<UniConnectApp> {
           return ChatScreen(
             chatId: args['chatId'],
             otherUserName: args['otherUserName'],
+            otherUserId: args['otherUserId'] ?? '',
             routeInfo: args['routeInfo'],
           );
         },
