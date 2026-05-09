@@ -10,6 +10,8 @@ import 'screens/profile_screen.dart';
 import 'screens/home_rutas_screen.dart';
 import 'screens/notification_settings_screen.dart';
 import 'screens/notifications_screen.dart';
+import 'screens/mis_chats_screen.dart';
+import 'screens/chat_screen.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
@@ -54,11 +56,16 @@ class _UniConnectAppState extends State<UniConnectApp> {
         '/mis-rutas': (context) => const HomeRutasScreen(),
         '/solicitudes-cupo': (context) => const NotificationsScreen(),
         '/notification-settings': (context) => const NotificationSettingsScreen(),
-        '/chat': (context) => const Scaffold(
-          body: Center(
-            child: Text('Chat screen placeholder'),
-          ),
-        ),
+        '/chats': (context) => const MisChatsScreen(),
+        '/chat': (context) {
+          final args = ModalRoute.of(context)!.settings.arguments
+              as Map<String, dynamic>;
+          return ChatScreen(
+            chatId: args['chatId'],
+            otherUserName: args['otherUserName'],
+            routeInfo: args['routeInfo'],
+          );
+        },
       },
     );
   }
