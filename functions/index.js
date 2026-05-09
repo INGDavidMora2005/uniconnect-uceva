@@ -84,3 +84,72 @@ exports.onRatingReceived = onDocumentCreated("ratings/{ratingId}", async (event)
   const body = `${raterName} te calificó con ${stars} estrellas${routeDescription ? ` en ${routeDescription}` : ""}`;
   await sendPush(token, title, body, { type: "new_rating", ratingId: snapshot.id });
 });
+
+// 5. scheduledCloseChatAfter24h — Ejecutarse cada hora
+// Busca rutas finalizadas hace más de 24h y cierra los chats asociados que aún estén abiertos.
+exports.scheduledCloseChatAfter24h = functions.pubsub
+  .schedule("every 1 hours")
+  .onRun(async (context) => {
+    const db = getFirestore();
+    const batch = db.batch();
+    let closedCount = 0;
+
+    try {
+      // Paso 1: Obtener todas las rutas con estado "Completada" (o similar)
+      // Se asume que las rutas finalizadas tienen un campo `status` con valor "Completada"
+      const completedRoutes = await db
+        .collection("routes")
+        .where("status", "==", "Completada")
+        .get();
+
+      const now = admin.firestore.Timestamp.now();
+
+      for (const routeDoc of completedRoutes.docs) {
+        const routeData = routeDoc.data();
+        const updatedAt = routeData.updatedAt;
+
+        // Si no tiene updatedAt, saltar
+        if (!updatedAt) continue;
+
+        const updatedAtTimestamp =
+          updatedAt instanceof admin.firestore.Timestamp
+            ? updatedAt
+            : admin.firestore.Timestamp.fromDate(
+                new Date(updatedAt.seconds * 1000)
+              );
+
+        // Verificar si han pasado al menos 24 horas desde la última actualización
+        const diffMs = now.toMillis() - updatedAtTimestamp.toMillis();
+        const twentyFourHoursMs = 24 * 60 * 60 * 1000;
+
+        if (diffMs < twentyFourHoursMs) continue;
+
+        // Paso 2: Buscar chats asociados a esta ruta que aún no estén cerrados
+        const chatsSnapshot = await db
+          .collection("chats")
+          .where("routeId", "==", routeDoc.id)
+          .where("isClosed", "==", false)
+          .get();
+
+        for (const chatDoc of chatsSnapshot.docs) {
+          batch.update(chatDoc.ref, {
+            isClosed: true,
+            closedAt: admin.firestore.FieldValue.serverTimestamp(),
+          });
+          closedCount++;
+        }
+      }
+
+      // Ejecutar el batch
+      if (closedCount > 0) {
+        await batch.commit();
+        console.log(
+          `scheduledCloseChatAfter24h: Se cerraron ${closedCount} chat(s).`
+        );
+      } else {
+        console.log("scheduledCloseChatAfter24h: No se encontraron chats para cerrar.");
+      }
+    } catch (error) {
+      console.error("scheduledCloseChatAfter24h — Error:", error);
+    }
+  });
