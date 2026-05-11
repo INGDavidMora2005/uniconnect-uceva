@@ -380,126 +380,166 @@ class _ModerationPanelScreenState extends State<ModerationPanelScreen>
             final origin = data['origin'] ?? '';
             final destination = data['destination'] ?? '';
             final isClosed = data['isClosed'] ?? false;
+            final routeId = data['routeId'] as String? ?? '';
 
-            return Container(
-              margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
-                    blurRadius: 6,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: Row(
-                children: [
-                  // Barra lateral de color según estado
-                  Container(
-                    width: 4,
-                    height: 90,
-                    decoration: BoxDecoration(
-                      color:
-                          isClosed ? Colors.grey : AppColors.accentGreen,
-                      borderRadius: const BorderRadius.horizontal(
-                        left: Radius.circular(16),
+            return FutureBuilder<DocumentSnapshot?>(
+              future: routeId.isNotEmpty
+                  ? FirebaseFirestore.instance
+                      .collection('routes')
+                      .doc(routeId)
+                      .get()
+                  : Future.value(null as DocumentSnapshot?),
+              builder: (context, routeSnap) {
+                String chatStatus = 'Activo';
+                Color statusColor = AppColors.accentGreen;
+                Color statusBg = const Color(0xFFE8F5E9);
+                Color barColor = AppColors.accentGreen;
+
+                if (isClosed) {
+                  chatStatus = 'Cerrado';
+                  statusColor = Colors.grey;
+                  statusBg = Colors.grey.shade200;
+                  barColor = Colors.grey;
+                } else if (routeSnap.hasData &&
+                    routeSnap.data != null &&
+                    routeSnap.data!.exists) {
+                  final routeData = routeSnap.data!.data()
+                      as Map<String, dynamic>?;
+                  final routeStatus =
+                      routeData?['status'] as String? ?? '';
+                  if (routeStatus == 'Completada' ||
+                      routeStatus == 'completada') {
+                    chatStatus = 'Finalizado';
+                    statusColor = Colors.orange.shade700;
+                    statusBg = Colors.orange.shade50;
+                    barColor = Colors.orange.shade700;
+                  }
+                }
+
+                return Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.05),
+                        blurRadius: 6,
+                        offset: const Offset(0, 2),
                       ),
-                    ),
+                    ],
                   ),
-                  Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.all(14),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // Ruta y estado
-                          Row(
-                            mainAxisAlignment:
-                                MainAxisAlignment.spaceBetween,
+                  child: Row(
+                    children: [
+                      // Barra lateral de color según estado
+                      Container(
+                        width: 4,
+                        height: 90,
+                        decoration: BoxDecoration(
+                          color: barColor,
+                          borderRadius: const BorderRadius.horizontal(
+                            left: Radius.circular(16),
+                          ),
+                        ),
+                      ),
+                      Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.all(14),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(
-                                '$origin → $destination',
-                                style: const TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.bold,
-                                  color: AppColors.textDark,
-                                ),
+                              // Ruta y estado
+                              Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    '$origin → $destination',
+                                    style: const TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.bold,
+                                      color: AppColors.textDark,
+                                    ),
+                                  ),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 8, vertical: 3),
+                                    decoration: BoxDecoration(
+                                      color: statusBg,
+                                      borderRadius:
+                                          BorderRadius.circular(8),
+                                    ),
+                                    child: Text(
+                                      chatStatus,
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.bold,
+                                        color: statusColor,
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 8, vertical: 3),
-                                decoration: BoxDecoration(
-                                  color: isClosed
-                                      ? Colors.grey.shade200
-                                      : const Color(0xFFE8F5E9),
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: Text(
-                                  isClosed ? 'Cerrado' : 'Activo',
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.bold,
-                                    color: isClosed
-                                        ? Colors.grey
-                                        : AppColors.accentGreen,
+                              const SizedBox(height: 6),
+                              // Participantes
+                              Row(
+                                children: [
+                                  const Icon(Icons.drive_eta,
+                                      size: 13,
+                                      color: AppColors.textLight),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    driverName,
+                                    style: const TextStyle(
+                                        fontSize: 12,
+                                        color: AppColors.textMedium),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  const Icon(Icons.person_outline,
+                                      size: 13,
+                                      color: AppColors.textLight),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    passengerName,
+                                    style: const TextStyle(
+                                        fontSize: 12,
+                                        color: AppColors.textMedium),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              // Botón ver historial
+                              Align(
+                                alignment: Alignment.centerRight,
+                                child: TextButton.icon(
+                                  onPressed: () => _openChatHistory(
+                                    context,
+                                    chatId,
+                                    '$driverName & $passengerName',
+                                    '$origin → $destination',
+                                    data['driverId'] ?? '',
+                                    data['passengerId'] ?? '',
+                                    driverName,
+                                    passengerName,
+                                  ),
+                                  icon: const Icon(Icons.history, size: 16),
+                                  label: const Text('Ver historial'),
+                                  style: TextButton.styleFrom(
+                                    foregroundColor:
+                                        AppColors.accentGreen,
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 12, vertical: 4),
                                   ),
                                 ),
                               ),
                             ],
                           ),
-                          const SizedBox(height: 6),
-                          // Participantes
-                          Row(
-                            children: [
-                              const Icon(Icons.drive_eta,
-                                  size: 13, color: AppColors.textLight),
-                              const SizedBox(width: 4),
-                              Text(
-                                driverName,
-                                style: const TextStyle(
-                                    fontSize: 12,
-                                    color: AppColors.textMedium),
-                              ),
-                              const SizedBox(width: 12),
-                              const Icon(Icons.person_outline,
-                                  size: 13, color: AppColors.textLight),
-                              const SizedBox(width: 4),
-                              Text(
-                                passengerName,
-                                style: const TextStyle(
-                                    fontSize: 12,
-                                    color: AppColors.textMedium),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 8),
-                          // Botón ver historial
-                          Align(
-                            alignment: Alignment.centerRight,
-                            child: TextButton.icon(
-                              onPressed: () => _openChatHistory(
-                                context,
-                                chatId,
-                                '$driverName & $passengerName',
-                                '$origin → $destination',
-                              ),
-                              icon: const Icon(Icons.history, size: 16),
-                              label: const Text('Ver historial'),
-                              style: TextButton.styleFrom(
-                                foregroundColor: AppColors.accentGreen,
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 12, vertical: 4),
-                              ),
-                            ),
-                          ),
-                        ],
+                        ),
                       ),
-                    ),
+                    ],
                   ),
-                ],
-              ),
+                );
+              },
             );
           },
         );
@@ -512,6 +552,10 @@ class _ModerationPanelScreenState extends State<ModerationPanelScreen>
     String chatId,
     String participants,
     String routeInfo,
+    String driverId,
+    String passengerId,
+    String driverName,
+    String passengerName,
   ) {
     showModalBottomSheet(
       context: context,
@@ -524,136 +568,14 @@ class _ModerationPanelScreenState extends State<ModerationPanelScreen>
         initialChildSize: 0.85,
         maxChildSize: 0.95,
         minChildSize: 0.5,
-        builder: (_, scrollController) => Column(
-          children: [
-            // Handle
-            Container(
-              width: 40, height: 4,
-              margin: const EdgeInsets.symmetric(vertical: 12),
-              decoration: BoxDecoration(
-                color: Colors.grey.shade300,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            // Header
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Historial de chat',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.textDark,
-                    ),
-                  ),
-                  Text(
-                    routeInfo,
-                    style: const TextStyle(
-                        fontSize: 13, color: AppColors.textMedium),
-                  ),
-                  Text(
-                    participants,
-                    style: const TextStyle(
-                        fontSize: 12, color: AppColors.textLight),
-                  ),
-                ],
-              ),
-            ),
-            const Divider(height: 20),
-            // Mensajes
-            Expanded(
-              child: StreamBuilder<QuerySnapshot>(
-                stream: FirebaseFirestore.instance
-                    .collection('chats')
-                    .doc(chatId)
-                    .collection('messages')
-                    .orderBy('sentAt', descending: false)
-                    .snapshots(),
-                builder: (context, msgSnap) {
-                  if (msgSnap.connectionState == ConnectionState.waiting) {
-                    return const Center(
-                        child: CircularProgressIndicator());
-                  }
-                  final messages = msgSnap.data?.docs ?? [];
-                  if (messages.isEmpty) {
-                    return const Center(
-                      child: Text(
-                        'Este chat no tiene mensajes',
-                        style: TextStyle(color: AppColors.textLight),
-                      ),
-                    );
-                  }
-                  return ListView.builder(
-                    controller: scrollController,
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 8),
-                    itemCount: messages.length,
-                    itemBuilder: (context, i) {
-                      final msg =
-                          messages[i].data() as Map<String, dynamic>;
-                      final text = msg['text'] as String? ?? '';
-                      final senderId = msg['senderId'] as String? ?? '';
-                      final sentAt = msg['sentAt'];
-                      String timeStr = '';
-                      if (sentAt is Timestamp) {
-                        final date = sentAt.toDate();
-                        timeStr =
-                            '${date.day}/${date.month} ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
-                      }
-
-                      return Container(
-                        margin: const EdgeInsets.only(bottom: 8),
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: AppColors.backgroundApp,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                              color: AppColors.borderDefault),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              mainAxisAlignment:
-                                  MainAxisAlignment.spaceBetween,
-                              children: [
-                                Text(
-                                  'UID: ${senderId.length > 8 ? senderId.substring(0, 8) : senderId}...',
-                                  style: const TextStyle(
-                                    fontSize: 10,
-                                    color: AppColors.textLight,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                                Text(
-                                  timeStr,
-                                  style: const TextStyle(
-                                    fontSize: 10,
-                                    color: AppColors.textLight,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              text,
-                              style: const TextStyle(
-                                fontSize: 14,
-                                color: AppColors.textDark,
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
-                    },
-                  );
-                },
-              ),
-            ),
-          ],
+        builder: (_, scrollController) => _ChatHistorySheet(
+          chatId: chatId,
+          participants: participants,
+          routeInfo: routeInfo,
+          driverId: driverId,
+          passengerId: passengerId,
+          driverName: driverName,
+          passengerName: passengerName,
         ),
       ),
     );
@@ -922,7 +844,9 @@ class _ReportCardState extends State<_ReportCard> {
                                     data['driverName'] ?? '';
                                 final pName =
                                     data['passengerName'] ?? '';
-                                return ListTile(
+                                final dId = data['driverId'] ?? '';
+                                  final pId = data['passengerId'] ?? '';
+                                  return ListTile(
                                   leading: const Icon(
                                       Icons.chat_bubble_outline,
                                       color: AppColors.accentGreen),
@@ -950,6 +874,10 @@ class _ReportCardState extends State<_ReportCard> {
                                             '$dName & $pName',
                                         routeInfo:
                                             '$origin → $destination',
+                                        driverId: dId,
+                                        passengerId: pId,
+                                        driverName: dName,
+                                        passengerName: pName,
                                       ),
                                     );
                                   },
@@ -1424,12 +1352,26 @@ class _ChatHistorySheet extends StatelessWidget {
   final String chatId;
   final String participants;
   final String routeInfo;
+  final String driverId;
+  final String driverName;
+  final String passengerId;
+  final String passengerName;
 
   const _ChatHistorySheet({
     required this.chatId,
     required this.participants,
     required this.routeInfo,
+    required this.driverId,
+    required this.passengerId,
+    required this.driverName,
+    required this.passengerName,
   });
+
+  String _senderName(String senderId) {
+    if (senderId == driverId) return driverName;
+    if (senderId == passengerId) return passengerName;
+    return senderId;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1494,13 +1436,16 @@ class _ChatHistorySheet extends StatelessWidget {
                     final msg =
                         messages[i].data() as Map<String, dynamic>;
                     final text = msg['text'] as String? ?? '';
+                    final senderId = msg['senderId'] as String? ?? '';
                     final sentAt = msg['sentAt'];
+                    final senderName = _senderName(senderId);
                     String timeStr = '';
                     if (sentAt is Timestamp) {
                       final date = sentAt.toDate();
                       timeStr =
                           '${date.day}/${date.month} ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
                     }
+
                     return Container(
                       margin: const EdgeInsets.only(bottom: 8),
                       padding: const EdgeInsets.all(12),
@@ -1509,21 +1454,59 @@ class _ChatHistorySheet extends StatelessWidget {
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(color: AppColors.borderDefault),
                       ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Expanded(
-                            child: Text(text,
+                          Row(
+                            mainAxisAlignment:
+                                MainAxisAlignment.spaceBetween,
+                            children: [
+                              Row(
+                                children: [
+                                  CircleAvatar(
+                                    radius: 10,
+                                    backgroundColor:
+                                        senderId == driverId
+                                            ? AppColors.accentGreen
+                                            : AppColors.primaryGreen,
+                                    child: Text(
+                                      senderName.isNotEmpty
+                                          ? senderName[0]
+                                              .toUpperCase()
+                                          : '?',
+                                      style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 9),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    senderName,
+                                    style: const TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.bold,
+                                      color: AppColors.textMedium,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              Text(
+                                timeStr,
                                 style: const TextStyle(
-                                    fontSize: 14,
-                                    color: AppColors.textDark)),
-                          ),
-                          const SizedBox(width: 8),
-                          Text(timeStr,
-                              style: const TextStyle(
                                   fontSize: 10,
-                                  color: AppColors.textLight)),
+                                  color: AppColors.textLight,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            text,
+                            style: const TextStyle(
+                              fontSize: 14,
+                              color: AppColors.textDark,
+                            ),
+                          ),
                         ],
                       ),
                     );
