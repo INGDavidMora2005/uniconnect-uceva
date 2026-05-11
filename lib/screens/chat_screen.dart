@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -38,17 +40,39 @@ class _ChatScreenState extends State<ChatScreen> {
   String get _currentUserId =>
       FirebaseAuth.instance.currentUser?.uid ?? '';
 
+  // Nombre del otro usuario (se actualiza en tiempo real)
+  String _otherUserName = '';
+
+  StreamSubscription? _nameSub;
+
   @override
   void initState() {
     super.initState();
-    // Marcar mensajes como recibidos y leídos al abrir el chat
+    _otherUserName = widget.otherUserName;
     _markAsRead();
+    // Solo escuchar si otherUserId no está vacío
+    if (widget.otherUserId.isNotEmpty) {
+      _nameSub = FirebaseFirestore.instance
+          .collection('users')
+          .doc(widget.otherUserId)
+          .snapshots()
+          .listen((doc) {
+        if (!doc.exists) return;
+        final data = doc.data();
+        final name = data?['fullName'] as String? ??
+            data?['name'] as String? ??
+            data?['displayName'] as String? ??
+            widget.otherUserName;
+        if (mounted) setState(() => _otherUserName = name);
+      });
+    }
   }
 
   @override
   void dispose() {
     _messageController.dispose();
     _scrollController.dispose();
+    _nameSub?.cancel();
     super.dispose();
   }
 
@@ -152,7 +176,7 @@ class _ChatScreenState extends State<ChatScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              widget.otherUserName,
+              _otherUserName,
               style: const TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
@@ -161,10 +185,7 @@ class _ChatScreenState extends State<ChatScreen> {
             ),
             Text(
               widget.routeInfo,
-              style: const TextStyle(
-                fontSize: 12,
-                color: Colors.white,
-              ),
+              style: const TextStyle(fontSize: 12, color: Colors.white),
             ),
           ],
         ),
@@ -240,7 +261,7 @@ class _ChatScreenState extends State<ChatScreen> {
                                           const EdgeInsets.only(
                                               bottom: 4, left: 4),
                                       child: Text(
-                                        widget.otherUserName,
+                                        _otherUserName,
                                         style: const TextStyle(
                                           fontSize: 11,
                                           fontWeight: FontWeight.w600,
