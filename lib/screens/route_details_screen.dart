@@ -256,26 +256,57 @@ class _RouteDetailsScreenState extends State<RouteDetailsScreen> {
                   ),
                   onPressed: () async {
                     final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
+                    final routeId = widget.route.id;
+                    final driverId = widget.route.driverId ?? '';
+
+                    debugPrint('=== ABRIR CHAT ===');
+                    debugPrint('routeId: $routeId');
+                    debugPrint('passengerId: $uid');
+                    debugPrint('driverId: $driverId');
+                    debugPrint('passengerName: $_currentUserName');
+                    debugPrint('driverName: ${widget.route.driverName}');
+
+                    if (routeId.isEmpty || uid.isEmpty || driverId.isEmpty) {
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                                'Error: faltan datos para abrir el chat'),
+                            backgroundColor: Colors.redAccent,
+                          ),
+                        );
+                      }
+                      return;
+                    }
+
                     final chatId = await ChatService().getOrCreateChat(
-                      routeId: widget.route.id,
+                      routeId: routeId,
                       passengerId: uid,
-                      driverId: widget.route.driverId ?? '',
+                      driverId: driverId,
                       passengerName: _currentUserName,
                       driverName: widget.route.driverName,
                       origin: widget.route.origin,
                       destination: widget.route.destination,
                     );
+
+                    debugPrint('chatId resultado: $chatId');
+
                     if (!mounted) return;
                     if (chatId.startsWith('error')) {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('No se pudo abrir el chat: $chatId')),
+                        SnackBar(
+                            content:
+                                Text('No se pudo abrir el chat: $chatId'),
+                            backgroundColor: Colors.redAccent),
                       );
                       return;
                     }
                     Navigator.pushNamed(context, '/chat', arguments: {
                       'chatId': chatId,
                       'otherUserName': widget.route.driverName,
-                      'routeInfo': '${widget.route.origin} → ${widget.route.destination}',
+                      'otherUserId': driverId,
+                      'routeInfo':
+                          '${widget.route.origin} → ${widget.route.destination}',
                     });
                   },
                 ),

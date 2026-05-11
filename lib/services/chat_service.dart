@@ -231,6 +231,24 @@ class ChatService {
   }
 
   // ─────────────────────────────────────────────
+  // 10. Eliminar chat para el usuario actual (soft delete)
+  // ─────────────────────────────────────────────
+  Future<String> deleteForUser({
+    required String chatId,
+    required String userId,
+    String collectionName = 'chats',
+  }) async {
+    try {
+      await _db.collection(collectionName).doc(chatId).update({
+        'deletedFor': FieldValue.arrayUnion([userId]),
+      });
+      return 'ok';
+    } catch (e) {
+      return 'error:$e';
+    }
+  }
+
+  // ─────────────────────────────────────────────
   // 8. Obtener o crear un chat directo entre dos usuarios
   // ─────────────────────────────────────────────
   Future<String> getOrCreateDirectChat({
