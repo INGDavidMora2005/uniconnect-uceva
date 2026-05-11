@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/route_model.dart';
 import '../models/report_model.dart';
 import '../theme/app_theme.dart';
+import '../services/chat_service.dart';
+import '../services/cupo_service.dart';
 
 import 'mapa_trayecto_screen.dart';
 import 'report_form_screen.dart';
@@ -23,12 +26,30 @@ class RouteDetailsScreen extends StatefulWidget {
 
 class _RouteDetailsScreenState extends State<RouteDetailsScreen> {
   bool _isDriver = false;
+  bool _hasCupoAceptado = false;
+  String _currentUserName = '';
 
   @override
   void initState() {
     super.initState();
     final uid = FirebaseAuth.instance.currentUser?.uid;
     _isDriver = uid == widget.route.driverId;
+    _checkCupoAceptado();
+  }
+
+  /// Verifica si el pasajero tiene cupo aceptado para mostrar botón de chat
+  Future<void> _checkCupoAceptado() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
+    if (uid.isEmpty || _isDriver) return;
+    final status = await CupoService().getRequestStatus(uid, widget.route.id);
+    final userDoc = await FirebaseFirestore.instance
+        .collection('users').doc(uid).get();
+    if (mounted) {
+      setState(() {
+        _hasCupoAceptado = status == 'accepted';
+        _currentUserName = userDoc.data()?['fullName'] ?? '';
+      });
+    }
   }
 
   @override
@@ -216,6 +237,80 @@ class _RouteDetailsScreenState extends State<RouteDetailsScreen> {
                 ),
               ),
             ],
+            // Botón de chat para pasajeros con cupo aceptado
+            if (_hasCupoAceptado)
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: ElevatedButton.icon(
+                  icon: const Icon(Icons.chat_bubble_outline, color: Colors.white),
+                  label: const Text(
+                    'Abrir chat con el conductor',
+                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.accentGreen,
+                    minimumSize: const Size(double.infinity, 48),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  onPressed: () async {
+                    final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
+                    final routeId = widget.route.id;
+                    final driverId = widget.route.driverId ?? '';
+
+                    debugPrint('=== ABRIR CHAT ===');
+                    debugPrint('routeId: $routeId');
+                    debugPrint('passengerId: $uid');
+                    debugPrint('driverId: $driverId');
+                    debugPrint('passengerName: $_currentUserName');
+                    debugPrint('driverName: ${widget.route.driverName}');
+
+                    if (routeId.isEmpty || uid.isEmpty || driverId.isEmpty) {
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                                'Error: faltan datos para abrir el chat'),
+                            backgroundColor: Colors.redAccent,
+                          ),
+                        );
+                      }
+                      return;
+                    }
+
+                    final chatId = await ChatService().getOrCreateChat(
+                      routeId: routeId,
+                      passengerId: uid,
+                      driverId: driverId,
+                      passengerName: _currentUserName,
+                      driverName: widget.route.driverName,
+                      origin: widget.route.origin,
+                      destination: widget.route.destination,
+                    );
+
+                    debugPrint('chatId resultado: $chatId');
+
+                    if (!mounted) return;
+                    if (chatId.startsWith('error')) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                            content:
+                                Text('No se pudo abrir el chat: $chatId'),
+                            backgroundColor: Colors.redAccent),
+                      );
+                      return;
+                    }
+                    Navigator.pushNamed(context, '/chat', arguments: {
+                      'chatId': chatId,
+                      'otherUserName': widget.route.driverName,
+                      'otherUserId': driverId,
+                      'routeInfo':
+                          '${widget.route.origin} → ${widget.route.destination}',
+                    });
+                  },
+                ),
+              ),
           ],
         ),
       ),

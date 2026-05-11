@@ -471,22 +471,23 @@ class AuthService {
             final userRef = _db.collection('users').doc(createdUser!.uid);
             final studentRef = _db.collection('studentCodes').doc(studentCode);
 
-            transaction.set(userRef, {
-              'fullName': fullName,
-              'studentCode': encryptedStudentCode,
-              'hashedStudentCode': _hashStudentCode(studentCode),
-              'email': email,
-              'role': role,
-              'faculty': faculty,
-              'phone': normalizedPhone,
-              'hashedPhone': _hashPhone(normalizedPhone),
-              'profileImageUrl': null,
-              'description': '',
-              'rating': 0.0,
-              'tripsCompleted': 0,
-              'bazarPurchases': 0,
-              'createdAt': FieldValue.serverTimestamp(),
-            });
+transaction.set(userRef, {
+               'fullName': fullName,
+               'studentCode': encryptedStudentCode,
+               'hashedStudentCode': _hashStudentCode(studentCode),
+               'email': email,
+               'role': role,
+               'faculty': faculty,
+               'phone': normalizedPhone,
+               'hashedPhone': _hashPhone(normalizedPhone),
+               'profileImageUrl': null,
+               'description': '',
+               'rating': 0.0,
+               'tripsCompleted': 0,
+               'bazarPurchases': 0,
+               'createdAt': FieldValue.serverTimestamp(),
+               'suspended': false,
+             });
 
             transaction.set(studentRef, {'uid': createdUser!.uid});
           });
@@ -669,22 +670,23 @@ class AuthService {
         return 'Este código estudiantil ya está registrado.';
       }
 
-      await _db.collection('users').doc(userCredential.user!.uid).set({
-        'fullName': googleUser.displayName ?? '',
-        'studentCode': await _encryptFieldAsync(studentCode),
-        'hashedStudentCode': _hashStudentCode(studentCode),
-        'email': googleUser.email,
-        'role': role,
-        'faculty': faculty,
-        'phone': normalizedPhone,
-        'hashedPhone': _hashPhone(normalizedPhone),
-        'profileImageUrl': null,
-        'description': '',
-        'rating': 0.0,
-        'tripsCompleted': 0,
-        'bazarPurchases': 0,
-        'createdAt': FieldValue.serverTimestamp(),
-      });
+await _db.collection('users').doc(userCredential.user!.uid).set({
+         'fullName': googleUser.displayName ?? '',
+         'studentCode': await _encryptFieldAsync(studentCode),
+         'hashedStudentCode': _hashStudentCode(studentCode),
+         'email': googleUser.email,
+         'role': role,
+         'faculty': faculty,
+         'phone': normalizedPhone,
+         'hashedPhone': _hashPhone(normalizedPhone),
+         'profileImageUrl': null,
+         'description': '',
+         'rating': 0.0,
+         'tripsCompleted': 0,
+         'bazarPurchases': 0,
+         'createdAt': FieldValue.serverTimestamp(),
+         'suspended': false,
+       });
 
       await _db.collection('studentCodes').doc(studentCode).set({
         'uid': userCredential.user!.uid,
