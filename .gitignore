@@ -43,3 +43,14 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# UU-42 B-09: Variables de entorno — NUNCA commitear
+.env
+.env.*
+!.env.example
+
+# Claves y certificados de firma Android
+*.keystore
+*.jks
+key.properties
+android/key.properties

@@ -24,9 +24,28 @@ class AuthService {
     r'^[a-zA-Z0-9._%+\-]+@uceva\.edu\.co$',
   );
 
-  // Clave AES-256 fija para cifrar campos que deben ser legibles por otros usuarios
-  // 32 caracteres = 256 bits
-  static const String _sharedPhoneKey = 'UniConnectPhone2024SecureKey3256';
+  // UU-42 B-09: clave AES-256 compartida leída desde --dart-define en tiempo
+  // de compilación. NUNCA hardcodear este valor en el repositorio.
+  //
+  // CONTEXTO DE USO (leer antes de usar esta clave):
+  // Esta es una clave COMPARTIDA entre todos los dispositivos y builds.
+  // A diferencia del cifrado RSA+AES del studentCode (que usa claves por
+  // dispositivo), esta clave es la misma para todos, lo que permite que
+  // distintos usuarios puedan descifrar campos protegidos con ella
+  // (ej: número de teléfono visible entre conductor y pasajero).
+  //
+  // COMPATIBILIDAD: El valor actual ('UniConnectPhone2024SecureKey3256') es
+  // el mismo que estaba hardcodeado. NO cambiarlo si ya hay datos cifrados
+  // con él en Firestore, o los registros existentes quedarán ilegibles.
+  //
+  // Para correr en debug:
+  //   flutter run --dart-define=SHARED_PHONE_KEY=UniConnectPhone2024SecureKey3256
+  // Para build release:
+  //   flutter build apk --release --dart-define=SHARED_PHONE_KEY=UniConnectPhone2024SecureKey3256
+  static const String _sharedPhoneKey = String.fromEnvironment(
+    'SHARED_PHONE_KEY',
+    defaultValue: '',
+  );
 
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _db = FirebaseFirestore.instance;
