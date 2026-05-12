@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import '../theme/app_theme.dart';
 import '../widgets/custom_text_field.dart';
 import '../widgets/primary_button.dart';
@@ -214,47 +215,48 @@ class _LoginScreenState extends State<LoginScreen> {
                       return null;
                     },
                   ),
-                  if (_hasPassword) ...[
-                    const SizedBox(height: 8),
-                    GestureDetector(
-                      onTap: () => Navigator.pushNamed(context, '/crypto-test'),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: const Color(
-                            0xFF1B5E20,
-                          ).withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: const Color(0xFF2E7D32),
-                            width: 1,
-                          ),
-                        ),
-                        child: const Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.lock_outline,
-                              size: 12,
-                              color: Color(0xFF2E7D32),
-                            ),
-                            SizedBox(width: 4),
-                            Text(
-                              'AES-256 + RSA-2048 activo',
-                              style: TextStyle(
-                                fontSize: 11,
-                                color: Color(0xFF2E7D32),
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
+                   if (_hasPassword) ...[
+                     const SizedBox(height: 8),
+                     if (kDebugMode) // UU-42 B-08: badge solo visible en debug
+                       GestureDetector(
+                         onTap: () => Navigator.pushNamed(context, '/crypto-test'),
+                         child: Container(
+                           padding: const EdgeInsets.symmetric(
+                             horizontal: 10,
+                             vertical: 4,
+                           ),
+                           decoration: BoxDecoration(
+                             color: const Color(
+                               0xFF1B5E20,
+                             ).withValues(alpha: 0.15),
+                             borderRadius: BorderRadius.circular(12),
+                             border: Border.all(
+                               color: const Color(0xFF2E7D32),
+                               width: 1,
+                             ),
+                           ),
+                           child: const Row(
+                             mainAxisSize: MainAxisSize.min,
+                             children: [
+                               Icon(
+                                 Icons.lock_outline,
+                                 size: 12,
+                                 color: Color(0xFF2E7D32),
+                               ),
+                               SizedBox(width: 4),
+                               Text(
+                                 'AES-256 + RSA-2048 activo',
+                                 style: TextStyle(
+                                   fontSize: 11,
+                                   color: Color(0xFF2E7D32),
+                                   fontWeight: FontWeight.w500,
+                                 ),
+                               ),
+                             ],
+                           ),
+                         ),
+                       ),
+                   ],
                   const SizedBox(height: 30),
                 ],
                 PrimaryButton(
