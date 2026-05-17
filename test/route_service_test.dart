@@ -72,5 +72,41 @@ void main() {
         expect(snapshot.docs.length, 2);
       });
     });
+
+    group('getAvailableRoutes', () {
+      test('retorna lista vacía cuando no hay rutas', () async {
+        final routes = await routeService.getAvailableRoutes().first;
+        expect(routes, isEmpty);
+      });
+
+      test('retorna rutas con status Activa', () async {
+        await routeService.publishRoute(buildFakeRoute());
+        final routes = await routeService.getAvailableRoutes().first;
+        expect(routes.length, 1);
+      });
+
+      test('no retorna rutas con status Finalizada', () async {
+        await routeService.publishRoute(buildFakeRoute());
+        await routeService.publishRoute(buildFakeRoute().copyWith(
+          status: RouteStatus.finalizada,
+        ));
+        final routes = await routeService.getAvailableRoutes().first;
+        expect(routes.length, 1);
+      });
+
+      test('retorna múltiples rutas disponibles', () async {
+        await routeService.publishRoute(buildFakeRoute());
+        await routeService.publishRoute(buildFakeRoute().copyWith(
+          origin: 'Ocaña',
+          destination: 'Cúcuta',
+        ));
+        await routeService.publishRoute(buildFakeRoute().copyWith(
+          origin: 'Bucaramanga',
+          destination: 'Medellín',
+        ));
+        final routes = await routeService.getAvailableRoutes().first;
+        expect(routes.length, 3);
+      });
+    });
   });
 }
