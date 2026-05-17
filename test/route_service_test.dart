@@ -108,5 +108,33 @@ void main() {
         expect(routes.length, 3);
       });
     });
+
+    group('closeRoute', () {
+      test('actualiza el status de la ruta a Finalizada', () async {
+        await routeService.publishRoute(buildFakeRoute());
+        final snap = await _fakeFirestore!.collection('routes').get();
+        final routeId = snap.docs.first.id;
+        await routeService.updateRouteStatus(routeId, RouteStatus.finalizada);
+        final updatedSnap = await _fakeFirestore!.collection('routes').doc(routeId).get();
+        expect(updatedSnap.data()?['status'], RouteStatus.finalizada);
+      });
+
+      test('retorna ok al cerrar una ruta existente', () async {
+        await routeService.publishRoute(buildFakeRoute());
+        final snap = await _fakeFirestore!.collection('routes').get();
+        final routeId = snap.docs.first.id;
+        final result = await routeService.updateRouteStatus(routeId, RouteStatus.finalizada);
+        expect(result, 'ok');
+      });
+
+      test('una ruta cerrada no aparece en getAvailableRoutes', () async {
+        await routeService.publishRoute(buildFakeRoute());
+        final snap = await _fakeFirestore!.collection('routes').get();
+        final routeId = snap.docs.first.id;
+        await routeService.updateRouteStatus(routeId, RouteStatus.finalizada);
+        final routes = await routeService.getAvailableRoutes().first;
+        expect(routes, isEmpty);
+      });
+    });
   });
 }
