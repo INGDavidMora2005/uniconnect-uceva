@@ -37,5 +37,40 @@ void main() {
       final instance2 = RouteService();
       expect(identical(instance1, instance2), true);
     });
+
+    group('publishRoute', () {
+      test('publica una ruta y retorna mensaje de éxito', () async {
+        final result = await routeService.publishRoute(buildFakeRoute());
+        expect(result, 'Ruta publicada exitosamente.');
+      });
+
+      test('el documento queda guardado en la colección routes', () async {
+        await routeService.publishRoute(buildFakeRoute());
+        final snapshot = await _fakeFirestore!.collection('routes').get();
+        expect(snapshot.docs.length, 1);
+      });
+
+      test('los campos del documento coinciden con el modelo', () async {
+        final route = buildFakeRoute();
+        await routeService.publishRoute(route);
+        final snapshot = await _fakeFirestore!.collection('routes').get();
+        final data = snapshot.docs.first.data();
+        expect(data['origin'], route.origin);
+        expect(data['destination'], route.destination);
+        expect(data['price'], route.price);
+      });
+
+      test('publicar dos rutas distintas crea dos documentos', () async {
+        final route1 = buildFakeRoute();
+        final route2 = route1.copyWith(
+          origin: 'Ocaña',
+          destination: 'Cúcuta',
+        );
+        await routeService.publishRoute(route1);
+        await routeService.publishRoute(route2);
+        final snapshot = await _fakeFirestore!.collection('routes').get();
+        expect(snapshot.docs.length, 2);
+      });
+    });
   });
 }
