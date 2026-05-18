@@ -108,11 +108,18 @@ class ChatService {
         status:    'sent',
       );
 
-      await messageRef.set({
-        ...message.toMap(),
-        'receiverId': receiverId,
-      });
-      return 'ok';
+await messageRef.set({
+         ...message.toMap(),
+         'receiverId': receiverId,
+       });
+
+       // Actualizar el documento padre con el último mensaje
+       await _db.collection(collectionName).doc(chatId).update({
+         'lastMessage': text,
+         'lastMessageAt': FieldValue.serverTimestamp(),
+       });
+
+       return 'ok';
     } catch (e) {
       return 'error:$e';
     }

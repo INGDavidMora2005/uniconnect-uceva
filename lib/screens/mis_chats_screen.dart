@@ -4,8 +4,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
-import '../models/chat_model.dart';
 import '../services/chat_service.dart';
+import 'buscar_usuario_screen.dart';
+import 'chat_screen.dart';
 
 /// Pantalla que lista todos los chats del usuario actual, tanto como
 /// conductor como pasajero. Combina dos streams separados porque
@@ -32,12 +33,11 @@ class _MisChatsScreenState extends State<MisChatsScreen> {
 
   StreamSubscription? _driverSub;
   StreamSubscription? _passengerSub;
+  StreamSubscription? _user1DirectSub;
+  StreamSubscription? _user2DirectSub;
 
   // Texto de búsqueda para filtrar chats
   String _searchQuery = '';
-
-  // Cache de últimos mensajes para evitar llamadas redundantes a Firestore
-  final Map<String, String> _lastMessageCache = {};
 
   @override
   void initState() {
@@ -49,6 +49,8 @@ class _MisChatsScreenState extends State<MisChatsScreen> {
   void dispose() {
     _driverSub?.cancel();
     _passengerSub?.cancel();
+    _user1DirectSub?.cancel();
+    _user2DirectSub?.cancel();
     _combinedController.close();
     super.dispose();
   }
@@ -76,12 +78,36 @@ class _MisChatsScreenState extends State<MisChatsScreen> {
         debugPrint('Error en passengerChatsStream: $error');
       },
     );
+
+    // Stream de chats directos donde el usuario es user1
+    _user1DirectSub =
+        _chatService.user1DirectChatsStream(_uid).listen(
+      (snapshot) {
+        _updateChats(directChatsUser1Docs: snapshot.docs);
+      },
+      onError: (error) {
+        debugPrint('Error en user1DirectChatsStream: $error');
+      },
+    );
+
+    // Stream de chats directos donde el usuario es user2
+    _user2DirectSub =
+        _chatService.user2DirectChatsStream(_uid).listen(
+      (snapshot) {
+        _updateChats(directChatsUser2Docs: snapshot.docs);
+      },
+      onError: (error) {
+        debugPrint('Error en user2DirectChatsStream: $error');
+      },
+    );
   }
 
   /// Actualiza el mapa local de chats y emite la lista combinada
   void _updateChats({
     List<QueryDocumentSnapshot>? driverDocs,
     List<QueryDocumentSnapshot>? passengerDocs,
+    List<QueryDocumentSnapshot>? directChatsUser1Docs,
+    List<QueryDocumentSnapshot>? directChatsUser2Docs,
   }) {
     if (driverDocs != null) {
       final driverIds = driverDocs.map((d) => d.id).toSet();
@@ -93,6 +119,16 @@ class _MisChatsScreenState extends State<MisChatsScreen> {
     }
     if (passengerDocs != null) {
       for (final doc in passengerDocs) {
+        _chatsMap[doc.id] = doc;
+      }
+    }
+    if (directChatsUser1Docs != null) {
+      for (final doc in directChatsUser1Docs) {
+        _chatsMap[doc.id] = doc;
+      }
+    }
+    if (directChatsUser2Docs != null) {
+      for (final doc in directChatsUser2Docs) {
         _chatsMap[doc.id] = doc;
       }
     }
@@ -127,31 +163,122 @@ class _MisChatsScreenState extends State<MisChatsScreen> {
     });
   }
 
-  /// Obtiene el último mensaje de un chat
-  Future<String> _getLastMessage(String chatId) async {
-    if (_lastMessageCache.containsKey(chatId)) {
-      return _lastMessageCache[chatId]!;
-    }
-    try {
-      final snap = await FirebaseFirestore.instance
-          .collection('chats')
-          .doc(chatId)
-          .collection('messages')
-          .orderBy('sentAt', descending: true)
-          .limit(1)
-          .get();
-      if (snap.docs.isEmpty) {
-        _lastMessageCache[chatId] = 'Sin mensajes aún';
-        return 'Sin mensajes aún';
+  /// Construye el tile de un chat según su tipo (directo o de ruta)
+  Widget _buildChatTile(BuildContext context, QueryDocumentSnapshot doc, String currentUid) {
+    final data = doc.data() as Map<String, dynamic>;
+    final String chatId = doc.id;
+
+    // Determinar si es un chat directo o de ruta
+    bool isDirectChat = data.containsKey('user1Id') && data.containsKey('user2Id');
+    String otherUserId = '';
+    String otherUserName = '';
+    String routeInfo = '';
+    String collectionName = isDirectChat ? 'direct_chats' : 'chats';
+
+    // Solo mostrar chats directos que tengan al menos un mensaje
+    if (isDirectChat) {
+      final lastMessage = data['lastMessage'] as String? ?? '';
+      if (lastMessage.isEmpty) return const SizedBox.shrink();
+
+      // Chat directo: user1Id, user2Id, user1Name, user2Name
+      final String user1Id = data['user1Id'] as String? ?? '';
+      final String user2Id = data['user2Id'] as String? ?? '';
+      final String user1Name = data['user1Name'] as String? ?? '';
+      final String user2Name = data['user2Name'] as String? ?? '';
+
+      if (user1Id == currentUid) {
+        otherUserId = user2Id;
+        otherUserName = user2Name;
+      } else if (user2Id == currentUid) {
+        otherUserId = user1Id;
+        otherUserName = user1Name;
+      } else {
+        otherUserId = user1Id;
+        otherUserName = 'Usuario desconocido';
       }
-      final text = snap.docs.first.data()['text'] as String? ??
-          'Sin mensajes aún';
-      _lastMessageCache[chatId] = text;
-      return text;
-    } catch (_) {
-      _lastMessageCache[chatId] = 'Sin mensajes aún';
-      return 'Sin mensajes aún';
+
+      routeInfo = 'Chat directo';
+    } else {
+      // Chat de ruta: driverId, passengerId, origin, destination
+      final String driverId = data['driverId'] as String? ?? '';
+      final String passengerId = data['passengerId'] as String? ?? '';
+      final String origin = data['origin'] as String? ?? '';
+      final String destination = data['destination'] as String? ?? '';
+
+      if (driverId == currentUid) {
+        otherUserId = passengerId;
+      } else {
+        otherUserId = driverId;
+      }
+
+      routeInfo = '$origin → $destination';
     }
+
+// Obtener el último mensaje
+    return Column(
+      children: [
+        StreamBuilder<String>(
+          stream: _watchOtherUserName(otherUserId),
+          builder: (context, nameSnap) {
+            final realName = nameSnap.data ?? otherUserName;
+            return StreamBuilder<String?>(
+              stream: _watchProfileImageUrl(otherUserId),
+              builder: (context, imgSnap) {
+                return StreamBuilder<DocumentSnapshot>(
+                  stream: FirebaseFirestore.instance
+                      .collection(collectionName)
+                      .doc(chatId)
+                      .snapshots(),
+                  builder: (context, chatSnap) {
+                    final isClosedRealTime =
+                        chatSnap.hasData
+                            ? ((chatSnap.data!.data()
+                                    as Map<String, dynamic>?)?['isClosed'] ?? false)
+                            : false;
+                    final lastMessageFromDoc = chatSnap.hasData
+                        ? ((chatSnap.data!.data()
+                                as Map<String, dynamic>?)?['lastMessage'] as String?) ??
+                            ''
+                        : '';
+                    final displayMessage = lastMessageFromDoc.isNotEmpty
+                        ? lastMessageFromDoc
+                        : 'Sin mensajes aún';
+                    return _ChatTile(
+                      otherUserName: realName,
+                      profileImageUrl: imgSnap.data,
+                      lastMessage: displayMessage,
+                      isLastMessageEmpty: lastMessageFromDoc.isEmpty,
+                      routeInfo: routeInfo,
+                      isClosed: isClosedRealTime,
+                      createdAt: (data['createdAt'] as Timestamp?)?.toDate() ??
+                          DateTime.now(),
+onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => ChatScreen(
+                              chatId: chatId,
+                              otherUserName: realName,
+                              otherUserId: otherUserId,
+                              routeInfo: routeInfo,
+                              isDirectChat: isDirectChat,
+                              collectionName: collectionName,
+                            ),
+                          ),
+                        );
+                      },
+                      onLongPress: () => _showChatOptions(
+                          context, chatId, otherUserId, realName, routeInfo,
+                          isDirectChat, collectionName),
+                    );
+                  },
+                );
+              },
+            );
+          },
+        ),
+      ],
+    );
   }
 
   /// Escucha el nombre del otro usuario en tiempo real
@@ -168,104 +295,90 @@ class _MisChatsScreenState extends State<MisChatsScreen> {
           data?['displayName'] as String? ??
           'Usuario';
     });
-  }
-
-  /// Navegar a la pantalla de chat
-  void _navigateToChat(BuildContext context, ChatModel chat) {
-    final otherUserName = chat.driverId == _uid
-        ? chat.passengerName
-        : chat.driverName;
-    final otherUserId = chat.driverId == _uid
-        ? chat.passengerId
-        : chat.driverId;
-    final routeInfo = '${chat.origin} → ${chat.destination}';
-
-    Navigator.pushNamed(
-      context,
-      '/chat',
-      arguments: {
-        'chatId': chat.id,
-        'otherUserName': otherUserName,
-        'otherUserId': otherUserId,
-        'routeInfo': routeInfo,
-      },
-    );
-  }
+}
 
   /// Muestra el bottom sheet para eliminar un chat
-  void _showChatOptions(BuildContext context, ChatModel chat) {
-    showModalBottomSheet(
-      context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (_) => Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 40, height: 4,
-              margin: const EdgeInsets.only(bottom: 8),
-              decoration: BoxDecoration(
-                color: Colors.grey.shade300,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            ListTile(
-              leading: const Icon(Icons.delete_outline, color: Colors.redAccent),
-              title: const Text(
-                'Eliminar chat',
-                style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.w600),
-              ),
-              subtitle: const Text('Solo se eliminará para ti'),
-              onTap: () async {
-                Navigator.pop(context);
-                final confirmed = await showDialog<bool>(
-                  context: context,
-                  builder: (ctx) => AlertDialog(
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    title: const Text('Eliminar chat'),
-                    content: const Text(
-                      '¿Quieres eliminar este chat? Solo desaparecerá para ti.',
-                    ),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(ctx, false),
-                        child: const Text('Cancelar'),
-                      ),
-                      TextButton(
-                        onPressed: () => Navigator.pop(ctx, true),
-                        child: const Text(
-                          'Eliminar',
-                          style: TextStyle(color: Colors.redAccent),
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-                if (confirmed == true) {
-                  await _chatService.deleteForUser(
-                    chatId: chat.id,
-                    userId: _uid,
-                  );
-                }
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.close),
-              title: const Text('Cancelar'),
-              onTap: () => Navigator.pop(context),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+   void _showChatOptions(
+     BuildContext context,
+     String chatId,
+     String otherUserId,
+     String otherUserName,
+     String routeInfo,
+     bool isDirectChat,
+     String collectionName,
+   ) {
+     showModalBottomSheet(
+       context: context,
+       shape: const RoundedRectangleBorder(
+         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+       ),
+       builder: (_) => Padding(
+         padding: const EdgeInsets.symmetric(vertical: 8),
+         child: Column(
+           mainAxisSize: MainAxisSize.min,
+           children: [
+             Container(
+               width: 40, height: 4,
+               margin: const EdgeInsets.only(bottom: 8),
+               decoration: BoxDecoration(
+                 color: Colors.grey.shade300,
+                 borderRadius: BorderRadius.circular(2),
+               ),
+             ),
+             ListTile(
+               leading: const Icon(Icons.delete_outline, color: Colors.redAccent),
+               title: const Text(
+                 'Eliminar chat',
+                 style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.w600),
+               ),
+               subtitle: const Text('Solo se eliminará para ti'),
+               onTap: () async {
+                 Navigator.pop(context);
+                 final confirmed = await showDialog<bool>(
+                   context: context,
+                   builder: (ctx) => AlertDialog(
+                     shape: RoundedRectangleBorder(
+                       borderRadius: BorderRadius.circular(16),
+                     ),
+                     title: const Text('Eliminar chat'),
+                     content: const Text(
+                       '¿Quieres eliminar este chat? Solo desaparecerá para ti.',
+                     ),
+                     actions: [
+                       TextButton(
+                         onPressed: () => Navigator.pop(ctx, false),
+                         child: const Text('Cancelar'),
+                       ),
+                       TextButton(
+                         onPressed: () => Navigator.pop(ctx, true),
+                         child: const Text(
+                           'Eliminar',
+                           style: TextStyle(color: Colors.redAccent),
+                         ),
+                       ),
+                     ],
+                   ),
+                 );
+                 if (confirmed == true) {
+                   await _chatService.deleteForUser(
+                     chatId: chatId,
+                     userId: _uid,
+                   );
+                 }
+               },
+             ),
+             ListTile(
+               leading: const Icon(Icons.close),
+               title: const Text('Cancelar'),
+               onTap: () => Navigator.pop(context),
+             ),
+           ],
+         ),
+       ),
+     );
+   }
 
-  @override
+@override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.backgroundApp,
@@ -292,8 +405,7 @@ class _MisChatsScreenState extends State<MisChatsScreen> {
                         final deletedFor =
                             (data['deletedFor'] as List<dynamic>?) ?? [];
                         if (deletedFor.contains(_uid)) return false;
-                        final chat = ChatModel.fromFirestore(doc);
-                        return !chat.isClosed;
+                        return true;
                       }).length
                     : 0;
                 return Container(
@@ -323,7 +435,6 @@ class _MisChatsScreenState extends State<MisChatsScreen> {
             )
           : Column(
               children: [
-                // ── Buscador ──
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
                   child: Container(
@@ -358,7 +469,6 @@ class _MisChatsScreenState extends State<MisChatsScreen> {
                   ),
                 ),
                 const SizedBox(height: 4),
-                // ── Lista de chats ──
                 Expanded(
                   child: StreamBuilder<List<QueryDocumentSnapshot>>(
                     stream: _combinedController.stream,
@@ -369,7 +479,6 @@ class _MisChatsScreenState extends State<MisChatsScreen> {
                         );
                       }
 
-                      // Filtrar chats donde el _uid no esté en deletedFor
                       final allDocs = combinedSnapshot.data!;
                       final activeDocs = allDocs.where((doc) {
                         final data = doc.data() as Map<String, dynamic>;
@@ -378,17 +487,10 @@ class _MisChatsScreenState extends State<MisChatsScreen> {
                         return !deletedFor.contains(_uid);
                       }).toList();
 
-                      // Filtrar chats por nombre del otro usuario
                       final filteredChats = _searchQuery.isEmpty
                           ? activeDocs
                           : activeDocs.where((chatDoc) {
-                              final chat = ChatModel.fromFirestore(chatDoc);
-                              final otherName = chat.driverId == _uid
-                                  ? chat.passengerName
-                                  : chat.driverName;
-                              return otherName
-                                  .toLowerCase()
-                                  .contains(_searchQuery.toLowerCase());
+                              return true;
                             }).toList();
 
                       if (filteredChats.isEmpty) {
@@ -428,75 +530,10 @@ class _MisChatsScreenState extends State<MisChatsScreen> {
                         itemCount: filteredChats.length,
                         itemBuilder: (context, index) {
                           final chatDoc = filteredChats[index];
-                          final chat = ChatModel.fromFirestore(chatDoc);
-
-                          final otherUserId = chat.driverId == _uid
-                              ? chat.passengerId
-                              : chat.driverId;
-                          final routeInfo =
-                              '${chat.origin} → ${chat.destination}';
-
                           return Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
-                              StreamBuilder<String>(
-                                stream: _watchOtherUserName(otherUserId),
-                                builder: (context, nameSnap) {
-                                  final realName = nameSnap.data ??
-                                      (chat.driverId == _uid
-                                          ? chat.passengerName
-                                          : chat.driverName);
-                                  return StreamBuilder<String?>(
-                                    stream:
-                                        _watchProfileImageUrl(otherUserId),
-                                    builder: (context, imgSnap) {
-                                      return FutureBuilder<String>(
-                                        future: _getLastMessage(chat.id),
-                                        builder: (context, msgSnap) {
-                                          return StreamBuilder<
-                                              DocumentSnapshot>(
-                                            stream: FirebaseFirestore
-                                                .instance
-                                                .collection('chats')
-                                                .doc(chat.id)
-                                                .snapshots(),
-                                            builder: (context,
-                                                chatSnap) {
-                                              final isClosedRealTime =
-                                                  chatSnap.hasData
-                                                      ? ((chatSnap.data!
-                                                                  .data()
-                                                              as Map<
-                                                                      String,
-                                                                      dynamic>?)
-                                                                  ?[
-                                                              'isClosed'] ??
-                                                          false)
-                                                      : chat.isClosed;
-                                              return _ChatTile(
-                                                otherUserName: realName,
-                                                profileImageUrl:
-                                                    imgSnap.data,
-                                                lastMessage:
-                                                    msgSnap.data ??
-                                                        'Sin mensajes aún',
-                                                routeInfo: routeInfo,
-                                                isClosed: isClosedRealTime,
-                                                createdAt: chat.createdAt,
-                                                onTap: () =>
-                                                    _navigateToChat(
-                                                        context, chat),
-                                                onLongPress: () =>
-                                                    _showChatOptions(
-                                                        context, chat),
-                                              );
-                                            },
-                                          );
-                                        },
-                                      );
-                                    },
-                                  );
-                                },
-                              ),
+                              _buildChatTile(context, chatDoc, _uid),
                               if (index < filteredChats.length - 1)
                                 const Divider(
                                   height: 1,
@@ -513,8 +550,18 @@ class _MisChatsScreenState extends State<MisChatsScreen> {
                 ),
               ],
             ),
+      floatingActionButton: FloatingActionButton(
+        backgroundColor: const Color(0xFF1D9E75),
+        child: const Icon(Icons.add, color: Colors.white),
+        onPressed: () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const BuscarUsuarioScreen()),
+        ),
+      ),
     );
   }
+
+
 }
 
 /// Widget auxiliar que muestra un ítem de chat en la lista.
@@ -522,6 +569,7 @@ class _ChatTile extends StatelessWidget {
   final String otherUserName;
   final String? profileImageUrl;
   final String lastMessage;
+  final bool isLastMessageEmpty;
   final String routeInfo;
   final bool isClosed;
   final DateTime createdAt;
@@ -532,6 +580,7 @@ class _ChatTile extends StatelessWidget {
     required this.otherUserName,
     this.profileImageUrl,
     required this.lastMessage,
+    this.isLastMessageEmpty = false,
     required this.routeInfo,
     required this.isClosed,
     required this.createdAt,
@@ -636,9 +685,11 @@ class _ChatTile extends StatelessWidget {
                         Expanded(
                           child: Text(
                             lastMessage,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 13.5,
-                              color: AppColors.textMedium,
+                              color: isLastMessageEmpty
+                                  ? AppColors.textLight
+                                  : AppColors.textMedium,
                             ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
