@@ -167,17 +167,15 @@ class _MisChatsScreenState extends State<MisChatsScreen> {
     // No mostrar chats eliminados, salvo que haya mensajes nuevos posteriores a la eliminación
     final deletedFor = List<String>.from(data['deletedFor'] ?? []);
     if (deletedFor.contains(currentUid)) {
-      final isDirectChat2 = data.containsKey('user1Id') && data.containsKey('user2Id');
-      if (isDirectChat2) {
-        final deletedAt = data['deletedAt_$currentUid'] as Timestamp?;
-        final lastMessageAt = data['lastMessageAt'] as Timestamp?;
-        // Si hay mensaje nuevo posterior a la eliminación, mostrar el tile
-        if (deletedAt != null && lastMessageAt != null &&
-            lastMessageAt.compareTo(deletedAt) > 0) {
-          // continuar y mostrar el tile
-        } else {
-          return const SizedBox.shrink();
-        }
+      // Mismo comportamiento para chats de ruta y directos:
+      // si hay mensaje nuevo posterior a cuando se eliminó, reaparece
+      final deletedAt = data['deletedAt_$currentUid'] as Timestamp?;
+      final lastMessageAt = data['lastMessageAt'] as Timestamp?;
+      if (deletedAt == null && lastMessageAt != null) {
+        // deletedAt aún no llegó del servidor pero hay mensaje — mostrar
+      } else if (deletedAt != null && lastMessageAt != null &&
+          lastMessageAt.compareTo(deletedAt) > 0) {
+        // Hay mensaje posterior a la eliminación — mostrar
       } else {
         return const SizedBox.shrink();
       }
@@ -223,7 +221,7 @@ class _MisChatsScreenState extends State<MisChatsScreen> {
         otherUserId = driverId;
       }
 
-      routeInfo = '$origin → $destination';
+      routeInfo = 'Chat de ruta';
     }
 
 // Obtener el último mensaje
@@ -423,14 +421,11 @@ class _MisChatsScreenState extends State<MisChatsScreen> {
                             (data['deletedFor'] as List<dynamic>?) ?? [];
                         final isDirectChat = data.containsKey('user1Id') && data.containsKey('user2Id');
                         if (deletedFor.contains(_uid)) {
-                          if (isDirectChat) {
-                            final deletedAt = data['deletedAt_$_uid'] as Timestamp?;
-                            final lastMessageAt = data['lastMessageAt'] as Timestamp?;
-                            if (deletedAt != null && lastMessageAt != null &&
-                                lastMessageAt.compareTo(deletedAt) > 0) {
-                              return true;
-                            }
-                          }
+                          final deletedAt = data['deletedAt_$_uid'] as Timestamp?;
+                          final lastMessageAt = data['lastMessageAt'] as Timestamp?;
+                          if (deletedAt == null && lastMessageAt != null) return true;
+                          if (deletedAt != null && lastMessageAt != null &&
+                              lastMessageAt.compareTo(deletedAt) > 0) return true;
                           return false;
                         }
                         if (isDirectChat) {
@@ -520,17 +515,11 @@ class _MisChatsScreenState extends State<MisChatsScreen> {
                         final isDirectChat = data.containsKey('user1Id') && data.containsKey('user2Id');
 
                         if (deletedFor.contains(_uid)) {
-                          // Si el usuario eliminó el chat, solo mostrarlo si
-                          // hay mensajes nuevos posteriores a cuando lo eliminó
-                          if (isDirectChat) {
-                            final deletedAt = data['deletedAt_$_uid'] as Timestamp?;
-                            final lastMessageAt = data['lastMessageAt'] as Timestamp?;
-                            // Si hay un mensaje posterior a la eliminación, mostrar
-                            if (deletedAt != null && lastMessageAt != null &&
-                                lastMessageAt.compareTo(deletedAt) > 0) {
-                              return true;
-                            }
-                          }
+                          final deletedAt = data['deletedAt_$_uid'] as Timestamp?;
+                          final lastMessageAt = data['lastMessageAt'] as Timestamp?;
+                          if (deletedAt == null && lastMessageAt != null) return true;
+                          if (deletedAt != null && lastMessageAt != null &&
+                              lastMessageAt.compareTo(deletedAt) > 0) return true;
                           return false;
                         }
 

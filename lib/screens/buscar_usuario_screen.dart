@@ -87,6 +87,60 @@ class _BuscarUsuarioScreenState extends State<BuscarUsuarioScreen> {
   Future<void> _startChat(UserModel user) async {
     if (_currentUserName.isEmpty) return;
 
+    // Verificar si ya existe un chat de ruta con esta persona
+    final currentUserId = _currentUserId;
+    final otherUserId = user.id;
+    
+    final routeChatQuery = await FirebaseFirestore.instance
+        .collection('chats')
+        .where('driverId', isEqualTo: currentUserId)
+        .where('passengerId', isEqualTo: otherUserId)
+        .limit(1)
+        .get();
+
+    QueryDocumentSnapshot? routeChatDoc;
+    
+    if (routeChatQuery.docs.isEmpty) {
+      // Buscar al revés: usuario como pasajero y otro como conductor
+      final routeChatQuery2 = await FirebaseFirestore.instance
+          .collection('chats')
+          .where('passengerId', isEqualTo: currentUserId)
+          .where('driverId', isEqualTo: otherUserId)
+          .limit(1)
+          .get();
+      if (routeChatQuery2.docs.isNotEmpty) {
+        routeChatDoc = routeChatQuery2.docs.first;
+      }
+    } else {
+      routeChatDoc = routeChatQuery.docs.first;
+    }
+
+    // Si existe chat de ruta, navegar directamente a él
+    if (routeChatDoc != null) {
+      final routeData = routeChatDoc.data() as Map<String, dynamic>;
+      final origin = routeData['origin'] as String? ?? '';
+      final destination = routeData['destination'] as String? ?? '';
+      final routeChatId = routeChatDoc.id;
+      
+      if (!mounted) return;
+      
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => ChatScreen(
+            chatId: routeChatId,
+            otherUserName: user.fullName,
+            otherUserId: otherUserId,
+            routeInfo: '$origin → $destination',
+            isDirectChat: false,
+            collectionName: 'chats',
+          ),
+        ),
+      );
+      return;
+    }
+
+    // Si no existe chat de ruta, crear chat directo
     final chatId = await _chatService.getOrCreateDirectChat(
       currentUserId: _currentUserId,
       currentUserName: _currentUserName,

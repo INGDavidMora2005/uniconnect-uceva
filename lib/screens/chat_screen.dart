@@ -52,6 +52,7 @@ class _ChatScreenState extends State<ChatScreen> {
     super.initState();
     _otherUserName = widget.otherUserName;
     _loadDeletedAt();
+    _clearDeletedFor();
     _markAsRead();
     // Solo escuchar si otherUserId no está vacío
     if (widget.otherUserId.isNotEmpty) {
@@ -82,7 +83,6 @@ class _ChatScreenState extends State<ChatScreen> {
   /// Carga la fecha en que el usuario eliminó este chat (si aplica).
   /// Solo muestra mensajes posteriores a esa fecha.
   Future<void> _loadDeletedAt() async {
-    if (widget.collectionName != 'direct_chats') return;
     try {
       final doc = await FirebaseFirestore.instance
           .collection(widget.collectionName)
@@ -94,6 +94,29 @@ class _ChatScreenState extends State<ChatScreen> {
       final ts = data[key] as Timestamp?;
       if (ts != null && mounted) {
         setState(() => _deletedAt = ts);
+      }
+    } catch (_) {}
+  }
+
+  /// Al abrir el chat, quitar al usuario de deletedFor para que vuelva
+  /// a aparecer en la lista. Se mantiene deletedAt para filtrar mensajes
+  /// anteriores a la eliminación — se borra solo cuando envía un mensaje nuevo.
+  Future<void> _clearDeletedFor() async {
+    try {
+      final uid = _currentUserId;
+      if (uid.isEmpty) return;
+      final docRef = FirebaseFirestore.instance
+          .collection(widget.collectionName)
+          .doc(widget.chatId);
+      final doc = await docRef.get();
+      if (!doc.exists) return;
+      final data = doc.data() as Map<String, dynamic>? ?? {};
+      final deletedFor = List<String>.from(data['deletedFor'] ?? []);
+      if (deletedFor.contains(uid)) {
+        // Solo quitar de deletedFor — mantener deletedAt para el filtro de mensajes
+        await docRef.update({
+          'deletedFor': FieldValue.arrayRemove([uid]),
+        });
       }
     } catch (_) {}
   }
@@ -209,15 +232,15 @@ class _ChatScreenState extends State<ChatScreen> {
               stream: _chatService.presenceStream(widget.otherUserId),
               builder: (context, snapshot) {
                 if (!snapshot.hasData) {
-                  return Text(
-                    widget.routeInfo,
-                    style: const TextStyle(fontSize: 12, color: Colors.white70),
+                  return const Text(
+                    'Desconectado',
+                    style: TextStyle(fontSize: 12, color: Colors.white70),
                   );
                 }
                 final data = snapshot.data!;
                 final isOnline = data['isOnline'] as bool? ?? false;
                 final lastSeen = data['lastSeen'];
-                
+
                 String statusText;
                 Color statusColor;
                 if (isOnline) {
@@ -231,19 +254,10 @@ class _ChatScreenState extends State<ChatScreen> {
                   statusText = 'Desconectado';
                   statusColor = AppColors.textLight;
                 }
-                
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      widget.routeInfo,
-                      style: const TextStyle(fontSize: 12, color: Colors.white),
-                    ),
-                    Text(
-                      statusText,
-                      style: TextStyle(fontSize: 11, color: statusColor),
-                    ),
-                  ],
+
+                return Text(
+                  statusText,
+                  style: TextStyle(fontSize: 12, color: statusColor),
                 );
               },
             ),
