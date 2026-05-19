@@ -110,9 +110,6 @@ class _MisChatsScreenState extends State<MisChatsScreen> {
     List<QueryDocumentSnapshot>? directChatsUser2Docs,
   }) {
     if (driverDocs != null) {
-      final driverIds = driverDocs.map((d) => d.id).toSet();
-      _chatsMap.removeWhere((id, _) =>
-          _chatsMap[id] != null && !driverIds.contains(id));
       for (final doc in driverDocs) {
         _chatsMap[doc.id] = doc;
       }
@@ -167,6 +164,10 @@ class _MisChatsScreenState extends State<MisChatsScreen> {
   Widget _buildChatTile(BuildContext context, QueryDocumentSnapshot doc, String currentUid) {
     final data = doc.data() as Map<String, dynamic>;
     final String chatId = doc.id;
+
+    // No mostrar chats donde el usuario ya hizo soft-delete
+    final deletedFor = List<String>.from(data['deletedFor'] ?? []);
+    if (deletedFor.contains(currentUid)) return const SizedBox.shrink();
 
     // Determinar si es un chat directo o de ruta
     bool isDirectChat = data.containsKey('user1Id') && data.containsKey('user2Id');
@@ -230,29 +231,30 @@ class _MisChatsScreenState extends State<MisChatsScreen> {
                       .doc(chatId)
                       .snapshots(),
                   builder: (context, chatSnap) {
+                    final chatData = chatSnap.hasData
+                        ? (chatSnap.data!.data() as Map<String, dynamic>?)
+                        : null;
                     final isClosedRealTime =
-                        chatSnap.hasData
-                            ? ((chatSnap.data!.data()
-                                    as Map<String, dynamic>?)?['isClosed'] ?? false)
-                            : false;
-                    final lastMessageFromDoc = chatSnap.hasData
-                        ? ((chatSnap.data!.data()
-                                as Map<String, dynamic>?)?['lastMessage'] as String?) ??
-                            ''
-                        : '';
+                        chatData?['isClosed'] ?? false;
+                    final lastMessageFromDoc =
+                        (chatData?['lastMessage'] as String?) ?? '';
                     final displayMessage = lastMessageFromDoc.isNotEmpty
                         ? lastMessageFromDoc
                         : 'Sin mensajes aún';
-                    return _ChatTile(
-                      otherUserName: realName,
-                      profileImageUrl: imgSnap.data,
-                      lastMessage: displayMessage,
-                      isLastMessageEmpty: lastMessageFromDoc.isEmpty,
-                      routeInfo: routeInfo,
-                      isClosed: isClosedRealTime,
-                      createdAt: (data['createdAt'] as Timestamp?)?.toDate() ??
-                          DateTime.now(),
-onTap: () {
+                    final timestamp =
+                        chatData?['lastMessageAt'] as Timestamp?;
+                    final time = timestamp != null
+                        ? '${timestamp.toDate().hour.toString().padLeft(2, '0')}:${timestamp.toDate().minute.toString().padLeft(2, '0')}'
+                        : '';
+                      return _ChatTile(
+                        otherUserName: realName,
+                        profileImageUrl: imgSnap.data,
+                        lastMessage: displayMessage,
+                        isLastMessageEmpty: lastMessageFromDoc.isEmpty,
+                        routeInfo: routeInfo,
+                        isClosed: isClosedRealTime,
+                        lastMessageTime: time,
+                        onTap: () {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
@@ -359,12 +361,16 @@ onTap: () {
                      ],
                    ),
                  );
-                 if (confirmed == true) {
-                   await _chatService.deleteForUser(
-                     chatId: chatId,
-                     userId: _uid,
-                   );
-                 }
+                  if (confirmed == true) {
+                    final result = await ChatService().deleteForUser(
+                      chatId,
+                      _uid,
+                      collectionName: isDirectChat ? 'direct_chats' : 'chats',
+                    );
+                    if (result == 'ok') {
+                      setState(() => _chatsMap.remove(chatId));
+                    }
+                  }
                },
              ),
              ListTile(
@@ -572,7 +578,7 @@ class _ChatTile extends StatelessWidget {
   final bool isLastMessageEmpty;
   final String routeInfo;
   final bool isClosed;
-  final DateTime createdAt;
+  final String lastMessageTime;
   final VoidCallback onTap;
   final VoidCallback? onLongPress;
 
@@ -583,16 +589,10 @@ class _ChatTile extends StatelessWidget {
     this.isLastMessageEmpty = false,
     required this.routeInfo,
     required this.isClosed,
-    required this.createdAt,
+    required this.lastMessageTime,
     required this.onTap,
     this.onLongPress,
   });
-
-  String _formatTime(DateTime time) {
-    final hour = time.hour.toString().padLeft(2, '0');
-    final minute = time.minute.toString().padLeft(2, '0');
-    return '$hour:$minute';
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -668,7 +668,7 @@ class _ChatTile extends StatelessWidget {
                         ),
                         const SizedBox(width: 8),
                         Text(
-                          _formatTime(createdAt),
+                          lastMessageTime,
                           style: const TextStyle(
                             fontSize: 12,
                             color: AppColors.textLight,

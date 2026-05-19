@@ -88,9 +88,12 @@ class ChatService {
       if (!chatDoc.exists) {
         return 'error:chat_no_existe';
       }
-      final chat = ChatModel.fromFirestore(chatDoc);
-      if (chat.isClosed) {
-        return 'error:chat_cerrado';
+      // Solo verificar isClosed si es un chat de ruta
+      if (collectionName == 'chats') {
+        final chat = ChatModel.fromFirestore(chatDoc);
+        if (chat.isClosed) {
+          return 'error:chat_cerrado';
+        }
       }
 
       // Guardar mensaje en la subcolección messages
@@ -240,18 +243,14 @@ await messageRef.set({
   // ─────────────────────────────────────────────
   // 10. Eliminar chat para el usuario actual (soft delete)
   // ─────────────────────────────────────────────
-  Future<String> deleteForUser({
-    required String chatId,
-    required String userId,
-    String collectionName = 'chats',
-  }) async {
+  Future<String> deleteForUser(String chatId, String uid, {String collectionName = 'chats'}) async {
     try {
       await _db.collection(collectionName).doc(chatId).update({
-        'deletedFor': FieldValue.arrayUnion([userId]),
+        'deletedFor': FieldValue.arrayUnion([uid]),
       });
       return 'ok';
     } catch (e) {
-      return 'error:$e';
+      return 'Error al eliminar chat: $e';
     }
   }
 
@@ -318,5 +317,28 @@ await messageRef.set({
         .collection('direct_chats')
         .where('user2Id', isEqualTo: userId)
         .snapshots();
+  }
+
+  // ─────────────────────────────────────────────
+  // PRESENCIA EN TIEMPO REAL
+  // ─────────────────────────────────────────────
+
+  /// Actualiza presencia del usuario actual
+  Future<void> updatePresence(String uid, bool isOnline) async {
+    await _db.collection('users').doc(uid).update({
+      'isOnline': isOnline,
+      'lastSeen': FieldValue.serverTimestamp(),
+    });
+  }
+
+  /// Stream para escuchar presencia de otro usuario
+  Stream<Map<String, dynamic>> presenceStream(String uid) {
+    return _db.collection('users').doc(uid).snapshots().map((doc) {
+      final data = doc.data() ?? {};
+      return {
+        'isOnline': data['isOnline'] ?? false,
+        'lastSeen': data['lastSeen'],
+      };
+    });
   }
 }
