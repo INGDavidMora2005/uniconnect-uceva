@@ -164,9 +164,24 @@ class _MisChatsScreenState extends State<MisChatsScreen> {
     final data = doc.data() as Map<String, dynamic>;
     final String chatId = doc.id;
 
-    // No mostrar chats donde el usuario ya hizo soft-delete
+    // No mostrar chats eliminados, salvo que haya mensajes nuevos posteriores a la eliminación
     final deletedFor = List<String>.from(data['deletedFor'] ?? []);
-    if (deletedFor.contains(currentUid)) return const SizedBox.shrink();
+    if (deletedFor.contains(currentUid)) {
+      final isDirectChat2 = data.containsKey('user1Id') && data.containsKey('user2Id');
+      if (isDirectChat2) {
+        final deletedAt = data['deletedAt_$currentUid'] as Timestamp?;
+        final lastMessageAt = data['lastMessageAt'] as Timestamp?;
+        // Si hay mensaje nuevo posterior a la eliminación, mostrar el tile
+        if (deletedAt != null && lastMessageAt != null &&
+            lastMessageAt.compareTo(deletedAt) > 0) {
+          // continuar y mostrar el tile
+        } else {
+          return const SizedBox.shrink();
+        }
+      } else {
+        return const SizedBox.shrink();
+      }
+    }
 
     // Determinar si es un chat directo o de ruta
     bool isDirectChat = data.containsKey('user1Id') && data.containsKey('user2Id');
@@ -406,8 +421,18 @@ class _MisChatsScreenState extends State<MisChatsScreen> {
                         final data = doc.data() as Map<String, dynamic>;
                         final deletedFor =
                             (data['deletedFor'] as List<dynamic>?) ?? [];
-                        if (deletedFor.contains(_uid)) return false;
                         final isDirectChat = data.containsKey('user1Id') && data.containsKey('user2Id');
+                        if (deletedFor.contains(_uid)) {
+                          if (isDirectChat) {
+                            final deletedAt = data['deletedAt_$_uid'] as Timestamp?;
+                            final lastMessageAt = data['lastMessageAt'] as Timestamp?;
+                            if (deletedAt != null && lastMessageAt != null &&
+                                lastMessageAt.compareTo(deletedAt) > 0) {
+                              return true;
+                            }
+                          }
+                          return false;
+                        }
                         if (isDirectChat) {
                           final u1 = data['user1Id'] as String? ?? '';
                           final u2 = data['user2Id'] as String? ?? '';
@@ -490,12 +515,26 @@ class _MisChatsScreenState extends State<MisChatsScreen> {
                       final allDocs = combinedSnapshot.data!;
                       final activeDocs = allDocs.where((doc) {
                         final data = doc.data() as Map<String, dynamic>;
-                        // Excluir chats eliminados por el usuario
                         final deletedFor =
                             (data['deletedFor'] as List<dynamic>?) ?? [];
-                        if (deletedFor.contains(_uid)) return false;
-                        // Excluir chats directos donde el usuario no es participante
                         final isDirectChat = data.containsKey('user1Id') && data.containsKey('user2Id');
+
+                        if (deletedFor.contains(_uid)) {
+                          // Si el usuario eliminó el chat, solo mostrarlo si
+                          // hay mensajes nuevos posteriores a cuando lo eliminó
+                          if (isDirectChat) {
+                            final deletedAt = data['deletedAt_$_uid'] as Timestamp?;
+                            final lastMessageAt = data['lastMessageAt'] as Timestamp?;
+                            // Si hay un mensaje posterior a la eliminación, mostrar
+                            if (deletedAt != null && lastMessageAt != null &&
+                                lastMessageAt.compareTo(deletedAt) > 0) {
+                              return true;
+                            }
+                          }
+                          return false;
+                        }
+
+                        // Excluir chats directos donde el usuario no es participante
                         if (isDirectChat) {
                           final user1Id = data['user1Id'] as String? ?? '';
                           final user2Id = data['user2Id'] as String? ?? '';
