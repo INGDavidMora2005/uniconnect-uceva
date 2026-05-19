@@ -183,9 +183,47 @@ class _ChatScreenState extends State<ChatScreen> {
                 color: Colors.white,
               ),
             ),
-            Text(
-              widget.routeInfo,
-              style: const TextStyle(fontSize: 12, color: Colors.white),
+            StreamBuilder<Map<String, dynamic>>(
+              stream: _chatService.presenceStream(widget.otherUserId),
+              builder: (context, snapshot) {
+                if (!snapshot.hasData) {
+                  return Text(
+                    widget.routeInfo,
+                    style: const TextStyle(fontSize: 12, color: Colors.white70),
+                  );
+                }
+                final data = snapshot.data!;
+                final isOnline = data['isOnline'] as bool? ?? false;
+                final lastSeen = data['lastSeen'];
+                
+                String statusText;
+                Color statusColor;
+                if (isOnline) {
+                  statusText = 'En línea';
+                  statusColor = AppColors.accentGreen;
+                } else if (lastSeen != null) {
+                  final lastSeenDate = (lastSeen as Timestamp).toDate();
+                  statusText = 'Última vez: ${lastSeenDate.hour.toString().padLeft(2, '0')}:${lastSeenDate.minute.toString().padLeft(2, '0')}';
+                  statusColor = AppColors.textLight;
+                } else {
+                  statusText = 'Desconectado';
+                  statusColor = AppColors.textLight;
+                }
+                
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      widget.routeInfo,
+                      style: const TextStyle(fontSize: 12, color: Colors.white),
+                    ),
+                    Text(
+                      statusText,
+                      style: TextStyle(fontSize: 11, color: statusColor),
+                    ),
+                  ],
+                );
+              },
             ),
           ],
         ),
