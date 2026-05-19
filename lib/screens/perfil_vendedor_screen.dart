@@ -8,7 +8,9 @@ import '../models/product_model.dart';
 import '../models/user_model.dart';
 import '../models/report_model.dart';
 import '../services/product_service.dart';
+import '../services/chat_service.dart';
 import '../theme/app_theme.dart';
+import 'chat_screen.dart';
 import 'detalle_producto_screen.dart';
 import 'calificar_bazar_screen.dart';
 import 'report_form_screen.dart';
@@ -33,6 +35,100 @@ class PerfilVendedorScreen extends StatefulWidget {
 
 class _PerfilVendedorScreenState extends State<PerfilVendedorScreen> {
   final ProductService _productService = ProductService();
+  final ChatService _chatService = ChatService();
+
+  Future<void> _enviarMensaje() async {
+    final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+    if (currentUserId == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Error: Usuario no autenticado'),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
+      return;
+    }
+
+    if (currentUserId == widget.sellerId) return;
+
+    final doc = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(currentUserId)
+        .get();
+    final currentUserName = doc.data()?['fullName'] ?? '';
+
+    // Verificar si ya existe un chat de ruta con esta persona
+    String? routeChatId;
+    String routeCollection = 'chats';
+    final routeChatsSnap = await FirebaseFirestore.instance
+        .collection('chats')
+        .where('driverId', isEqualTo: widget.sellerId)
+        .where('passengerId', isEqualTo: currentUserId)
+        .limit(1)
+        .get();
+    if (routeChatsSnap.docs.isNotEmpty) {
+      routeChatId = routeChatsSnap.docs.first.id;
+    } else {
+      final routeChatsSnap2 = await FirebaseFirestore.instance
+          .collection('chats')
+          .where('driverId', isEqualTo: currentUserId)
+          .where('passengerId', isEqualTo: widget.sellerId)
+          .limit(1)
+          .get();
+      if (routeChatsSnap2.docs.isNotEmpty) {
+        routeChatId = routeChatsSnap2.docs.first.id;
+      }
+    }
+
+    // Si hay chat de ruta, ir a ese; si no, crear/abrir chat directo
+    final String finalChatId;
+    final String finalCollection;
+    final bool finalIsDirect;
+
+    if (routeChatId != null) {
+      finalChatId = routeChatId;
+      finalCollection = routeCollection;
+      finalIsDirect = false;
+    } else {
+      final directChatId = await _chatService.getOrCreateDirectChat(
+        currentUserId: currentUserId,
+        currentUserName: currentUserName,
+        otherUserId: widget.sellerId,
+        otherUserName: widget.sellerName,
+      );
+      if (directChatId.startsWith('error:')) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al crear chat: $directChatId'),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+        return;
+      }
+      finalChatId = directChatId;
+      finalCollection = 'direct_chats';
+      finalIsDirect = true;
+    }
+
+    if (!mounted) return;
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ChatScreen(
+          chatId: finalChatId,
+          otherUserName: widget.sellerName,
+          otherUserId: widget.sellerId,
+          routeInfo: '',
+          isDirectChat: finalIsDirect,
+          collectionName: finalCollection,
+        ),
+      ),
+    );
+  }
 
   Future<void> _calificarVendedor() async {
     final currentUserId = FirebaseAuth.instance.currentUser?.uid;
@@ -251,9 +347,23 @@ class _PerfilVendedorScreenState extends State<PerfilVendedorScreen> {
                               ),
                             ],
                           ),
-                          const SizedBox(height: 12),
-                          if (rawPhoneVendedor != null)
-                            ElevatedButton.icon(
+const SizedBox(height: 12),
+                           if (FirebaseAuth.instance.currentUser?.uid != widget.sellerId)
+                             ElevatedButton.icon(
+                               onPressed: _enviarMensaje,
+                               icon: const Icon(Icons.chat_bubble_outline, size: 18),
+                               label: const Text('Enviar mensaje'),
+                               style: ElevatedButton.styleFrom(
+                                 backgroundColor: AppColors.primaryGreen,
+                                 foregroundColor: Colors.white,
+                                 shape: RoundedRectangleBorder(
+                                   borderRadius: BorderRadius.circular(10),
+                                 ),
+                                 elevation: 0,
+                               ),
+                             ),
+                           if (rawPhoneVendedor != null)
+                             ElevatedButton.icon(
                               onPressed: () =>
                                   _contactarVendedor(rawPhoneVendedor),
                               icon: const Icon(Icons.message, size: 18),
