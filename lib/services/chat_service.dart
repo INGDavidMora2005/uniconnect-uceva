@@ -3,12 +3,15 @@ import '../models/chat_model.dart';
 import '../models/cupo_request_model.dart';
 
 class ChatService {
-  // Singleton
+  // Singleton para uso normal en la app
   static final ChatService _instance = ChatService._internal();
   factory ChatService() => _instance;
-  ChatService._internal();
+  ChatService._internal() : _db = FirebaseFirestore.instance;
 
-  final _db = FirebaseFirestore.instance;
+  // Constructor para tests — recibe un Firestore inyectado (FakeFirebaseFirestore)
+  ChatService.withFirestore(FirebaseFirestore db) : _db = db;
+
+  final FirebaseFirestore _db;
 
   // ─────────────────────────────────────────────
   // 1. Obtener o crear un chat

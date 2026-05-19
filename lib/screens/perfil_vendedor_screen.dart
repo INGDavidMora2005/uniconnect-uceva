@@ -59,35 +59,72 @@ class _PerfilVendedorScreenState extends State<PerfilVendedorScreen> {
         .get();
     final currentUserName = doc.data()?['fullName'] ?? '';
 
-    final chatId = await _chatService.getOrCreateDirectChat(
-      currentUserId: currentUserId,
-      currentUserName: currentUserName,
-      otherUserId: widget.sellerId,
-      otherUserName: widget.sellerName,
-    );
+    // Verificar si ya existe un chat de ruta con esta persona
+    String? routeChatId;
+    String routeCollection = 'chats';
+    final routeChatsSnap = await FirebaseFirestore.instance
+        .collection('chats')
+        .where('driverId', isEqualTo: widget.sellerId)
+        .where('passengerId', isEqualTo: currentUserId)
+        .limit(1)
+        .get();
+    if (routeChatsSnap.docs.isNotEmpty) {
+      routeChatId = routeChatsSnap.docs.first.id;
+    } else {
+      final routeChatsSnap2 = await FirebaseFirestore.instance
+          .collection('chats')
+          .where('driverId', isEqualTo: currentUserId)
+          .where('passengerId', isEqualTo: widget.sellerId)
+          .limit(1)
+          .get();
+      if (routeChatsSnap2.docs.isNotEmpty) {
+        routeChatId = routeChatsSnap2.docs.first.id;
+      }
+    }
+
+    // Si hay chat de ruta, ir a ese; si no, crear/abrir chat directo
+    final String finalChatId;
+    final String finalCollection;
+    final bool finalIsDirect;
+
+    if (routeChatId != null) {
+      finalChatId = routeChatId;
+      finalCollection = routeCollection;
+      finalIsDirect = false;
+    } else {
+      final directChatId = await _chatService.getOrCreateDirectChat(
+        currentUserId: currentUserId,
+        currentUserName: currentUserName,
+        otherUserId: widget.sellerId,
+        otherUserName: widget.sellerName,
+      );
+      if (directChatId.startsWith('error:')) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al crear chat: $directChatId'),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+        return;
+      }
+      finalChatId = directChatId;
+      finalCollection = 'direct_chats';
+      finalIsDirect = true;
+    }
 
     if (!mounted) return;
-
-    if (chatId.startsWith('error:')) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error al crear chat: $chatId'),
-          backgroundColor: Colors.redAccent,
-        ),
-      );
-      return;
-    }
 
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (_) => ChatScreen(
-          chatId: chatId,
+          chatId: finalChatId,
           otherUserName: widget.sellerName,
           otherUserId: widget.sellerId,
-          routeInfo: 'Chat directo',
-          isDirectChat: true,
-          collectionName: 'direct_chats',
+          routeInfo: '',
+          isDirectChat: finalIsDirect,
+          collectionName: finalCollection,
         ),
       ),
     );

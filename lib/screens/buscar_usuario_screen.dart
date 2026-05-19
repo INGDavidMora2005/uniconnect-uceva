@@ -117,9 +117,6 @@ class _BuscarUsuarioScreenState extends State<BuscarUsuarioScreen> {
 
     // Si existe chat de ruta, navegar directamente a él
     if (routeChatDoc != null) {
-      final routeData = routeChatDoc.data() as Map<String, dynamic>;
-      final origin = routeData['origin'] as String? ?? '';
-      final destination = routeData['destination'] as String? ?? '';
       final routeChatId = routeChatDoc.id;
       
       if (!mounted) return;
@@ -131,7 +128,7 @@ class _BuscarUsuarioScreenState extends State<BuscarUsuarioScreen> {
             chatId: routeChatId,
             otherUserName: user.fullName,
             otherUserId: otherUserId,
-            routeInfo: '$origin → $destination',
+            routeInfo: '',
             isDirectChat: false,
             collectionName: 'chats',
           ),
@@ -164,7 +161,7 @@ class _BuscarUsuarioScreenState extends State<BuscarUsuarioScreen> {
           chatId: chatId,
           otherUserName: user.fullName,
           otherUserId: user.id,
-          routeInfo: 'Chat directo',
+          routeInfo: '',
           isDirectChat: true,
           collectionName: 'direct_chats',
         ),
