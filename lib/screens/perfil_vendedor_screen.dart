@@ -8,7 +8,9 @@ import '../models/product_model.dart';
 import '../models/user_model.dart';
 import '../models/report_model.dart';
 import '../services/product_service.dart';
+import '../services/chat_service.dart';
 import '../theme/app_theme.dart';
+import 'chat_screen.dart';
 import 'detalle_producto_screen.dart';
 import 'calificar_bazar_screen.dart';
 import 'report_form_screen.dart';
@@ -33,6 +35,63 @@ class PerfilVendedorScreen extends StatefulWidget {
 
 class _PerfilVendedorScreenState extends State<PerfilVendedorScreen> {
   final ProductService _productService = ProductService();
+  final ChatService _chatService = ChatService();
+
+  Future<void> _enviarMensaje() async {
+    final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+    if (currentUserId == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Error: Usuario no autenticado'),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
+      return;
+    }
+
+    if (currentUserId == widget.sellerId) return;
+
+    final doc = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(currentUserId)
+        .get();
+    final currentUserName = doc.data()?['fullName'] ?? '';
+
+    final chatId = await _chatService.getOrCreateDirectChat(
+      currentUserId: currentUserId,
+      currentUserName: currentUserName,
+      otherUserId: widget.sellerId,
+      otherUserName: widget.sellerName,
+    );
+
+    if (!mounted) return;
+
+    if (chatId.startsWith('error:')) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error al crear chat: $chatId'),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+      return;
+    }
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ChatScreen(
+          chatId: chatId,
+          otherUserName: widget.sellerName,
+          otherUserId: widget.sellerId,
+          routeInfo: 'Chat directo',
+          isDirectChat: true,
+          collectionName: 'direct_chats',
+        ),
+      ),
+    );
+  }
 
   Future<void> _calificarVendedor() async {
     final currentUserId = FirebaseAuth.instance.currentUser?.uid;
@@ -251,9 +310,23 @@ class _PerfilVendedorScreenState extends State<PerfilVendedorScreen> {
                               ),
                             ],
                           ),
-                          const SizedBox(height: 12),
-                          if (rawPhoneVendedor != null)
-                            ElevatedButton.icon(
+const SizedBox(height: 12),
+                           if (FirebaseAuth.instance.currentUser?.uid != widget.sellerId)
+                             ElevatedButton.icon(
+                               onPressed: _enviarMensaje,
+                               icon: const Icon(Icons.chat_bubble_outline, size: 18),
+                               label: const Text('Enviar mensaje'),
+                               style: ElevatedButton.styleFrom(
+                                 backgroundColor: AppColors.primaryGreen,
+                                 foregroundColor: Colors.white,
+                                 shape: RoundedRectangleBorder(
+                                   borderRadius: BorderRadius.circular(10),
+                                 ),
+                                 elevation: 0,
+                               ),
+                             ),
+                           if (rawPhoneVendedor != null)
+                             ElevatedButton.icon(
                               onPressed: () =>
                                   _contactarVendedor(rawPhoneVendedor),
                               icon: const Icon(Icons.message, size: 18),

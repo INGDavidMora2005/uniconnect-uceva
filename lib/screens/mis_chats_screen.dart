@@ -21,9 +21,9 @@ class MisChatsScreen extends StatefulWidget {
 class _MisChatsScreenState extends State<MisChatsScreen> {
   final _chatService = ChatService();
 
-  // UID del usuario autenticado
-  String get _uid =>
-      FirebaseAuth.instance.currentUser?.uid ?? '';
+  // UID del usuario autenticado — se fija en initState para evitar
+  // que un getter devuelva '' si Firebase Auth aún no cargó.
+  String _uid = '';
 
   // Almacén local de chats combinados
   final Map<String, QueryDocumentSnapshot> _chatsMap = {};
@@ -33,8 +33,8 @@ class _MisChatsScreenState extends State<MisChatsScreen> {
 
   StreamSubscription? _driverSub;
   StreamSubscription? _passengerSub;
-  StreamSubscription? _user1DirectSub;
-  StreamSubscription? _user2DirectSub;
+  StreamSubscription? _directSub;  // stream unificado de direct_chats
+  StreamSubscription? _authSub;
 
   // Texto de búsqueda para filtrar chats
   String _searchQuery = '';
@@ -42,15 +42,29 @@ class _MisChatsScreenState extends State<MisChatsScreen> {
   @override
   void initState() {
     super.initState();
-    _listenToChats();
+    // Esperar a que Firebase Auth confirme el usuario antes de suscribirse
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser != null) {
+      _uid = currentUser.uid;
+      _listenToChats();
+    } else {
+      // Si aún no hay usuario, esperar el primer evento de auth
+      _authSub = FirebaseAuth.instance.authStateChanges().listen((user) {
+        if (user != null && _uid.isEmpty) {
+          _uid = user.uid;
+          _listenToChats();
+          _authSub?.cancel();
+        }
+      });
+    }
   }
 
   @override
   void dispose() {
+    _authSub?.cancel();
     _driverSub?.cancel();
     _passengerSub?.cancel();
-    _user1DirectSub?.cancel();
-    _user2DirectSub?.cancel();
+    _directSub?.cancel();
     _combinedController.close();
     super.dispose();
   }
@@ -79,25 +93,14 @@ class _MisChatsScreenState extends State<MisChatsScreen> {
       },
     );
 
-    // Stream de chats directos donde el usuario es user1
-    _user1DirectSub =
-        _chatService.user1DirectChatsStream(_uid).listen(
+    // Stream unificado de chats directos (usa arrayContains en 'participants')
+    _directSub =
+        _chatService.directChatsStream(_uid).listen(
       (snapshot) {
         _updateChats(directChatsUser1Docs: snapshot.docs);
       },
       onError: (error) {
-        debugPrint('Error en user1DirectChatsStream: $error');
-      },
-    );
-
-    // Stream de chats directos donde el usuario es user2
-    _user2DirectSub =
-        _chatService.user2DirectChatsStream(_uid).listen(
-      (snapshot) {
-        _updateChats(directChatsUser2Docs: snapshot.docs);
-      },
-      onError: (error) {
-        debugPrint('Error en user2DirectChatsStream: $error');
+        debugPrint('Error en directChatsStream: $error');
       },
     );
   }
@@ -107,7 +110,6 @@ class _MisChatsScreenState extends State<MisChatsScreen> {
     List<QueryDocumentSnapshot>? driverDocs,
     List<QueryDocumentSnapshot>? passengerDocs,
     List<QueryDocumentSnapshot>? directChatsUser1Docs,
-    List<QueryDocumentSnapshot>? directChatsUser2Docs,
   }) {
     if (driverDocs != null) {
       for (final doc in driverDocs) {
@@ -124,22 +126,19 @@ class _MisChatsScreenState extends State<MisChatsScreen> {
         _chatsMap[doc.id] = doc;
       }
     }
-    if (directChatsUser2Docs != null) {
-      for (final doc in directChatsUser2Docs) {
-        _chatsMap[doc.id] = doc;
-      }
-    }
 
-    // Ordenar por fecha de creación, más reciente primero
+    // Ordenar por último mensaje (tipo WhatsApp), con fallback a createdAt
     final sorted = _chatsMap.values.toList();
     sorted.sort((a, b) {
-      final aCreated =
-          (a.data() as Map<String, dynamic>)['createdAt'];
-      final bCreated =
-          (b.data() as Map<String, dynamic>)['createdAt'];
-      if (aCreated is Timestamp && bCreated is Timestamp) {
-        return bCreated.compareTo(aCreated);
+      final aData = a.data() as Map<String, dynamic>;
+      final bData = b.data() as Map<String, dynamic>;
+      final aTs = (aData['lastMessageAt'] ?? aData['createdAt']);
+      final bTs = (bData['lastMessageAt'] ?? bData['createdAt']);
+      if (aTs is Timestamp && bTs is Timestamp) {
+        return bTs.compareTo(aTs);
       }
+      if (aTs is Timestamp) return -1;
+      if (bTs is Timestamp) return 1;
       return 0;
     });
 
@@ -176,10 +175,7 @@ class _MisChatsScreenState extends State<MisChatsScreen> {
     String routeInfo = '';
     String collectionName = isDirectChat ? 'direct_chats' : 'chats';
 
-    // Solo mostrar chats directos que tengan al menos un mensaje
     if (isDirectChat) {
-      final lastMessage = data['lastMessage'] as String? ?? '';
-      if (lastMessage.isEmpty) return const SizedBox.shrink();
 
       // Chat directo: user1Id, user2Id, user1Name, user2Name
       final String user1Id = data['user1Id'] as String? ?? '';
@@ -411,6 +407,12 @@ class _MisChatsScreenState extends State<MisChatsScreen> {
                         final deletedFor =
                             (data['deletedFor'] as List<dynamic>?) ?? [];
                         if (deletedFor.contains(_uid)) return false;
+                        final isDirectChat = data.containsKey('user1Id') && data.containsKey('user2Id');
+                        if (isDirectChat) {
+                          final u1 = data['user1Id'] as String? ?? '';
+                          final u2 = data['user2Id'] as String? ?? '';
+                          if (u1 != _uid && u2 != _uid) return false;
+                        }
                         return true;
                       }).length
                     : 0;
@@ -488,15 +490,29 @@ class _MisChatsScreenState extends State<MisChatsScreen> {
                       final allDocs = combinedSnapshot.data!;
                       final activeDocs = allDocs.where((doc) {
                         final data = doc.data() as Map<String, dynamic>;
+                        // Excluir chats eliminados por el usuario
                         final deletedFor =
                             (data['deletedFor'] as List<dynamic>?) ?? [];
-                        return !deletedFor.contains(_uid);
+                        if (deletedFor.contains(_uid)) return false;
+                        // Excluir chats directos donde el usuario no es participante
+                        final isDirectChat = data.containsKey('user1Id') && data.containsKey('user2Id');
+                        if (isDirectChat) {
+                          final user1Id = data['user1Id'] as String? ?? '';
+                          final user2Id = data['user2Id'] as String? ?? '';
+                          if (user1Id != _uid && user2Id != _uid) return false;
+                        }
+                        return true;
                       }).toList();
 
                       final filteredChats = _searchQuery.isEmpty
                           ? activeDocs
                           : activeDocs.where((chatDoc) {
-                              return true;
+                              final data = chatDoc.data() as Map<String, dynamic>;
+                              final isDirectChat = data.containsKey('user1Id');
+                              final name = isDirectChat
+                                  ? (data['user1Id'] == _uid ? data['user2Name'] : data['user1Name']) as String? ?? ''
+                                  : '${data['origin'] ?? ''} ${data['destination'] ?? ''}';
+                              return name.toLowerCase().contains(_searchQuery.toLowerCase());
                             }).toList();
 
                       if (filteredChats.isEmpty) {
@@ -520,7 +536,7 @@ class _MisChatsScreenState extends State<MisChatsScreen> {
                               ),
                               const SizedBox(height: 8),
                               Text(
-                                'Cuando reserves un cupo aparecerá aquí tu chat',
+                                'Reserva un cupo o inicia un chat directo con otro usuario',
                                 style: TextStyle(
                                   fontSize: 14,
                                   color: AppColors.textMedium,

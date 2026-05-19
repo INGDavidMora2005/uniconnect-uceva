@@ -188,17 +188,25 @@ await messageRef.set({
 
   // ─────────────────────────────────────────────
   // 5. Stream de mensajes de un chat
+  // deletedAt: si se pasa, solo muestra mensajes posteriores a esa fecha
+  // (útil cuando el usuario eliminó el chat y lo volvió a abrir)
   // ─────────────────────────────────────────────
   Stream<QuerySnapshot> messagesStream(
     String chatId, {
     String collectionName = 'chats',
+    Timestamp? deletedAt,
   }) {
-    return _db
+    var query = _db
         .collection(collectionName)
         .doc(chatId)
         .collection('messages')
-        .orderBy('sentAt', descending: false)
-        .snapshots();
+        .orderBy('sentAt', descending: false);
+
+    if (deletedAt != null) {
+      query = query.where('sentAt', isGreaterThan: deletedAt);
+    }
+
+    return query.snapshots();
   }
 
   // ─────────────────────────────────────────────
@@ -242,11 +250,17 @@ await messageRef.set({
 
   // ─────────────────────────────────────────────
   // 10. Eliminar chat para el usuario actual (soft delete)
+  // Solo desaparece para quien lo elimina. El otro sigue viendo todo.
+  // Se guarda la fecha de eliminación para ocultar mensajes anteriores
+  // si el usuario vuelve a abrir el chat.
   // ─────────────────────────────────────────────
   Future<String> deleteForUser(String chatId, String uid, {String collectionName = 'chats'}) async {
     try {
       await _db.collection(collectionName).doc(chatId).update({
         'deletedFor': FieldValue.arrayUnion([uid]),
+        // Guarda timestamp de cuándo este usuario eliminó el chat,
+        // para que al re-abrirlo solo vea mensajes posteriores a este momento.
+        'deletedAt_$uid': FieldValue.serverTimestamp(),
       });
       return 'ok';
     } catch (e) {
@@ -272,6 +286,22 @@ await messageRef.set({
       final chatDoc =
           await _db.collection('direct_chats').doc(chatId).get();
       if (chatDoc.exists) {
+        final data = chatDoc.data() as Map<String, dynamic>? ?? {};
+        final deletedFor = List<String>.from(data['deletedFor'] ?? []);
+        final participants = List<String>.from(data['participants'] ?? []);
+        final Map<String, dynamic> updates = {};
+
+        // Si el usuario había eliminado el chat, quitarlo de deletedFor
+        if (deletedFor.contains(currentUserId)) {
+          updates['deletedFor'] = FieldValue.arrayRemove([currentUserId]);
+        }
+        // Si falta el campo participants (doc antiguo), agregarlo
+        if (participants.isEmpty) {
+          updates['participants'] = [ids[0], ids[1]];
+        }
+        if (updates.isNotEmpty) {
+          await _db.collection('direct_chats').doc(chatId).update(updates);
+        }
         return chatId;
       }
 
@@ -288,6 +318,7 @@ await messageRef.set({
         'user2Id':       user2Id,
         'user1Name':     user1Name,
         'user2Name':     user2Name,
+        'participants':  [user1Id, user2Id], // array para query simple
         'createdAt':     FieldValue.serverTimestamp(),
         'lastMessage':   null,
         'lastMessageAt': null,
@@ -303,21 +334,21 @@ await messageRef.set({
   // 9. Streams de chats directos del usuario
   // ─────────────────────────────────────────────
 
-  /// Chats directos donde el usuario es user1
-  Stream<QuerySnapshot> user1DirectChatsStream(String userId) {
+  /// Stream unificado de todos los chats directos del usuario.
+  /// Usa el campo 'participants' (array) para una sola query sin índice compuesto.
+  Stream<QuerySnapshot> directChatsStream(String userId) {
     return _db
         .collection('direct_chats')
-        .where('user1Id', isEqualTo: userId)
+        .where('participants', arrayContains: userId)
         .snapshots();
   }
 
-  /// Chats directos donde el usuario es user2
-  Stream<QuerySnapshot> user2DirectChatsStream(String userId) {
-    return _db
-        .collection('direct_chats')
-        .where('user2Id', isEqualTo: userId)
-        .snapshots();
-  }
+  /// @deprecated — mantenidos por compatibilidad, usan directChatsStream internamente
+  Stream<QuerySnapshot> user1DirectChatsStream(String userId) =>
+      directChatsStream(userId);
+
+  Stream<QuerySnapshot> user2DirectChatsStream(String userId) =>
+      const Stream.empty();
 
   // ─────────────────────────────────────────────
   // PRESENCIA EN TIEMPO REAL

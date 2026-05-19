@@ -42,6 +42,8 @@ class _ChatScreenState extends State<ChatScreen> {
 
   // Nombre del otro usuario (se actualiza en tiempo real)
   String _otherUserName = '';
+  // Fecha desde la que mostrar mensajes (si el usuario eliminó el chat antes)
+  Timestamp? _deletedAt;
 
   StreamSubscription? _nameSub;
 
@@ -49,6 +51,7 @@ class _ChatScreenState extends State<ChatScreen> {
   void initState() {
     super.initState();
     _otherUserName = widget.otherUserName;
+    _loadDeletedAt();
     _markAsRead();
     // Solo escuchar si otherUserId no está vacío
     if (widget.otherUserId.isNotEmpty) {
@@ -74,6 +77,25 @@ class _ChatScreenState extends State<ChatScreen> {
     _scrollController.dispose();
     _nameSub?.cancel();
     super.dispose();
+  }
+
+  /// Carga la fecha en que el usuario eliminó este chat (si aplica).
+  /// Solo muestra mensajes posteriores a esa fecha.
+  Future<void> _loadDeletedAt() async {
+    if (widget.collectionName != 'direct_chats') return;
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection(widget.collectionName)
+          .doc(widget.chatId)
+          .get();
+      if (!doc.exists) return;
+      final data = doc.data() as Map<String, dynamic>? ?? {};
+      final key = 'deletedAt_${_currentUserId}';
+      final ts = data[key] as Timestamp?;
+      if (ts != null && mounted) {
+        setState(() => _deletedAt = ts);
+      }
+    } catch (_) {}
   }
 
   Future<void> _markAsRead() async {
@@ -251,6 +273,7 @@ class _ChatScreenState extends State<ChatScreen> {
                       stream: _chatService.messagesStream(
                         widget.chatId,
                         collectionName: widget.collectionName,
+                        deletedAt: _deletedAt,
                       ),
                       builder: (context, snapshot) {
                         if (!snapshot.hasData) {
