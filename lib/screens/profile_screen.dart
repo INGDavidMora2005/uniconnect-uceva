@@ -12,6 +12,10 @@ import 'moderation_panel_screen.dart';
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key, this.showBottomNav = true});
   final bool showBottomNav;
+  // NOTE: ProfileScreen está diseñada solo para mostrar el perfil propio del usuario.
+  // No existe parámetro userId para ver el perfil de otros usuarios.
+  // Si se requiere acceso al chat desde otro perfil, se debería usar
+  // PerfilVendedorScreen o una pantalla similar que reciba userId externo.
 
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();

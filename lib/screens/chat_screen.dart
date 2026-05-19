@@ -42,6 +42,8 @@ class _ChatScreenState extends State<ChatScreen> {
 
   // Nombre del otro usuario (se actualiza en tiempo real)
   String _otherUserName = '';
+  // Fecha desde la que mostrar mensajes (si el usuario eliminó el chat antes)
+  Timestamp? _deletedAt;
 
   StreamSubscription? _nameSub;
 
@@ -49,6 +51,8 @@ class _ChatScreenState extends State<ChatScreen> {
   void initState() {
     super.initState();
     _otherUserName = widget.otherUserName;
+    _loadDeletedAt();
+    _clearDeletedFor();
     _markAsRead();
     // Solo escuchar si otherUserId no está vacío
     if (widget.otherUserId.isNotEmpty) {
@@ -74,6 +78,47 @@ class _ChatScreenState extends State<ChatScreen> {
     _scrollController.dispose();
     _nameSub?.cancel();
     super.dispose();
+  }
+
+  /// Carga la fecha en que el usuario eliminó este chat (si aplica).
+  /// Solo muestra mensajes posteriores a esa fecha.
+  Future<void> _loadDeletedAt() async {
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection(widget.collectionName)
+          .doc(widget.chatId)
+          .get();
+      if (!doc.exists) return;
+      final data = doc.data() as Map<String, dynamic>? ?? {};
+      final key = 'deletedAt_${_currentUserId}';
+      final ts = data[key] as Timestamp?;
+      if (ts != null && mounted) {
+        setState(() => _deletedAt = ts);
+      }
+    } catch (_) {}
+  }
+
+  /// Al abrir el chat, quitar al usuario de deletedFor para que vuelva
+  /// a aparecer en la lista. Se mantiene deletedAt para filtrar mensajes
+  /// anteriores a la eliminación — se borra solo cuando envía un mensaje nuevo.
+  Future<void> _clearDeletedFor() async {
+    try {
+      final uid = _currentUserId;
+      if (uid.isEmpty) return;
+      final docRef = FirebaseFirestore.instance
+          .collection(widget.collectionName)
+          .doc(widget.chatId);
+      final doc = await docRef.get();
+      if (!doc.exists) return;
+      final data = doc.data() as Map<String, dynamic>? ?? {};
+      final deletedFor = List<String>.from(data['deletedFor'] ?? []);
+      if (deletedFor.contains(uid)) {
+        // Solo quitar de deletedFor — mantener deletedAt para el filtro de mensajes
+        await docRef.update({
+          'deletedFor': FieldValue.arrayRemove([uid]),
+        });
+      }
+    } catch (_) {}
   }
 
   Future<void> _markAsRead() async {
@@ -183,9 +228,38 @@ class _ChatScreenState extends State<ChatScreen> {
                 color: Colors.white,
               ),
             ),
-            Text(
-              widget.routeInfo,
-              style: const TextStyle(fontSize: 12, color: Colors.white),
+            StreamBuilder<Map<String, dynamic>>(
+              stream: _chatService.presenceStream(widget.otherUserId),
+              builder: (context, snapshot) {
+                if (!snapshot.hasData) {
+                  return const Text(
+                    'Desconectado',
+                    style: TextStyle(fontSize: 12, color: Colors.white70),
+                  );
+                }
+                final data = snapshot.data!;
+                final isOnline = data['isOnline'] as bool? ?? false;
+                final lastSeen = data['lastSeen'];
+
+                String statusText;
+                Color statusColor;
+                if (isOnline) {
+                  statusText = 'En línea';
+                  statusColor = AppColors.accentGreen;
+                } else if (lastSeen != null) {
+                  final lastSeenDate = (lastSeen as Timestamp).toDate();
+                  statusText = 'Última vez: ${lastSeenDate.hour.toString().padLeft(2, '0')}:${lastSeenDate.minute.toString().padLeft(2, '0')}';
+                  statusColor = AppColors.textLight;
+                } else {
+                  statusText = 'Desconectado';
+                  statusColor = AppColors.textLight;
+                }
+
+                return Text(
+                  statusText,
+                  style: TextStyle(fontSize: 12, color: statusColor),
+                );
+              },
             ),
           ],
         ),
@@ -213,6 +287,7 @@ class _ChatScreenState extends State<ChatScreen> {
                       stream: _chatService.messagesStream(
                         widget.chatId,
                         collectionName: widget.collectionName,
+                        deletedAt: _deletedAt,
                       ),
                       builder: (context, snapshot) {
                         if (!snapshot.hasData) {
