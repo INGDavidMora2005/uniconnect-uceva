@@ -175,15 +175,48 @@ class _BuscarUsuarioScreenState extends State<BuscarUsuarioScreen> {
                           final user = _results[index];
                           return ListTile(
                             onTap: () => _startChat(user),
-                            leading: CircleAvatar(
-                              backgroundColor: AppColors.accentGreen,
-                              child: Text(
-                                user.initials,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
+                            leading: StreamBuilder<DocumentSnapshot>(
+                              stream: FirebaseFirestore.instance
+                                  .collection('users')
+                                  .doc(user.id)
+                                  .snapshots(),
+                              builder: (context, snapshot) {
+                                final isOnline = snapshot.hasData &&
+                                    snapshot.data!.exists &&
+                                    (snapshot.data!.data() as Map<String, dynamic>?)?['isOnline'] == true;
+                                return Stack(
+                                  children: [
+                                    CircleAvatar(
+                                      backgroundColor: AppColors.accentGreen,
+                                      child: Text(
+                                        user.initials,
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ),
+                                    Positioned(
+                                      bottom: 0,
+                                      right: 0,
+                                      child: Container(
+                                        width: 12,
+                                        height: 12,
+                                        decoration: BoxDecoration(
+                                          color: isOnline
+                                              ? const Color(0xFF2EAE7D)
+                                              : Colors.grey.shade400,
+                                          shape: BoxShape.circle,
+                                          border: Border.all(
+                                            color: Colors.white,
+                                            width: 2,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                );
+                              },
                             ),
                             title: Text(
                               user.fullName,
