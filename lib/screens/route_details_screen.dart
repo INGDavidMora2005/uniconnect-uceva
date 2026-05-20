@@ -27,6 +27,7 @@ class RouteDetailsScreen extends StatefulWidget {
 class _RouteDetailsScreenState extends State<RouteDetailsScreen> {
   bool _isDriver = false;
   bool _hasCupoAceptado = false;
+  bool _loading = false;
   String _currentUserName = '';
 
   @override
@@ -50,6 +51,30 @@ class _RouteDetailsScreenState extends State<RouteDetailsScreen> {
         _currentUserName = userDoc.data()?['fullName'] ?? '';
       });
     }
+  }
+
+  Future<void> _cancelarReserva() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
+    setState(() => _loading = true);
+    await CupoService().cancelSeat(
+      routeId: widget.route.id,
+      passengerId: uid,
+      passengerName: _currentUserName,
+      driverId: widget.route.driverId ?? '',
+      origin: widget.route.origin,
+      destination: widget.route.destination,
+    );
+    if (!mounted) return;
+    setState(() {
+      _loading = false;
+      _hasCupoAceptado = false;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Reserva cancelada exitosamente'),
+        backgroundColor: Colors.green,
+      ),
+    );
   }
 
   @override
@@ -237,11 +262,13 @@ class _RouteDetailsScreenState extends State<RouteDetailsScreen> {
                 ),
               ),
             ],
-            // Botón de chat para pasajeros con cupo aceptado
+            // Botones para pasajeros con cupo aceptado
             if (_hasCupoAceptado)
               Padding(
                 padding: const EdgeInsets.all(16),
-                child: ElevatedButton.icon(
+                child: Column(
+                  children: [
+                    ElevatedButton.icon(
                   icon: const Icon(Icons.chat_bubble_outline, color: Colors.white),
                   label: const Text(
                     'Abrir chat con el conductor',
@@ -309,6 +336,50 @@ class _RouteDetailsScreenState extends State<RouteDetailsScreen> {
                           '${widget.route.origin} → ${widget.route.destination}',
                     });
                   },
+                ),
+                    const SizedBox(height: 12),
+                    ElevatedButton.icon(
+                      icon: const Icon(Icons.cancel_outlined, color: Colors.white),
+                      label: const Text(
+                        'Cancelar reserva',
+                        style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.red.shade700,
+                        minimumSize: const Size(double.infinity, 48),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      onPressed: _loading
+                          ? null
+                          : () async {
+                              final confirm = await showDialog<bool>(
+                                context: context,
+                                builder: (ctx) => AlertDialog(
+                                  title: const Text('¿Cancelar reserva?'),
+                                  content: const Text(
+                                    'Si cancelas, tu cupo será liberado y el conductor será notificado. Esta acción no se puede deshacer.',
+                                  ),
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () => Navigator.pop(ctx, false),
+                                      child: const Text('Volver'),
+                                    ),
+                                    TextButton(
+                                      onPressed: () => Navigator.pop(ctx, true),
+                                      child: const Text(
+                                        'Sí, cancelar',
+                                        style: TextStyle(color: Colors.red),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                              if (confirm == true) await _cancelarReserva();
+                            },
+                    ),
+                  ],
                 ),
               ),
           ],

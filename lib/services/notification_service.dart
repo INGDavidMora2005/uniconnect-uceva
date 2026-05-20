@@ -112,6 +112,9 @@ class NotificationService {
       case 'cupo_request':
         navigatorKey.currentState?.pushNamed('/solicitudes-cupo');
         break;
+      case 'cupo_cancelado':
+        navigatorKey.currentState?.pushNamed('/solicitudes-cupo');
+        break;
       case 'cupo_accepted':
       case 'cupo_rejected':
         navigatorKey.currentState?.pushNamed('/mis-rutas');

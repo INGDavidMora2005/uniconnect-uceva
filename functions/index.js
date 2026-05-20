@@ -150,6 +150,62 @@ exports.scheduledCloseChatAfter24h = functions.pubsub
     }
   });
 
+// 6. onCupoCancelled
+exports.onCupoCancelled = onDocumentUpdated("cupo_requests/{requestId}", async (event) => {
+  const before = event.data.before.data();
+  const after = event.data.after.data();
+  if (!before || !after) return;
+
+  // Solo actuar cuando cambia de 'accepted' a 'cancelled'
+  if (before.status !== "accepted" || after.status !== "cancelled") return;
+
+  const { driverId, passengerName, origin, destination, routeId } = after;
+
+  // 1. Incrementar availableSeats y corregir status de la ruta si estaba Llena
+  const db = getFirestore();
+  const routeRef = db.collection("routes").doc(routeId);
+  const routeDoc = await routeRef.get();
+  if (routeDoc.exists) {
+    const routeData = routeDoc.data();
+    const updateData = { availableSeats: FieldValue.increment(1) };
+    if (routeData.status === "Llena") {
+      updateData.status = "Disponible";
+    }
+    await routeRef.update(updateData);
+  }
+
+  // 2. Verificar si el conductor tiene notificaciones de cancelación activadas
+  if (!driverId) return;
+  const userDoc = await db.collection("users").doc(driverId).get();
+  if (userDoc.exists) {
+    const settings = userDoc.data()?.notificationSettings ?? {};
+    const enabled = settings["cupo_cancelado"] ?? true;
+    if (!enabled) return;
+  }
+
+  // 3. Guardar notificación en Firestore para el conductor
+  await db.collection("notifications").add({
+    toUserId: driverId,
+    title: "Reserva cancelada",
+    body: `${passengerName} canceló su reserva en la ruta ${origin} → ${destination}`,
+    type: "cupo_cancelado",
+    read: false,
+    createdAt: FieldValue.serverTimestamp(),
+    routeId: routeId,
+    origin: origin,
+    destination: destination,
+  });
+
+  // 4. Enviar push FCM al conductor
+  const token = await getFcmToken(driverId);
+  await sendPush(
+    token,
+    "Reserva cancelada",
+    `${passengerName} canceló su reserva en la ruta ${origin} → ${destination}`,
+    { type: "cupo_cancelado", routeId: routeId }
+  );
+});
+
 // Migration function to add suspended field to existing users
 exports.migrateAddSuspendedField = functions.https.onRequest(async (req, res) => {
   try {
