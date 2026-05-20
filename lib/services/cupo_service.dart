@@ -203,4 +203,65 @@ class CupoService {
         .where('status', isEqualTo: 'pending')
         .snapshots();
   }
+
+  Future<void> cancelSeat({
+    required String routeId,
+    required String passengerId,
+    required String passengerName,
+    required String driverId,
+    required String origin,
+    required String destination,
+  }) async {
+    try {
+      // 1. Buscar la solicitud aceptada del pasajero
+      final query = await _db
+          .collection('cupo_requests')
+          .where('routeId', isEqualTo: routeId)
+          .where('passengerId', isEqualTo: passengerId)
+          .where('status', isEqualTo: 'accepted')
+          .get();
+      if (query.docs.isEmpty) return;
+
+      // 2. Marcar la solicitud como cancelled
+      await query.docs.first.reference.update({'status': 'cancelled'});
+
+      // 3. Incrementar availableSeats en la ruta
+      final routeRef = _db.collection('routes').doc(routeId);
+      final routeDoc = await routeRef.get();
+      if (routeDoc.exists) {
+        final currentSeats = (routeDoc.data()?['availableSeats'] ?? 0) as int;
+        final totalSeats = (routeDoc.data()?['totalSeats'] ?? 0) as int;
+        final Map<String, dynamic> updateData = {
+          'availableSeats': FieldValue.increment(1),
+        };
+        if (routeDoc.data()?['status'] == 'Llena' || currentSeats >= totalSeats - 1) {
+          updateData['status'] = 'Disponible';
+        }
+        await routeRef.update(updateData);
+      }
+
+      // 4. Verificar si el conductor tiene notificaciones de cancelación activadas
+      final userDoc = await _db.collection('users').doc(driverId).get();
+      if (userDoc.exists) {
+        final settings = (userDoc.data()?['notificationSettings'] as Map<String, dynamic>?) ?? {};
+        final enabled = settings['cupo_cancelado'] ?? true;
+        if (!enabled) return;
+      }
+
+      // 5. Guardar notificación para el conductor
+      await NotificationService().saveNotification(
+        toUserId: driverId,
+        title: 'Reserva cancelada',
+        body: '$passengerName canceló su reserva en la ruta $origin → $destination',
+        type: 'cupo_cancelado',
+        extra: {
+          'routeId': routeId,
+          'origin': origin,
+          'destination': destination,
+        },
+      );
+    } catch (e) {
+      rethrow;
+    }
+  }
 }
