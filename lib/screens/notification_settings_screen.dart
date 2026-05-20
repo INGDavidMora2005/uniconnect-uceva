@@ -19,6 +19,7 @@ class _NotificationSettingsScreenState extends State<NotificationSettingsScreen>
     'cupo_accepted': true,
     'new_message': true,
     'new_rating': true,
+    'cupo_cancelado': true,
   };
 
   @override
@@ -48,6 +49,7 @@ class _NotificationSettingsScreenState extends State<NotificationSettingsScreen>
           _settings['cupo_accepted'] = notificationSettings['cupo_accepted'] ?? true;
           _settings['new_message'] = notificationSettings['new_message'] ?? true;
           _settings['new_rating'] = notificationSettings['new_rating'] ?? true;
+          _settings['cupo_cancelado'] = notificationSettings['cupo_cancelado'] ?? true;
         });
       }
     } catch (e) {
@@ -115,6 +117,11 @@ class _NotificationSettingsScreenState extends State<NotificationSettingsScreen>
                   'Calificaciones',
                   'new_rating',
                   'Recibe notificaciones cuando recibes una nueva calificación',
+                ),
+                _buildSwitchListTile(
+                  'Cancelaciones de reserva',
+                  'cupo_cancelado',
+                  'Recibe notificaciones cuando un pasajero cancela su reserva en tu ruta',
                 ),
               ],
             ),
