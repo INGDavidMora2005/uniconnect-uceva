@@ -10,6 +10,8 @@ import '../models/product_model.dart';
 import '../models/report_model.dart';
 import '../services/product_service.dart';
 import '../theme/app_theme.dart';
+import '../services/chat_service.dart';
+import 'chat_screen.dart';
 import 'perfil_vendedor_screen.dart';
 import 'report_form_screen.dart';
 
@@ -108,6 +110,85 @@ class _DetalleProductoScreenState extends State<DetalleProductoScreen> {
         );
       }
     }
+  }
+
+  Future<void> _handleSendMessage(BuildContext context) async {
+    final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+    if (currentUserId == null) return;
+
+    // Verificar si ya existe chat de ruta con el vendedor
+    String? routeChatId;
+    final snap1 = await FirebaseFirestore.instance
+        .collection('chats')
+        .where('driverId', isEqualTo: widget.product.sellerId)
+        .where('passengerId', isEqualTo: currentUserId)
+        .limit(1)
+        .get();
+    if (snap1.docs.isNotEmpty) {
+      routeChatId = snap1.docs.first.id;
+    } else {
+      final snap2 = await FirebaseFirestore.instance
+          .collection('chats')
+          .where('driverId', isEqualTo: currentUserId)
+          .where('passengerId', isEqualTo: widget.product.sellerId)
+          .limit(1)
+          .get();
+      if (snap2.docs.isNotEmpty) routeChatId = snap2.docs.first.id;
+    }
+
+    final String finalChatId;
+    final String finalCollection;
+    final bool finalIsDirect;
+
+    if (routeChatId != null) {
+      finalChatId = routeChatId;
+      finalCollection = 'chats';
+      finalIsDirect = false;
+    } else {
+      // Obtener nombre del usuario actual
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(currentUserId)
+          .get();
+      final currentUserName = userDoc.data()?['fullName'] ?? '';
+
+      final directChatId = await ChatService().getOrCreateDirectChat(
+        currentUserId: currentUserId,
+        currentUserName: currentUserName,
+        otherUserId: widget.product.sellerId,
+        otherUserName: widget.product.sellerName,
+      );
+
+      if (directChatId.startsWith('error:')) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error al abrir chat: $directChatId'),
+              backgroundColor: Colors.redAccent,
+            ),
+          );
+        }
+        return;
+      }
+      finalChatId = directChatId;
+      finalCollection = 'direct_chats';
+      finalIsDirect = true;
+    }
+
+    if (!context.mounted) return;
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ChatScreen(
+          chatId: finalChatId,
+          otherUserName: widget.product.sellerName,
+          otherUserId: widget.product.sellerId,
+          routeInfo: '',
+          isDirectChat: finalIsDirect,
+          collectionName: finalCollection,
+        ),
+      ),
+    );
   }
 
   void _handleReport(BuildContext context) {
@@ -434,42 +515,79 @@ class _DetalleProductoScreenState extends State<DetalleProductoScreen> {
                     ),
                     const SizedBox(height: 24),
 
-                    // Botones
+                    // Botones — se muestran según el método de contacto elegido
                     if (!_isOwner) ...[
-                      SizedBox(
-                        width: double.infinity,
-                        height: 48,
-                        child: ElevatedButton.icon(
-                          onPressed: () => _handleContact(context),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF25D366),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            elevation: 0,
-                          ),
-                          icon: const Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                Icons.chat_bubble,
-                                color: Colors.white,
-                                size: 18,
+                      // Chat app
+                      if (widget.product.contactMethod == 'Chat app' ||
+                          widget.product.contactMethod == 'Ambos') ...[
+                        SizedBox(
+                          width: double.infinity,
+                          height: 48,
+                          child: ElevatedButton.icon(
+                            onPressed: () => _handleSendMessage(context),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.primaryGreen,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
                               ),
-                              SizedBox(width: 8),
-                            ],
-                          ),
-                          label: const Text(
-                            'Contactar por WhatsApp',
-                            style: TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.bold,
+                              elevation: 0,
+                            ),
+                            icon: const Icon(
+                              Icons.chat_bubble_outline,
                               color: Colors.white,
+                              size: 18,
+                            ),
+                            label: const Text(
+                              'Contactar vendedor',
+                              style: TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
                             ),
                           ),
                         ),
-                      ),
-                      const SizedBox(height: 10),
+                        const SizedBox(height: 10),
+                      ],
+                      // WhatsApp
+                      if (widget.product.contactMethod == 'Whatsapp' ||
+                          widget.product.contactMethod == 'Ambos' ||
+                          widget.product.contactMethod.isEmpty) ...[
+                        SizedBox(
+                          width: double.infinity,
+                          height: 48,
+                          child: ElevatedButton.icon(
+                            onPressed: () => _handleContact(context),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF25D366),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              elevation: 0,
+                            ),
+                            icon: const Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.chat_bubble,
+                                  color: Colors.white,
+                                  size: 18,
+                                ),
+                                SizedBox(width: 8),
+                              ],
+                            ),
+                            label: const Text(
+                              'Contactar por WhatsApp',
+                              style: TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                      ],
                       SizedBox(
                         width: double.infinity,
                         height: 48,
