@@ -16,6 +16,7 @@ class ChatScreen extends StatefulWidget {
   final String routeInfo;
   final bool isDirectChat;
   final String collectionName;
+  final String initialMessage; // mensaje pre-llenado (opcional)
 
   const ChatScreen({
     super.key,
@@ -25,6 +26,7 @@ class ChatScreen extends StatefulWidget {
     required this.routeInfo,
     this.isDirectChat = false,
     this.collectionName = 'chats',
+    this.initialMessage = '',
   });
 
   @override
@@ -51,6 +53,9 @@ class _ChatScreenState extends State<ChatScreen> {
   void initState() {
     super.initState();
     _otherUserName = widget.otherUserName;
+    if (widget.initialMessage.isNotEmpty) {
+      _messageController.text = widget.initialMessage;
+    }
     _loadDeletedAt();
     _clearDeletedFor();
     _markAsRead();
