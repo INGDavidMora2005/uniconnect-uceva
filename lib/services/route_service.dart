@@ -216,4 +216,66 @@ class RouteService {
       return 'Error al procesar la solicitud: $e';
     }
   }
+
+  Future<String> updateRoute({
+    required String routeId,
+    required String time,
+    required int availableSeats,
+    required double price,
+  }) async {
+    try {
+      await _database.collection('routes').doc(routeId).update({
+        'time': time,
+        'availableSeats': availableSeats,
+        'totalSeats': availableSeats,
+        'price': price,
+      });
+      return 'ok';
+    } catch (e) {
+      return 'Error al actualizar la ruta: $e';
+    }
+  }
+
+  Future<String> cancelRoute({
+    required String routeId,
+    required String origin,
+    required String destination,
+  }) async {
+    try {
+      final acceptedRequests = await _database
+          .collection('cupo_requests')
+          .where('routeId', isEqualTo: routeId)
+          .where('status', isEqualTo: 'accepted')
+          .get();
+
+      for (final doc in acceptedRequests.docs) {
+        final data = doc.data();
+        final passengerId = (data['passengerId'] as String?) ?? '';
+        if (passengerId.isEmpty) continue;
+        await NotificationService().saveNotification(
+          toUserId: passengerId,
+          title: 'Ruta cancelada',
+          body: 'El conductor canceló la ruta $origin → $destination.',
+          type: 'route_cancelled',
+          extra: {
+            'routeId': routeId,
+            'origin': origin,
+            'destination': destination,
+          },
+        );
+      }
+
+      for (final doc in acceptedRequests.docs) {
+        await doc.reference.update({'status': 'cancelled'});
+      }
+
+      await _database.collection('routes').doc(routeId).update({
+        'status': 'Cancelada',
+      });
+
+      return 'ok';
+    } catch (e) {
+      return 'Error al cancelar la ruta: $e';
+    }
+  }
 }
