@@ -176,6 +176,8 @@ class _DetalleProductoScreenState extends State<DetalleProductoScreen> {
     }
 
     if (!context.mounted) return;
+
+    if (!context.mounted) return;
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -186,6 +188,7 @@ class _DetalleProductoScreenState extends State<DetalleProductoScreen> {
           routeInfo: '',
           isDirectChat: finalIsDirect,
           collectionName: finalCollection,
+          initialMessage: '¡Hola! Estoy interesado en tu producto "${widget.product.name}". ¿Sigue disponible?',
         ),
       ),
     );
