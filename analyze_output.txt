@@ -1,0 +1,179 @@
+Analyzing uniconnect-uceva...                                   
+
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\models\route_model.dart:97:50 - deprecated_member_use
+warning - Unused import: 'package:cloud_firestore/cloud_firestore.dart' - lib\screens\bazar_screen.dart:2:8 - unused_import
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\bazar_screen.dart:368:35 - deprecated_member_use
+   info - Unnecessary use of multiple underscores - lib\screens\bazar_screen.dart:389:47 - unnecessary_underscores
+   info - Unnecessary use of multiple underscores - lib\screens\bazar_screen.dart:389:51 - unnecessary_underscores
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\bazar_screen.dart:396:49 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\calificar_bazar_screen.dart:212:49 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\calificar_bazar_screen.dart:256:61 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\calificar_bazar_screen.dart:259:63 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\calificar_bazar_screen.dart:356:59 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\calificar_screen.dart:188:49 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\calificar_screen.dart:282:59 - deprecated_member_use
+warning - Unnecessary cast - lib\screens\chat_screen.dart:92:20 - unnecessary_cast
+   info - Unnecessary braces in a string interpolation - lib\screens\chat_screen.dart:93:30 - unnecessary_brace_in_string_interps
+warning - Unnecessary cast - lib\screens\chat_screen.dart:113:20 - unnecessary_cast
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\chat_screen.dart:377:54 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\chat_screen.dart:475:43 - deprecated_member_use
+warning - Unused import: 'dart:convert' - lib\screens\detalle_producto_screen.dart:1:8 - unused_import
+warning - Unused import: 'package:encrypt/encrypt.dart' - lib\screens\detalle_producto_screen.dart:8:8 - unused_import
+   info - Unnecessary use of multiple underscores - lib\screens\detalle_producto_screen.dart:209:41 - unnecessary_underscores
+   info - Unnecessary use of multiple underscores - lib\screens\detalle_producto_screen.dart:209:45 - unnecessary_underscores
+warning - Dead code - lib\screens\edit_profile_screen.dart:62:47 - dead_code
+warning - The left operand can't be null, so the right operand is never executed - lib\screens\edit_profile_screen.dart:62:50 - dead_null_aware_expression
+   info - Don't use 'BuildContext's across async gaps - lib\screens\edit_profile_screen.dart:131:30 - use_build_context_synchronously
+   info - Don't use 'BuildContext's across async gaps - lib\screens\edit_profile_screen.dart:142:26 - use_build_context_synchronously
+   info - 'value' is deprecated and shouldn't be used. Use initialValue instead. This will set the initial value for the form field. This feature was deprecated after v3.33.0-1.0.pre - lib\screens\edit_profile_screen.dart:315:25 - deprecated_member_use
+   info - 'value' is deprecated and shouldn't be used. Use initialValue instead. This will set the initial value for the form field. This feature was deprecated after v3.33.0-1.0.pre - lib\screens\edit_profile_screen.dart:332:25 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\editar_producto_screen.dart:271:58 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\editar_producto_screen.dart:282:62 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\editar_producto_screen.dart:452:68 - deprecated_member_use
+   info - Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check - lib\screens\email_verification_screen.dart:145:52 - use_build_context_synchronously
+   info - Don't use 'BuildContext's across async gaps - lib\screens\forgot_password_screen.dart:28:26 - use_build_context_synchronously
+   info - Don't use 'BuildContext's across async gaps - lib\screens\forgot_password_screen.dart:33:20 - use_build_context_synchronously
+   info - Statements in an if should be enclosed in a block - lib\screens\home_rutas_screen.dart:113:9 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\screens\home_rutas_screen.dart:483:25 - curly_braces_in_flow_control_structures
+   info - Don't use 'BuildContext's across async gaps - lib\screens\login_screen.dart:60:32 - use_build_context_synchronously
+   info - Don't use 'BuildContext's across async gaps - lib\screens\login_screen.dart:79:28 - use_build_context_synchronously
+   info - Statements in an if should be enclosed in a block - lib\screens\login_screen.dart:213:25 - curly_braces_in_flow_control_structures
+warning - The value of the field '_usingPickupFallback' isn't used - lib\screens\mapa_trayecto_screen.dart:85:8 - unused_field
+   info - Use the null-aware marker '?' rather than a null check via an 'if' - lib\screens\mapa_trayecto_screen.dart:524:7 - use_null_aware_elements
+   info - Use the null-aware marker '?' rather than a null check via an 'if' - lib\screens\mapa_trayecto_screen.dart:525:7 - use_null_aware_elements
+   info - Use the null-aware marker '?' rather than a null check via an 'if' - lib\screens\mapa_trayecto_screen.dart:526:7 - use_null_aware_elements
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\mapa_trayecto_screen.dart:729:33 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\mapa_trayecto_screen.dart:750:29 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\mapa_trayecto_screen.dart:754:33 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\mapa_trayecto_screen.dart:921:50 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\mapa_trayecto_screen.dart:935:49 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\mapa_trayecto_screen.dart:964:43 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\mapa_trayecto_screen.dart:1010:43 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\mapa_trayecto_screen.dart:1196:39 - deprecated_member_use
+warning - The value of the local variable 'origin' isn't used - lib\screens\mis_chats_screen.dart:215:20 - unused_local_variable
+warning - The value of the local variable 'destination' isn't used - lib\screens\mis_chats_screen.dart:216:20 - unused_local_variable
+   info - Statements in an if should be enclosed in a block - lib\screens\mis_chats_screen.dart:428:71 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\screens\mis_chats_screen.dart:522:71 - curly_braces_in_flow_control_structures
+warning - The '!' will have no effect because the receiver can't be null - lib\screens\mis_publicaciones_screen.dart:42:69 - unnecessary_non_null_assertion
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\mis_publicaciones_screen.dart:284:33 - deprecated_member_use
+   info - Unnecessary use of multiple underscores - lib\screens\mis_publicaciones_screen.dart:306:45 - unnecessary_underscores
+   info - Unnecessary use of multiple underscores - lib\screens\mis_publicaciones_screen.dart:306:49 - unnecessary_underscores
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\mis_publicaciones_screen.dart:320:47 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\mis_publicaciones_screen.dart:324:51 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\mis_publicaciones_screen.dart:347:45 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\mis_publicaciones_screen.dart:363:45 - deprecated_member_use
+   info - Statements in an if should be enclosed in a block - lib\screens\moderation_panel_screen.dart:188:11 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\screens\moderation_panel_screen.dart:193:11 - curly_braces_in_flow_control_structures
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\moderation_panel_screen.dart:230:41 - deprecated_member_use
+   info - Statements in an if should be enclosed in a block - lib\screens\moderation_panel_screen.dart:302:35 - curly_braces_in_flow_control_structures
+   info - Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check - lib\screens\moderation_panel_screen.dart:302:56 - use_build_context_synchronously
+   info - Statements in an if should be enclosed in a block - lib\screens\moderation_panel_screen.dart:312:35 - curly_braces_in_flow_control_structures
+   info - Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check - lib\screens\moderation_panel_screen.dart:312:56 - use_build_context_synchronously
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\moderation_panel_screen.dart:426:45 - deprecated_member_use
+   info - Don't use 'BuildContext's across async gaps - lib\screens\moderation_panel_screen.dart:672:7 - use_build_context_synchronously
+   info - Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check - lib\screens\moderation_panel_screen.dart:789:44 - use_build_context_synchronously
+   info - Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check - lib\screens\moderation_panel_screen.dart:802:23 - use_build_context_synchronously
+warning - Unnecessary cast - lib\screens\moderation_panel_screen.dart:837:46 - unnecessary_cast
+   info - Statements in an if should be enclosed in a block - lib\screens\moderation_panel_screen.dart:1042:9 - curly_braces_in_flow_control_structures
+warning - The '!' will have no effect because the receiver can't be null - lib\screens\moderation_panel_screen.dart:1044:39 - unnecessary_non_null_assertion
+   info - Statements in an if should be enclosed in a block - lib\screens\moderation_panel_screen.dart:1050:9 - curly_braces_in_flow_control_structures
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\moderation_panel_screen.dart:1110:37 - deprecated_member_use
+warning - Unused import: '../services/notification_service.dart' - lib\screens\notification_settings_screen.dart:5:8 - unused_import
+   info - 'activeColor' is deprecated and shouldn't be used. Use activeThumbColor instead. This feature was deprecated after v3.31.0-2.0.pre - lib\screens\notification_settings_screen.dart:155:7 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\notifications_screen.dart:433:32 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\notifications_screen.dart:438:35 - deprecated_member_use
+warning - Unused import: 'dart:convert' - lib\screens\perfil_vendedor_screen.dart:1:8 - unused_import
+warning - The value of the local variable 'phone' isn't used - lib\screens\perfil_vendedor_screen.dart:253:17 - unused_local_variable
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\perfil_vendedor_screen.dart:285:49 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\perfil_vendedor_screen.dart:464:39 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\perfil_vendedor_screen.dart:621:35 - deprecated_member_use
+   info - Unnecessary use of multiple underscores - lib\screens\perfil_vendedor_screen.dart:642:47 - unnecessary_underscores
+   info - Unnecessary use of multiple underscores - lib\screens\perfil_vendedor_screen.dart:642:51 - unnecessary_underscores
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\perfil_vendedor_screen.dart:649:49 - deprecated_member_use
+   info - Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check - lib\screens\profile_screen.dart:92:32 - use_build_context_synchronously
+   info - Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check - lib\screens\profile_screen.dart:101:32 - use_build_context_synchronously
+warning - The declaration '_initials' isn't referenced - lib\screens\profile_screen.dart:112:14 - unused_element
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\profile_screen.dart:218:55 - deprecated_member_use
+   info - Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check - lib\screens\profile_screen.dart:514:35 - use_build_context_synchronously
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\profile_screen.dart:568:33 - deprecated_member_use
+   info - Don't use 'BuildContext's across async gaps - lib\screens\publicar_producto_screen.dart:94:30 - use_build_context_synchronously
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\publicar_producto_screen.dart:154:50 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\publicar_producto_screen.dart:327:58 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\publicar_producto_screen.dart:338:62 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\publicar_producto_screen.dart:503:68 - deprecated_member_use
+   info - Unnecessary use of multiple underscores - lib\screens\publicar_ruta_screen.dart:421:39 - unnecessary_underscores
+   info - Statements in an if should be enclosed in a block - lib\screens\register_screen.dart:210:25 - curly_braces_in_flow_control_structures
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\report_form_screen.dart:265:57 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\route_details_screen.dart:230:49 - deprecated_member_use
+   info - Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check - lib\screens\route_details_screen.dart:323:44 - use_build_context_synchronously
+   info - Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check - lib\screens\route_details_screen.dart:331:41 - use_build_context_synchronously
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\solicitar_cupo_screen.dart:60:48 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\solicitar_cupo_screen.dart:175:43 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\solicitar_cupo_screen.dart:260:43 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\solicitar_cupo_screen.dart:385:49 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\solicitar_cupo_screen.dart:454:31 - deprecated_member_use
+warning - The value of the field '_sharedPhoneKey' isn't used - lib\services\auth_service.dart:45:23 - unused_field
+   info - Statements in an if should be enclosed in a block - lib\services\auth_service.dart:95:9 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\services\auth_service.dart:175:11 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\services\auth_service.dart:205:11 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\services\auth_service.dart:211:9 - curly_braces_in_flow_control_structures
+   info - Unnecessary braces in a string interpolation - lib\services\auth_service.dart:230:36 - unnecessary_brace_in_string_interps
+   info - Statements in an if should be enclosed in a block - lib\services\auth_service.dart:240:13 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\services\auth_service.dart:260:11 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\services\auth_service.dart:265:11 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\services\auth_service.dart:270:11 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\services\auth_service.dart:274:9 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\services\auth_service.dart:278:9 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\services\auth_service.dart:376:11 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\services\auth_service.dart:384:11 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\services\auth_service.dart:390:9 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\services\auth_service.dart:401:11 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\services\auth_service.dart:407:9 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\services\auth_service.dart:420:11 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\services\auth_service.dart:429:11 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\services\auth_service.dart:457:11 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\services\auth_service.dart:473:11 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\services\auth_service.dart:479:15 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\services\auth_service.dart:501:13 - curly_braces_in_flow_control_structures
+warning - The '!' will have no effect because the receiver can't be null - lib\services\auth_service.dart:526:60 - unnecessary_non_null_assertion
+   info - Statements in an if should be enclosed in a block - lib\services\auth_service.dart:538:13 - curly_braces_in_flow_control_structures
+warning - The '!' will have no effect because the receiver can't be null - lib\services\auth_service.dart:539:28 - unnecessary_non_null_assertion
+   info - Statements in an if should be enclosed in a block - lib\services\auth_service.dart:552:15 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\services\auth_service.dart:557:15 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\services\auth_service.dart:562:15 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\services\auth_service.dart:583:15 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\services\auth_service.dart:592:13 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\services\auth_service.dart:600:17 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\services\auth_service.dart:604:17 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\services\auth_service.dart:611:13 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\services\auth_service.dart:618:9 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\services\auth_service.dart:624:9 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\services\auth_service.dart:820:9 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\services\auth_service.dart:865:9 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\services\auth_service.dart:871:9 - curly_braces_in_flow_control_structures
+warning - Unused import: '../models/cupo_request_model.dart' - lib\services\chat_service.dart:3:8 - unused_import
+warning - Unnecessary cast - lib\services\chat_service.dart:292:22 - unnecessary_cast
+   info - Don't use 'BuildContext's across async gaps - lib\services\notification_service.dart:86:37 - use_build_context_synchronously
+   info - Don't invoke 'print' in production code - lib\services\notification_service.dart:98:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\services\notification_service.dart:172:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\services\notification_service.dart:174:9 - avoid_print
+   info - Don't invoke 'print' in production code - lib\services\notification_service.dart:178:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\services\notification_service.dart:180:9 - avoid_print
+   info - Don't invoke 'print' in production code - lib\services\notification_service.dart:187:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\services\notification_service.dart:189:7 - avoid_print
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\bottom_nav_bar.dart:44:33 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\route_card.dart:459:39 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\route_card.dart:496:35 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\route_card.dart:533:46 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\route_card.dart:534:57 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\route_card.dart:693:64 - deprecated_member_use
+warning - Unused import: 'package:mockito/mockito.dart' - test\auth_service_test_helpers.dart:7:8 - unused_import
+   info - Can't use a relative path to import a library in 'lib' - test\auth_service_test_helpers.dart:9:8 - avoid_relative_lib_imports
+   info - Can't use a relative path to import a library in 'lib' - test\auth_service_test_helpers.dart:10:8 - avoid_relative_lib_imports
+warning - Unused import: 'package:cloud_firestore/cloud_firestore.dart' - test\chat_directo_integration_test.dart:3:8 - unused_import
+   info - Can't use a relative path to import a library in 'lib' - test\chat_directo_integration_test.dart:4:8 - avoid_relative_lib_imports
+   info - Can't use a relative path to import a library in 'lib' - test\location_service_test.dart:2:8 - avoid_relative_lib_imports
+   info - Can't use a relative path to import a library in 'lib' - test\route_service_test.dart:3:8 - avoid_relative_lib_imports
+   info - Can't use a relative path to import a library in 'lib' - test\route_service_test.dart:4:8 - avoid_relative_lib_imports
+
+175 issues found. (ran in 5.0s)
