@@ -47,18 +47,36 @@ class AuthService {
     defaultValue: '',
   );
 
-  final FirebaseAuth _auth = FirebaseAuth.instance;
-  final FirebaseFirestore _db = FirebaseFirestore.instance;
+  FirebaseAuth? _authOverride;
+  FirebaseFirestore? _dbOverride;
+
+  FirebaseAuth get _auth => _authOverride ?? FirebaseAuth.instance;
+  FirebaseFirestore get _db => _dbOverride ?? FirebaseFirestore.instance;
 
   /// Servicio de cifrado híbrido RSA + AES-256
   /// ref: Stallings - Cap 10.2 Hybrid Cryptography
-  final CryptoService _cryptoService = CryptoService();
+  CryptoService _cryptoService = CryptoService();
 
   /// Almacenamiento seguro para credenciales cifradas
-  final FlutterSecureStorage _secureStorage = const FlutterSecureStorage(
+  FlutterSecureStorage _secureStorage = const FlutterSecureStorage(
     aOptions: AndroidOptions(encryptedSharedPreferences: true),
     iOptions: IOSOptions(accessibility: KeychainAccessibility.first_unlock),
   );
+
+  // ignore: use_setters_to_change_properties
+  /// Este método existe exclusivamente para inyección de dependencias en pruebas unitarias.
+  /// Nunca debe ser invocado desde código de producción.
+  void setDependencies({
+    FirebaseAuth? auth,
+    FirebaseFirestore? db,
+    CryptoService? cryptoService,
+    FlutterSecureStorage? secureStorage,
+  }) {
+    if (auth != null) _authOverride = auth;
+    if (db != null) _dbOverride = db;
+    if (cryptoService != null) _cryptoService = cryptoService;
+    if (secureStorage != null) _secureStorage = secureStorage;
+  }
 
   User? get currentUser => _auth.currentUser;
   Stream<User?> get authStateChanges => _auth.authStateChanges();
