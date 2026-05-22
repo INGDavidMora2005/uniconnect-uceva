@@ -6,7 +6,9 @@ import '../models/route_model.dart';
 import '../models/user_model.dart';
 import '../services/auth_service.dart';
 import '../services/route_service.dart';
+import '../services/ai_recommendation_service.dart';
 import '../widgets/route_card.dart';
+
 import '../widgets/bottom_nav_bar.dart';
 import 'profile_screen.dart';
 import 'publicar_ruta_screen.dart';
@@ -39,6 +41,9 @@ class _HomeRutasScreenState extends State<HomeRutasScreen> {
 
   final List<String> _filters = ['Todas', 'Mañana', 'Tarde', 'Noche'];
 
+  List<RouteModel> _suggestedRoutes = [];
+  bool _loadingSuggestions = false;
+
   @override
   void initState() {
     super.initState();
@@ -67,6 +72,95 @@ class _HomeRutasScreenState extends State<HomeRutasScreen> {
             .toSet();
       });
     }
+  }
+
+  Future<void> _loadSuggestions(List<RouteModel> availableRoutes) async {
+    if (_currentUid == null || _suggestedRoutes.isNotEmpty) return;
+    if (mounted) setState(() => _loadingSuggestions = true);
+    try {
+      final suggestions = await AiRecommendationService()
+          .getRouteRecommendations(
+        uid: _currentUid!,
+        availableRoutes: availableRoutes,
+      );
+      if (mounted) {
+        setState(() {
+          _suggestedRoutes = suggestions;
+          _loadingSuggestions = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _suggestedRoutes = [];
+          _loadingSuggestions = false;
+        });
+      }
+    }
+  }
+
+  Widget _buildSuggestedRoutesSection() {
+    if (_loadingSuggestions) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Sugerido para ti 🤖',
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.bold,
+              color: AppColors.textDark,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Container(
+            height: 90,
+            decoration: BoxDecoration(
+              color: Colors.grey.shade200,
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Container(
+            height: 90,
+            decoration: BoxDecoration(
+              color: Colors.grey.shade200,
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+          const SizedBox(height: 16),
+        ],
+      );
+    }
+
+    if (_suggestedRoutes.isNotEmpty) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Sugerido para ti 🤖',
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.bold,
+              color: AppColors.textDark,
+            ),
+          ),
+          const SizedBox(height: 8),
+          ListView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: _suggestedRoutes.length,
+            itemBuilder: (_, i) => RouteCard(
+              route: _suggestedRoutes[i],
+              onTap: () {},
+            ),
+          ),
+          const SizedBox(height: 16),
+        ],
+      );
+    }
+
+    return const SizedBox.shrink();
   }
 
   String get _firstName {
@@ -200,21 +294,22 @@ class _HomeRutasScreenState extends State<HomeRutasScreen> {
                   ),
                 ],
               ),
-              GestureDetector(
-                onTap: _goToProfile,
-                child: CircleAvatar(
-                  radius: 20,
-                  backgroundColor: AppColors.accentGreen,
-                  child: Text(
-                    _initials,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 13,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ),
+               GestureDetector(
+                 onTap: _goToProfile,
+                 child: CircleAvatar(
+                   radius: 20,
+                   backgroundColor: AppColors.accentGreen,
+                   child: Text(
+                     _initials,
+                     style: const TextStyle(
+                       color: Colors.white,
+                       fontSize: 13,
+                       fontWeight: FontWeight.bold,
+                     ),
+                   ),
+                 ),
+               ),
+
             ],
           ),
         ),
@@ -404,10 +499,15 @@ class _HomeRutasScreenState extends State<HomeRutasScreen> {
                         const SizedBox(height: 20),
                       ],
                     );
-                  },
-                ),
+                   },
+                 ),
 
-                // ── Rutas disponibles ─────────────────────
+                 // ── Sugerido para ti 🤖 ───────────────────
+                 if (_loadingSuggestions || _suggestedRoutes.isNotEmpty)
+                   _buildSuggestedRoutesSection(),
+
+                 // ── Rutas disponibles ─────────────────────
+
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -474,6 +574,18 @@ class _HomeRutasScreenState extends State<HomeRutasScreen> {
                     }
 
                     final allRoutes = snapshot.data ?? [];
+
+                    if (allRoutes.isNotEmpty &&
+                        _suggestedRoutes.isEmpty &&
+                        !_loadingSuggestions) {
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        if (mounted &&
+                            _suggestedRoutes.isEmpty &&
+                            !_loadingSuggestions) {
+                          _loadSuggestions(allRoutes);
+                        }
+                      });
+                    }
 
                     final otherRoutes = allRoutes.where((r) {
                       if (r.driverId == _currentUid) return false;
