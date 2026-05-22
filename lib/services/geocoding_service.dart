@@ -99,4 +99,67 @@ class GeocodingService {
       return null;
     }
   }
+
+  /// Convierte coordenadas GPS en nombre de zona legible.
+  /// Retorna formato: "Versalles, Tuluá" o similar.
+  /// Retorna null si falla o hay timeout.
+  Future<String?> reverseGeocode(double lat, double lng) async {
+    try {
+      final uri = Uri(
+        scheme: 'https',
+        host: 'nominatim.openstreetmap.org',
+        path: '/reverse',
+        queryParameters: {
+          'format': 'json',
+          'lat': lat.toString(),
+          'lon': lng.toString(),
+          'zoom': '16',
+          'addressdetails': '1',
+        },
+      );
+      final response = await http
+          .get(uri, headers: _headers)
+          .timeout(const Duration(seconds: 5));
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body) as Map<String, dynamic>;
+        final address = (data['address'] as Map<String, dynamic>?) ?? {};
+
+        String? primary;
+        if (address['neighbourhood'] != null) {
+          primary = address['neighbourhood'] as String?;
+        } else if (address['suburb'] != null) {
+          primary = address['suburb'] as String?;
+        } else if (address['city_district'] != null) {
+          primary = address['city_district'] as String?;
+        } else if (address['town'] != null) {
+          primary = address['town'] as String?;
+        } else if (address['city'] != null) {
+          primary = address['city'] as String?;
+        } else if (address['county'] != null) {
+          primary = address['county'] as String?;
+        }
+
+        final city = (address['city'] ?? address['town'] ?? address['county']) as String?;
+
+        if (primary != null && primary.isNotEmpty) {
+          if (city != null && city.isNotEmpty && city != primary) {
+            return '$primary, $city';
+          }
+          return primary;
+        }
+
+        // Fallback a display_name truncado
+        final displayName = (data['display_name'] as String?)?.trim();
+        if (displayName != null && displayName.isNotEmpty) {
+          return displayName.length > 50
+              ? displayName.substring(0, 50)
+              : displayName;
+        }
+      }
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
 }
