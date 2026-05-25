@@ -9,8 +9,6 @@ import 'edit_profile_screen.dart';
 import 'mis_publicaciones_screen.dart';
 import 'moderation_panel_screen.dart';
 import 'historial_screen.dart';
-import '../widgets/historial_viajes_tab.dart';
-import '../widgets/historial_bazar_tab.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key, this.showBottomNav = true});
@@ -26,7 +24,6 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   int _currentNavIndex = 4;
-  int _historialTabIndex = 0; // 0 = Viajes, 1 = Bazar
   UserModel? _user;
   bool _loading = true;
 
@@ -111,17 +108,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
         }
       }
     }
-  }
-
-  String get _initials {
-    if (_user == null) return '?';
-    final name = _user!.fullName;
-    if (name.isEmpty) return '?';
-    final parts = name.trim().split(' ');
-    if (parts.length >= 2 && parts[1].isNotEmpty) {
-      return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
-    }
-    return parts[0].isNotEmpty ? parts[0][0].toUpperCase() : '?';
   }
 
   // Stream en tiempo real del usuario para rating y viajes
@@ -315,99 +301,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           ),
                         ),
 
-                        const SizedBox(height: 24),
-
-                        // ── HISTORIAL ─────────────────────────────────────────
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 20),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text(
-                                'HISTORIAL',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w700,
-                                  color: AppColors.textLight,
-                                  letterSpacing: 1.2,
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              // Tab selector
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: GestureDetector(
-                                      onTap: () => setState(() => _historialTabIndex = 0),
-                                      child: Container(
-                                        padding: const EdgeInsets.symmetric(vertical: 10),
-                                        decoration: BoxDecoration(
-                                          color: _historialTabIndex == 0
-                                              ? AppColors.accentGreen
-                                              : AppColors.backgroundWhite,
-                                          borderRadius: const BorderRadius.only(
-                                            topLeft: Radius.circular(10),
-                                            bottomLeft: Radius.circular(10),
-                                          ),
-                                          border: Border.all(color: AppColors.accentGreen),
-                                        ),
-                                        child: Text(
-                                          'Mis viajes',
-                                          textAlign: TextAlign.center,
-                                          style: TextStyle(
-                                            fontSize: 13,
-                                            fontWeight: FontWeight.w600,
-                                            color: _historialTabIndex == 0
-                                                ? Colors.white
-                                                : AppColors.accentGreen,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                  Expanded(
-                                    child: GestureDetector(
-                                      onTap: () => setState(() => _historialTabIndex = 1),
-                                      child: Container(
-                                        padding: const EdgeInsets.symmetric(vertical: 10),
-                                        decoration: BoxDecoration(
-                                          color: _historialTabIndex == 1
-                                              ? AppColors.accentGreen
-                                              : AppColors.backgroundWhite,
-                                          borderRadius: const BorderRadius.only(
-                                            topRight: Radius.circular(10),
-                                            bottomRight: Radius.circular(10),
-                                          ),
-                                          border: Border.all(color: AppColors.accentGreen),
-                                        ),
-                                        child: Text(
-                                          'Mis transacciones',
-                                          textAlign: TextAlign.center,
-                                          style: TextStyle(
-                                            fontSize: 13,
-                                            fontWeight: FontWeight.w600,
-                                            color: _historialTabIndex == 1
-                                                ? Colors.white
-                                                : AppColors.accentGreen,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 8),
-                              // Contenido del tab — usa el uid del usuario autenticado
-                              if (FirebaseAuth.instance.currentUser != null)
-                                _historialTabIndex == 0
-                                    ? HistorialViajesTab(uid: FirebaseAuth.instance.currentUser!.uid)
-                                    : HistorialBazarTab(uid: FirebaseAuth.instance.currentUser!.uid),
-                            ],
-                          ),
-                        ),
                         const SizedBox(height: 16),
 
-                        // ── Botón Editar Perfil ──────────────
+// ── Botón Editar Perfil ──────────────
                         Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 20),
                           child: SizedBox(
@@ -442,119 +338,121 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           ),
                         ),
 
-                          const SizedBox(height: 12),
+                        const SizedBox(height: 12),
 
-                          // ── Ajustes de notificaciones ────────
-                          Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 20),
-                            child: SizedBox(
-                              width: double.infinity,
-                              child: OutlinedButton(
-                                onPressed: () => Navigator.pushNamed(context, '/notification-settings'),
-                                style: OutlinedButton.styleFrom(
-                                  foregroundColor: AppColors.accentGreen,
-                                  side: const BorderSide(
-                                    color: AppColors.accentGreen,
-                                  ),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
+                        // ── Ajustes de notificaciones ────────
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 20),
+                          child: SizedBox(
+                            width: double.infinity,
+                            child: OutlinedButton(
+                              onPressed: () => Navigator.pushNamed(context, '/notification-settings'),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: AppColors.accentGreen,
+                                side: const BorderSide(
+                                  color: AppColors.accentGreen,
                                 ),
-                                child: const Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Icon(Icons.notifications_outlined, color: AppColors.accentGreen),
-                                    SizedBox(width: 8),
-                                    Text(
-                                      'Ajustes de notificaciones',
-                                      style: TextStyle(
-                                        fontSize: 15,
-                                        fontWeight: FontWeight.bold,
-                                      ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                              child: const Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.notifications_outlined, color: AppColors.accentGreen),
+                                  SizedBox(width: 8),
+                                  Text(
+                                    'Ajustes de notificaciones',
+                                    style: TextStyle(
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.bold,
                                     ),
-                                  ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+
+                        const SizedBox(height: 12),
+
+                        // ── Botón Mis Publicaciones ─────────
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 20),
+                          child: SizedBox(
+                            width: double.infinity,
+                            height: 48,
+                            child: OutlinedButton(
+                              onPressed: () => Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) =>
+                                      const MisPublicacionesScreen(),
+                                ),
+                              ),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: AppColors.accentGreen,
+                                side: const BorderSide(
+                                  color: AppColors.accentGreen,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                              child: const Text(
+                                'Mis Publicaciones',
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.bold,
                                 ),
                               ),
                             ),
                           ),
+                        ),
 
-                          const SizedBox(height: 12),
+                        const SizedBox(height: 12),
 
-                         // ── Botón Mis Publicaciones ─────────
-                         Padding(
-                           padding: const EdgeInsets.symmetric(horizontal: 20),
-                           child: SizedBox(
-                             width: double.infinity,
-                             height: 48,
-                             child: OutlinedButton(
-                               onPressed: () => Navigator.push(
-                                 context,
-                                 MaterialPageRoute(
-                                   builder: (_) =>
-                                       const MisPublicacionesScreen(),
-                                 ),
-                               ),
-                               style: OutlinedButton.styleFrom(
-                                 foregroundColor: AppColors.accentGreen,
-                                 side: const BorderSide(
-                                   color: AppColors.accentGreen,
-                                 ),
-                                 shape: RoundedRectangleBorder(
-                                   borderRadius: BorderRadius.circular(12),
-                                 ),
-                               ),
-                               child: const Text(
-                                 'Mis Publicaciones',
-                                 style: TextStyle(
-                                   fontSize: 15,
-                                   fontWeight: FontWeight.bold,
-                                 ),
-                               ),
-                             ),
-                           ),
-                         ),
-
-                            // ── Botón Mi Historial ──────────────────
-                            Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 20),
-                              child: SizedBox(
-                                width: double.infinity,
-                                height: 48,
-                                child: OutlinedButton(
-                                  onPressed: () {
-                                    final uid = FirebaseAuth.instance.currentUser?.uid;
-                                    if (uid == null) return;
-                                    Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (_) => HistorialScreen(uid: uid),
-                                      ),
-                                    );
-                                  },
-                                  style: OutlinedButton.styleFrom(
-                                    foregroundColor: AppColors.accentGreen,
-                                    side: const BorderSide(color: AppColors.accentGreen),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
+                        // ── Botón Mi Historial ──────────────────
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 20),
+                          child: SizedBox(
+                            width: double.infinity,
+                            height: 48,
+                            child: OutlinedButton(
+                              onPressed: () {
+                                final uid = FirebaseAuth.instance.currentUser?.uid;
+                                if (uid == null) return;
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => HistorialScreen(uid: uid),
                                   ),
-                                  child: const Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Icon(Icons.history, color: AppColors.accentGreen),
-                                      SizedBox(width: 8),
-                                      Text(
-                                        'Mi historial',
-                                        style: TextStyle(
-                                          fontSize: 15,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
+                                );
+                              },
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: AppColors.accentGreen,
+                                side: const BorderSide(color: AppColors.accentGreen),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
                                 ),
                               ),
+                              child: const Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(Icons.history, color: AppColors.accentGreen),
+                                  SizedBox(width: 8),
+                                  Text(
+                                    'Mi historial',
+                                    style: TextStyle(
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
+                          ),
+                        ),
 
                         const SizedBox(height: 12),
 

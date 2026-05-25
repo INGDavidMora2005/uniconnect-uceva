@@ -104,7 +104,11 @@ class ProductService {
     }
   }
 
-  Future<String> updateProductStatus(String productId, String newStatus) async {
+  Future<String> updateProductStatus(
+    String productId,
+    String newStatus, {
+    String? buyerName,
+  }) async {
     try {
       final productDoc = _db.collection('products').doc(productId);
       final productSnap = await productDoc.get();
@@ -117,6 +121,16 @@ class ProductService {
       final currentStatus = data['status'] as String?;
       final sellerId = data['sellerId'] as String?;
 
+      final Map<String, dynamic> updateData = {
+        'status': newStatus,
+        'statusUpdatedAt': FieldValue.serverTimestamp(),
+      };
+
+      if (buyerName != null) {
+        updateData['buyerName'] = buyerName;
+        updateData['soldAt'] = FieldValue.serverTimestamp();
+      }
+
       if (currentStatus != 'Vendido' &&
           newStatus == 'Vendido' &&
           sellerId != null) {
@@ -124,21 +138,55 @@ class ProductService {
           transaction.update(_db.collection('users').doc(sellerId), {
             'bazarSales': FieldValue.increment(1),
           });
+          transaction.update(productDoc, updateData);
+        });
+      } else {
+        await productDoc.update(updateData);
+      }
+
+      return 'ok';
+    } catch (e) {
+      return 'Error al actualizar el estado del producto: $e';
+    }
+  }
+
+  Future<String> markAsSold(String productId, String buyerName) async {
+    try {
+      final productDoc = _db.collection('products').doc(productId);
+      final productSnap = await productDoc.get();
+
+      if (!productSnap.exists) {
+        return 'Producto no encontrado.';
+      }
+
+      final data = productSnap.data()!;
+      final currentStatus = data['status'] as String?;
+      final sellerId = data['sellerId'] as String?;
+
+      if (currentStatus != 'Vendido' && sellerId != null) {
+        await _db.runTransaction((transaction) async {
+          transaction.update(_db.collection('users').doc(sellerId), {
+            'bazarSales': FieldValue.increment(1),
+          });
           transaction.update(productDoc, {
-            'status': newStatus,
+            'status': 'Vendido',
+            'buyerName': buyerName,
+            'soldAt': FieldValue.serverTimestamp(),
             'statusUpdatedAt': FieldValue.serverTimestamp(),
           });
         });
       } else {
         await productDoc.update({
-          'status': newStatus,
+          'status': 'Vendido',
+          'buyerName': buyerName,
+          'soldAt': FieldValue.serverTimestamp(),
           'statusUpdatedAt': FieldValue.serverTimestamp(),
         });
       }
 
       return 'ok';
     } catch (e) {
-      return 'Error al actualizar el estado del producto: $e';
+      return 'Error al marcar el producto como vendido: $e';
     }
   }
 

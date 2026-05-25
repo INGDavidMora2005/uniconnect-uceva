@@ -68,7 +68,7 @@ class _HistorialViajesTabState extends State<HistorialViajesTab> {
     }
   }
 
-Future<void> _loadMoreData() async {
+  Future<void> _loadMoreData() async {
     if (!mounted || _isLoadingMore || !_hasMore) return;
     setState(() {
       _isLoadingMore = true;
@@ -115,9 +115,8 @@ Future<void> _loadMoreData() async {
 
   Future<_FetchResult<_ViajeItem>> _fetchConductorPage({DocumentSnapshot? startAfter}) async {
     Query query = FirebaseFirestore.instance
-        .collection('routes')
+        .collection('routes_history')
         .where('driverId', isEqualTo: widget.uid)
-        .orderBy('createdAt', descending: true)
         .limit(_pageSize);
 
     if (startAfter != null) {
@@ -127,9 +126,33 @@ Future<void> _loadMoreData() async {
     final snapshot = await query.get();
     final items = snapshot.docs
         .map((doc) => _ViajeItem.fromDoc(doc, isDriver: true))
+        .where((item) => item.data['status'] == 'Finalizada')
         .toList();
+
+    final itemsWithRating = await Future.wait(
+      items.map((item) async {
+        final routeId = item.data['_docId'] as String? ?? '';
+        if (routeId.isEmpty) return item;
+        final ratingSnap = await FirebaseFirestore.instance
+            .collection('ratings')
+            .where('routeId', isEqualTo: routeId)
+            .where('ratedUserId', isEqualTo: widget.uid)
+            .limit(1)
+            .get();
+        final stars = ratingSnap.docs.isNotEmpty
+            ? (ratingSnap.docs.first.data()['stars'] as num?)?.toDouble()
+            : null;
+        return _ViajeItem(
+          data: item.data,
+          isDriver: item.isDriver,
+          createdAt: item.createdAt,
+          rating: stars,
+        );
+      }),
+    );
+
     return _FetchResult(
-      items: items,
+      items: itemsWithRating,
       lastDoc: snapshot.docs.isNotEmpty ? snapshot.docs.last : null,
       hasMore: snapshot.docs.length == _pageSize,
     );
@@ -139,8 +162,6 @@ Future<void> _loadMoreData() async {
     Query query = FirebaseFirestore.instance
         .collection('cupo_requests')
         .where('passengerId', isEqualTo: widget.uid)
-        .where('status', isEqualTo: 'accepted')
-        .orderBy('createdAt', descending: true)
         .limit(_pageSize);
 
     if (startAfter != null) {
@@ -149,6 +170,7 @@ Future<void> _loadMoreData() async {
 
     final snapshot = await query.get();
     final items = snapshot.docs
+        .where((doc) => (doc.data() as Map<String, dynamic>)['status'] == 'accepted')
         .map((doc) => _ViajeItem.fromDoc(doc, isDriver: false))
         .toList();
     return _FetchResult(
@@ -230,7 +252,6 @@ Future<void> _loadMoreData() async {
         final destination = (data['destination'] ?? '').toString();
         final date = (data['date'] ?? '').toString();
         final time = (data['time'] ?? '').toString();
-        final driverRating = (data['driverRating'] as num?)?.toDouble() ?? 0;
 
         return Card(
           color: AppColors.backgroundWhite,
@@ -295,8 +316,8 @@ Future<void> _loadMoreData() async {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        isConductor && driverRating > 0
-                            ? '⭐ $driverRating'
+                        item.rating != null
+                            ? '⭐ ${item.rating!.toStringAsFixed(1)}'
                             : '⭐ Sin calificar',
                         style: TextStyle(
                           color: AppColors.textLight,
@@ -319,11 +340,18 @@ class _ViajeItem {
   final Map<String, dynamic> data;
   final bool isDriver;
   final Timestamp? createdAt;
+  final double? rating;
 
-  _ViajeItem({required this.data, required this.isDriver, this.createdAt});
+  _ViajeItem({
+    required this.data,
+    required this.isDriver,
+    this.createdAt,
+    this.rating,
+  });
 
   factory _ViajeItem.fromDoc(DocumentSnapshot doc, {required bool isDriver}) {
     final data = (doc.data() as Map<String, dynamic>?) ?? {};
+    data['_docId'] = doc.id;
     return _ViajeItem(
       data: data,
       isDriver: isDriver,
