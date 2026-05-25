@@ -117,8 +117,6 @@ Future<void> _loadMoreData() async {
     Query query = FirebaseFirestore.instance
         .collection('products')
         .where('sellerId', isEqualTo: widget.uid)
-        .where('status', isEqualTo: 'Vendido')
-        .orderBy('createdAt', descending: true)
         .limit(_pageSize);
 
     if (startAfter != null) {
@@ -127,6 +125,7 @@ Future<void> _loadMoreData() async {
 
     final snapshot = await query.get();
     final items = snapshot.docs
+        .where((doc) => (doc.data() as Map<String, dynamic>)['status'] == 'Vendido')
         .map((doc) => _TransaccionItem.fromDoc(doc, uid: widget.uid))
         .toList();
     return _FetchResult(
@@ -140,7 +139,6 @@ Future<void> _loadMoreData() async {
     Query query = FirebaseFirestore.instance
         .collection('products')
         .where('buyerId', isEqualTo: widget.uid)
-        .orderBy('createdAt', descending: true)
         .limit(_pageSize);
 
     if (startAfter != null) {

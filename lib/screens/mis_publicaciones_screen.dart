@@ -118,93 +118,101 @@ class _MisPublicacionesScreenState extends State<MisPublicacionesScreen> {
 
   Future<void> _confirmToggleStatus(ProductModel product) async {
     final isAvailable = product.status == 'Disponible';
-    final actionLabel = isAvailable
-        ? 'Marcar como vendido'
-        : 'Volver a publicar';
-    final confirmMsg = isAvailable
-        ? '¿Marcar este producto como vendido? Dejará de aparecer en el Bazar y se guardará en tu historial de ventas.'
-        : '¿Volver a publicar este producto? Se creará una nueva publicación y la anterior quedará en tu historial de ventas.';
 
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text(
-          actionLabel,
-          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-        ),
-        content: Text(
-          confirmMsg,
-          style: const TextStyle(fontSize: 14, color: AppColors.textMedium),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text(
-              'Cancelar',
-              style: TextStyle(fontWeight: FontWeight.w600),
+    // Si va a marcar como vendido, pedir nombre del comprador
+    String? buyerName;
+    if (isAvailable) {
+      final controller = TextEditingController();
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (_) => AlertDialog(
+          shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16)),
+          title: const Text('¿Quién compró este producto?',
+              style: TextStyle(
+                  fontWeight: FontWeight.bold, fontSize: 16)),
+          content: TextField(
+            controller: controller,
+            decoration: const InputDecoration(
+              hintText: 'Nombre del comprador',
+              border: OutlineInputBorder(),
             ),
           ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: TextButton.styleFrom(
-              foregroundColor: isAvailable
-                  ? AppColors.primaryGreen
-                  : AppColors.accentGreen,
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancelar'),
             ),
-            child: Text(
-              actionLabel,
-              style: const TextStyle(fontWeight: FontWeight.w600),
+            TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              style: TextButton.styleFrom(
+                  foregroundColor: AppColors.primaryGreen),
+              child: const Text('Confirmar venta',
+                  style: TextStyle(fontWeight: FontWeight.w600)),
             ),
+          ],
+        ),
+      );
+      if (confirmed != true) return;
+      buyerName = controller.text.trim().isEmpty
+          ? 'No especificado'
+          : controller.text.trim();
+    } else {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (_) => AlertDialog(
+          shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16)),
+          title: const Text('¿Volver a publicar?',
+              style: TextStyle(
+                  fontWeight: FontWeight.bold, fontSize: 16)),
+          content: const Text(
+            '¿Volver a publicar este producto? Se creará una nueva publicación.',
+            style: TextStyle(
+                fontSize: 14, color: AppColors.textMedium),
           ),
-        ],
-      ),
-    );
-
-    if (confirmed != true) return;
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancelar'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              style: TextButton.styleFrom(
+                  foregroundColor: AppColors.accentGreen),
+              child: const Text('Volver a publicar',
+                  style: TextStyle(fontWeight: FontWeight.w600)),
+            ),
+          ],
+        ),
+      );
+      if (confirmed != true) return;
+    }
 
     if (isAvailable) {
-      // ── Marcar como vendido (lo guarda en historial) ─────────────────────
       final result = await ProductService().updateProductStatus(
         product.id,
         'Vendido',
+        buyerName: buyerName,
       );
-
       if (!mounted) return;
-
-      if (result == 'ok') {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Producto marcado como vendido'),
-            backgroundColor: AppColors.accentGreen,
-          ),
-        );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(result), backgroundColor: Colors.redAccent),
-        );
-      }
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(result == 'ok'
+            ? 'Producto marcado como vendido'
+            : result),
+        backgroundColor:
+            result == 'ok' ? AppColors.accentGreen : Colors.redAccent,
+      ));
     } else {
-      // ── Volver a publicar (duplica el producto) ──────────────────────────
       final result = await ProductService().duplicateProduct(product);
-
       if (!mounted) return;
-
-      if (result == 'ok') {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Producto republicado correctamente'),
-            backgroundColor: AppColors.accentGreen,
-          ),
-        );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error al republicar: $result'),
-            backgroundColor: Colors.redAccent,
-          ),
-        );
-      }
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(result == 'ok'
+            ? 'Producto republicado correctamente'
+            : 'Error al republicar: $result'),
+        backgroundColor:
+            result == 'ok' ? AppColors.accentGreen : Colors.redAccent,
+      ));
     }
   }
 

@@ -146,8 +146,18 @@ class RouteService {
         });
       }
 
-      // 4. Borrar cupo_requests y la ruta
+      // 4. Borrar cupo_requests
       await CupoService().deleteRequestsByRoute(routeId);
+
+      // Guardar copia en historial antes de eliminar
+      final doc = await _database.collection('routes').doc(routeId).get();
+      if (doc.exists) {
+        final data = doc.data() as Map<String, dynamic>;
+        data['status'] = 'Finalizada';
+        data['finalizedAt'] = FieldValue.serverTimestamp();
+        await _database.collection('routes_history').doc(routeId).set(data);
+      }
+
       await _database.collection('routes').doc(routeId).delete();
 
       return 'ok';
