@@ -17,9 +17,13 @@ class AiBotService {
   factory AiBotService() => _instance;
   AiBotService._internal();
 
-  // Modelo actualizado (mayo 2026) - gemini-1.5-flash ya fue retirado de v1beta
+  // Modelo actualizado (mayo 2026) - gemini-2.0-flash deprecado el 1 jun 2026.
+  // Usando gemini-3.5-flash (GA desde 19 may 2026) - estable y con tier gratuito.
   static const String _geminiEndpoint =
-      'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
+      'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent';
+
+  static const String truncatedSuffix =
+      '\n\n(La respuesta fue muy larga. ¿Quieres que continúe?)';
 
   static const String _systemPrompt = '''
 Eres UniBot, el asistente inteligente de UniConnect UCEVA, una app de carpooling y marketplace universitario de la Universidad Central del Valle del Cauca (Colombia).
@@ -137,7 +141,7 @@ Reglas:
         },
         'contents': contents,
         'generationConfig': {
-          'maxOutputTokens': 500,
+          'maxOutputTokens': 1536,
           'temperature': 0.4,
         },
       };
@@ -156,7 +160,7 @@ Reglas:
             headers: {'Content-Type': 'application/json'},
             body: jsonEncode(payload),
           )
-          .timeout(const Duration(seconds: 8));
+          .timeout(const Duration(seconds: 25));
 
       if (response.statusCode != 200) {
         final errorBody = response.body;
@@ -176,17 +180,30 @@ Reglas:
       }
 
       final data = jsonDecode(response.body) as Map<String, dynamic>;
-      final botText = (data['candidates'][0]['content']['parts'][0]['text'] as String?)?.trim() ?? '';
+      final candidate = data['candidates'][0] as Map<String, dynamic>;
+      final botText = (candidate['content']['parts'][0]['text'] as String?)?.trim() ?? '';
+      final finishReason = candidate['finishReason'] as String?;
+
+      if (kDebugMode) {
+        debugPrint('[AiBotService] finishReason: $finishReason');
+      }
 
       if (botText.isEmpty) {
         return 'Lo siento, no pude generar una respuesta útil. Inténtalo de nuevo.';
       }
 
-      _persistExchange(uid, userMessage, botText);
+      String finalResponse = botText;
 
-      return botText;
+      if (finishReason == 'MAX_TOKENS') {
+        finalResponse += truncatedSuffix;
+      }
+
+      // NOTA: La persistencia ahora se maneja desde la UI (persistUserMessage + persistAssistantMessage)
+      // para mayor confiabilidad y para guardar el mensaje del usuario lo antes posible.
+
+      return finalResponse;
     } on TimeoutException {
-      return 'La respuesta está tardando más de lo normal. Verifica tu conexión e inténtalo de nuevo.';
+      return 'La respuesta está tardando más de lo normal (más de 25 segundos). ¿Quieres que lo intente de nuevo?';
     } on SocketException {
       return 'Parece que no tienes conexión a internet. Verifica tu red e inténtalo de nuevo.';
     } catch (e) {
@@ -217,7 +234,10 @@ Reglas:
       }).toList();
 
       return msgs.reversed.toList();
-    } catch (_) {
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('[AiBotService] Error cargando historial de UniBot: $e');
+      }
       return [];
     }
   }
@@ -293,22 +313,76 @@ Reglas:
     return degrees * (math.pi / 180.0);
   }
 
-  void _persistExchange(String uid, String userMsg, String botReply) {
-    final messagesCol = _db
-        .collection('ai_chats')
-        .doc(uid)
-        .collection('messages');
+  /// Persiste el mensaje del usuario de forma segura.
+  /// Se recomienda llamar esto **inmediatamente** cuando el usuario envía el mensaje.
+  Future<void> persistUserMessage(String uid, String text) async {
+    final trimmed = text.trim();
+    if (kDebugMode) {
+      debugPrint('[AiBotService] persistUserMessage called → uid: $uid, text length: ${trimmed.length}');
+    }
 
-    messagesCol.add({
-      'role': 'user',
-      'text': userMsg,
-      'sentAt': FieldValue.serverTimestamp(),
-    }).ignore();
+    if (uid.isEmpty || trimmed.isEmpty) {
+      if (kDebugMode) {
+        debugPrint('[AiBotService] persistUserMessage aborted: uid or text empty');
+      }
+      return;
+    }
 
-    messagesCol.add({
-      'role': 'assistant',
-      'text': botReply,
-      'sentAt': FieldValue.serverTimestamp(),
-    }).ignore();
+    try {
+      final docRef = await _db
+          .collection('ai_chats')
+          .doc(uid)
+          .collection('messages')
+          .add({
+        'role': 'user',
+        'text': trimmed,
+        'sentAt': FieldValue.serverTimestamp(),
+      });
+
+      if (kDebugMode) {
+        debugPrint('[AiBotService] ✅ User message persisted successfully. docId: ${docRef.id}');
+      }
+    } catch (e, stack) {
+      if (kDebugMode) {
+        debugPrint('[AiBotService] ❌ Error persistiendo mensaje de usuario: $e');
+        debugPrint(stack.toString());
+      }
+    }
+  }
+
+  /// Persiste la respuesta del asistente de forma segura.
+  Future<void> persistAssistantMessage(String uid, String text) async {
+    final trimmed = text.trim();
+    if (kDebugMode) {
+      debugPrint('[AiBotService] persistAssistantMessage called → uid: $uid, text length: ${trimmed.length}');
+    }
+
+    if (uid.isEmpty || trimmed.isEmpty) {
+      if (kDebugMode) {
+        debugPrint('[AiBotService] persistAssistantMessage aborted: uid or text empty');
+      }
+      return;
+    }
+
+    try {
+      final docRef = await _db
+          .collection('ai_chats')
+          .doc(uid)
+          .collection('messages')
+          .add({
+        'role': 'assistant',
+        'text': trimmed,
+        'sentAt': FieldValue.serverTimestamp(),
+      });
+
+      if (kDebugMode) {
+        debugPrint('[AiBotService] ✅ Assistant message persisted successfully. docId: ${docRef.id}');
+      }
+    } catch (e, stack) {
+      if (kDebugMode) {
+        debugPrint('[AiBotService] ❌ Error persistiendo respuesta del asistente: $e');
+        debugPrint(stack.toString());
+      }
+    }
   }
 }

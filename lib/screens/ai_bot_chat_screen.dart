@@ -1,4 +1,5 @@
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../theme/app_theme.dart';
@@ -35,11 +36,21 @@ class _AiBotChatScreenState extends State<AiBotChatScreen> {
   }
 
   Future<void> _loadHistory() async {
+    if (kDebugMode) {
+      debugPrint('[AiBotChatScreen] _loadHistory called. uid: $_uid');
+    }
+
     if (_uid.isEmpty) {
       if (mounted) setState(() => _isLoading = false);
       return;
     }
+
     final history = await _botService.loadHistory(_uid);
+
+    if (kDebugMode) {
+      debugPrint('[AiBotChatScreen] Loaded ${history.length} messages from history for uid: $_uid');
+    }
+
     if (mounted) {
       setState(() {
         _messages = history;
@@ -60,6 +71,12 @@ class _AiBotChatScreenState extends State<AiBotChatScreen> {
     _messageController.clear();
     _scrollToBottom();
 
+    // Guardamos el mensaje del usuario lo antes posible (incluso si el usuario sale de la pantalla)
+    if (kDebugMode) {
+      debugPrint('[AiBotChatScreen] Persisting user message for uid: $_uid');
+    }
+    _botService.persistUserMessage(_uid, text);
+
     final response = await _botService.sendMessage(
       uid: _uid,
       userMessage: text,
@@ -72,6 +89,13 @@ class _AiBotChatScreenState extends State<AiBotChatScreen> {
         _isWaiting = false;
       });
     }
+
+    // Guardamos la respuesta del asistente
+    if (kDebugMode) {
+      debugPrint('[AiBotChatScreen] Persisting assistant message for uid: $_uid');
+    }
+    _botService.persistAssistantMessage(_uid, response);
+
     _scrollToBottom();
   }
 
@@ -155,9 +179,18 @@ class _AiBotChatScreenState extends State<AiBotChatScreen> {
                       if (index < _messages.length) {
                         final msg = _messages[index];
                         final isUser = msg['role'] == 'user';
+                        final text = msg['text'] as String? ?? '';
+                        final bool isTruncated = !isUser && text.contains(AiBotService.truncatedSuffix.trim());
+
                         return _buildMessageBubble(
-                          msg['text'] as String? ?? '',
+                          text,
                           isUser,
+                          onContinue: isTruncated
+                              ? () {
+                                  _messageController.text = 'continúa la respuesta anterior';
+                                  _sendMessage();
+                                }
+                              : null,
                         );
                       } else {
                         return _buildTypingIndicator();
@@ -216,60 +249,86 @@ class _AiBotChatScreenState extends State<AiBotChatScreen> {
     );
   }
 
-  Widget _buildMessageBubble(String text, bool isUser) {
+  Widget _buildMessageBubble(String text, bool isUser, {VoidCallback? onContinue}) {
+    final bool isTruncated = !isUser && text.contains(AiBotService.truncatedSuffix.trim());
+
+    final String displayText = isTruncated
+        ? text.replaceFirst(AiBotService.truncatedSuffix.trim(), '').trim()
+        : text;
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
-      child: Row(
-        mainAxisAlignment:
-            isUser ? MainAxisAlignment.end : MainAxisAlignment.start,
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Column(
+        crossAxisAlignment: isUser ? CrossAxisAlignment.end : CrossAxisAlignment.start,
         children: [
-          if (!isUser) ...[
-            CircleAvatar(
-              radius: 16,
-              backgroundColor: AppColors.primaryGreen.withValues(alpha: 0.15),
-              child: const Icon(
-                Icons.smart_toy_rounded,
-                size: 18,
-                color: AppColors.primaryGreen,
+          Row(
+            mainAxisAlignment:
+                isUser ? MainAxisAlignment.end : MainAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (!isUser) ...[
+                CircleAvatar(
+                  radius: 16,
+                  backgroundColor: AppColors.primaryGreen.withValues(alpha: 0.15),
+                  child: const Icon(
+                    Icons.smart_toy_rounded,
+                    size: 18,
+                    color: AppColors.primaryGreen,
+                  ),
+                ),
+                const SizedBox(width: 8),
+              ],
+              Flexible(
+                child: Container(
+                  constraints: BoxConstraints(
+                    maxWidth: MediaQuery.of(context).size.width * 0.72,
+                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: isUser
+                        ? AppColors.primaryGreen
+                        : Colors.grey.shade100,
+                    borderRadius: isUser
+                        ? const BorderRadius.only(
+                            topLeft: Radius.circular(16),
+                            topRight: Radius.circular(16),
+                            bottomLeft: Radius.circular(16),
+                            bottomRight: Radius.circular(4),
+                          )
+                        : const BorderRadius.only(
+                            topLeft: Radius.circular(4),
+                            topRight: Radius.circular(16),
+                            bottomLeft: Radius.circular(16),
+                            bottomRight: Radius.circular(16),
+                          ),
+                  ),
+                  child: Text(
+                    displayText,
+                    style: TextStyle(
+                      fontSize: 15,
+                      color: isUser ? Colors.white : AppColors.textDark,
+                      height: 1.3,
+                    ),
+                  ),
+                ),
               ),
-            ),
-            const SizedBox(width: 8),
-          ],
-          Flexible(
-            child: Container(
-              constraints: BoxConstraints(
-                maxWidth: MediaQuery.of(context).size.width * 0.72,
-              ),
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              decoration: BoxDecoration(
-                color: isUser
-                    ? AppColors.primaryGreen
-                    : Colors.grey.shade100,
-                borderRadius: isUser
-                    ? const BorderRadius.only(
-                        topLeft: Radius.circular(16),
-                        topRight: Radius.circular(16),
-                        bottomLeft: Radius.circular(16),
-                        bottomRight: Radius.circular(4),
-                      )
-                    : const BorderRadius.only(
-                        topLeft: Radius.circular(4),
-                        topRight: Radius.circular(16),
-                        bottomLeft: Radius.circular(16),
-                        bottomRight: Radius.circular(16),
-                      ),
-              ),
-              child: Text(
-                text,
-                style: TextStyle(
-                  fontSize: 15,
-                  color: isUser ? Colors.white : AppColors.textDark,
-                  height: 1.3,
+            ],
+          ),
+          if (onContinue != null)
+            Padding(
+              padding: const EdgeInsets.only(left: 40, top: 4),
+              child: TextButton(
+                onPressed: onContinue,
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                  minimumSize: const Size(0, 32),
+                ),
+                child: const Text(
+                  'Continuar respuesta →',
+                  style: TextStyle(fontSize: 13, color: AppColors.accentGreen),
                 ),
               ),
             ),
-          ),
         ],
       ),
     );
@@ -302,7 +361,21 @@ class _AiBotChatScreenState extends State<AiBotChatScreen> {
                 bottomRight: Radius.circular(16),
               ),
             ),
-            child: const _ThreeDotsIndicator(),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const _ThreeDotsIndicator(),
+                const SizedBox(height: 2),
+                Text(
+                  'Pensando...',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: AppColors.textPlaceholder,
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),
