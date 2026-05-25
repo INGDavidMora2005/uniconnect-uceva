@@ -3,7 +3,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../models/report_model.dart';
 import '../services/moderation_service.dart';
+import '../services/metrics_service.dart';
 import '../theme/app_theme.dart';
+import '../widgets/metric_card.dart';
 
 class ModerationPanelScreen extends StatefulWidget {
   const ModerationPanelScreen({super.key});
@@ -21,7 +23,7 @@ class _ModerationPanelScreenState extends State<ModerationPanelScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 5, vsync: this);
+    _tabController = TabController(length: 6, vsync: this);
     _checkAdminAccess(); // ← AGREGAR
   }
 
@@ -70,23 +72,91 @@ class _ModerationPanelScreenState extends State<ModerationPanelScreen>
             fontWeight: FontWeight.bold,
           ),
           unselectedLabelColor: Colors.white70,
-          tabs: const [
-            Tab(text: 'Pendientes'),
-            Tab(text: 'Todos'),
-            Tab(text: 'Revisados'),
-            Tab(text: 'Suspendidos'),
-            Tab(text: 'Chats'),
-          ],
+tabs: const [
+              Tab(text: 'Métricas'),
+              Tab(text: 'Pendientes'),
+              Tab(text: 'Todos'),
+              Tab(text: 'Revisados'),
+              Tab(text: 'Suspendidos'),
+              Tab(text: 'Chats'),
+            ],
         ),
       ),
       body: TabBarView(
         controller: _tabController,
         children: [
+          _buildMetricsTab(),
           _buildReportsTab('pending'),
           _buildReportsTab(null),
           _buildReportsTab('reviewed'),
           _buildSuspendedTab(),
           _buildChatsTab(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMetricsTab() {
+    final service = MetricsService();
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Métricas de uso',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: AppColors.textDark,
+            ),
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            'Datos en tiempo real de la plataforma',
+            style: TextStyle(fontSize: 13, color: AppColors.textMedium),
+          ),
+          const SizedBox(height: 20),
+          GridView.count(
+            crossAxisCount: 2,
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            crossAxisSpacing: 12,
+            mainAxisSpacing: 12,
+            childAspectRatio: 1.1,
+            children: [
+              MetricCard(
+                label: 'Usuarios registrados',
+                stream: service.totalUsuariosRegistrados(),
+                icon: Icons.people_outline,
+                color: AppColors.primaryGreen,
+              ),
+              MetricCard(
+                label: 'Activos (7 días)',
+                stream: service.usuariosActivosUltimos7Dias(),
+                icon: Icons.trending_up,
+                color: AppColors.accentGreen,
+              ),
+              MetricCard(
+                label: 'Rutas hoy',
+                stream: service.rutasPublicadasHoy(),
+                icon: Icons.directions_car_outlined,
+                color: const Color(0xFF1565C0),
+              ),
+              MetricCard(
+                label: 'Productos en bazar',
+                stream: service.productosActivosEnBazar(),
+                icon: Icons.storefront_outlined,
+                color: const Color(0xFFE65100),
+              ),
+              MetricCard(
+                label: 'Reportes pendientes',
+                stream: service.reportesPendientesDeRevision(),
+                icon: Icons.flag_outlined,
+                color: Colors.redAccent,
+              ),
+            ],
+          ),
         ],
       ),
     );
