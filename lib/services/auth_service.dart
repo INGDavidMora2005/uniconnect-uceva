@@ -250,6 +250,16 @@ class AuthService {
         await NotificationService().saveTokenForCurrentUser();
       } catch (_) {}
 
+      // Actualizar lastActive al hacer login
+      try {
+        final uid = credential.user?.uid;
+        if (uid != null) {
+          await _db.collection('users').doc(uid).update({
+            'lastActive': FieldValue.serverTimestamp(),
+          });
+        }
+      } catch (_) {}
+
       if (kDebugMode && stopwatchTotal != null) {
         stopwatchTotal.stop();
         debugPrint(
@@ -331,6 +341,16 @@ class AuthService {
       // Guardar FCM token después del login exitoso
       try {
         await NotificationService().saveTokenForCurrentUser();
+      } catch (_) {}
+
+      // Actualizar lastActive al hacer login con Google
+      try {
+        final uid = userCredential.user?.uid;
+        if (uid != null) {
+          await _db.collection('users').doc(uid).update({
+            'lastActive': FieldValue.serverTimestamp(),
+          });
+        }
       } catch (_) {}
 
       return 'Inicio de sesión exitoso.';
