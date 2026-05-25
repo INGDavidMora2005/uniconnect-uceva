@@ -58,7 +58,7 @@ class KeyService {
   static const String _privateKeyKey = 'rsa_private_key';
 
   // Gemini API Key para UniBot (AiBotService) y AiRecommendationService
-  static const String _geminiKey = 'AIzaSyChpca9tmPT5fFQ9IREQoNSy9O8_esWvdA';
+  static const String _geminiKey = String.fromEnvironment('GEMINI_API_KEY', defaultValue: '');
 
   final FlutterSecureStorage _secureStorage = const FlutterSecureStorage(
     aOptions: AndroidOptions(encryptedSharedPreferences: true),

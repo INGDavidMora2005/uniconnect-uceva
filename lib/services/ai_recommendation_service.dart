@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import '../models/route_model.dart';
 import '../models/product_model.dart';
+import 'key_service.dart';
 import 'user_history_service.dart';
 
 class AiRecommendationService {
@@ -11,7 +12,7 @@ class AiRecommendationService {
   factory AiRecommendationService() => _instance;
   AiRecommendationService._internal();
 
-  static const String _apiKey = 'AIzaSyChpca9tmPT5fFQ9IREQoNSy9O8_esWvdA';
+  static String get _apiKey => KeyService.geminiApiKey;
 
   List<RouteModel>? _cachedRoutes;
   List<ProductModel>? _cachedProducts;
@@ -68,7 +69,7 @@ Si no hay rutas relevantes, responde: []
 ''';
 
       final url = Uri.parse(
-          'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=$_apiKey');
+          'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=$_apiKey');
 
       final response = await http
           .post(
@@ -172,7 +173,7 @@ Si no hay productos relevantes, responde: []
 ''';
 
       final url = Uri.parse(
-          'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=$_apiKey');
+          'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=$_apiKey');
 
       final response = await http
           .post(
