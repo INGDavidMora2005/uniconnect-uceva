@@ -34,6 +34,7 @@ class _HomeRutasScreenState extends State<HomeRutasScreen> {
   final TextEditingController _originController = TextEditingController();
   final TextEditingController _destinationController = TextEditingController();
   final TextEditingController _timeController = TextEditingController();
+
   UserModel? _user;
 
   // IDs de rutas rechazadas para este pasajero
@@ -49,6 +50,7 @@ class _HomeRutasScreenState extends State<HomeRutasScreen> {
     super.initState();
     _loadUser();
     _loadRejectedRoutes();
+    _updateLastActive();
   }
 
   Future<void> _loadUser() async {
@@ -161,6 +163,20 @@ class _HomeRutasScreenState extends State<HomeRutasScreen> {
     }
 
     return const SizedBox.shrink();
+  }
+
+  /// Actualiza lastActive cada vez que el usuario abre la pantalla principal.
+  /// Esto alimenta la métrica "Activos (7 días)" del dashboard de admin.
+  Future<void> _updateLastActive() async {
+    try {
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      if (uid != null) {
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(uid)
+            .update({'lastActive': FieldValue.serverTimestamp()});
+      }
+    } catch (_) {}
   }
 
   String get _firstName {
