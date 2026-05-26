@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -6,6 +8,7 @@ import '../models/report_model.dart';
 import '../theme/app_theme.dart';
 import '../services/chat_service.dart';
 import '../services/cupo_service.dart';
+import '../services/user_history_service.dart';
 
 import 'mapa_trayecto_screen.dart';
 import 'report_form_screen.dart';
@@ -36,6 +39,9 @@ class _RouteDetailsScreenState extends State<RouteDetailsScreen> {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     _isDriver = uid == widget.route.driverId;
     _checkCupoAceptado();
+    if (uid != null) {
+      unawaited(UserHistoryService().logRouteView(uid, widget.route));
+    }
   }
 
   /// Verifica si el pasajero tiene cupo aceptado para mostrar botón de chat

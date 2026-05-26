@@ -39,7 +39,7 @@ class _MisPublicacionesScreenState extends State<MisPublicacionesScreen> {
       body: Padding(
         padding: const EdgeInsets.all(12),
         child: StreamBuilder<List<ProductModel>>(
-          stream: _uid != null ? ProductService().getMyProducts(_uid!) : null,
+          stream: _uid != null ? ProductService().getMyProducts(_uid) : null,
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
               return const Center(
@@ -311,7 +311,7 @@ class _ProductCard extends StatelessWidget {
                       ? Image.network(
                           product.imageUrls.first,
                           fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => _placeholder(),
+                          errorBuilder: (_, _, _) => _placeholder(),
                         )
                       : _placeholder(),
                 ),

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -11,6 +12,7 @@ import '../models/report_model.dart';
 import '../services/product_service.dart';
 import '../theme/app_theme.dart';
 import '../services/chat_service.dart';
+import '../services/user_history_service.dart';
 import 'chat_screen.dart';
 import 'perfil_vendedor_screen.dart';
 import 'report_form_screen.dart';
@@ -27,6 +29,15 @@ class DetalleProductoScreen extends StatefulWidget {
 class _DetalleProductoScreenState extends State<DetalleProductoScreen> {
   String? get _uid => FirebaseAuth.instance.currentUser?.uid;
   bool get _isOwner => _uid == widget.product.sellerId;
+
+  @override
+  void initState() {
+    super.initState();
+    final uid = _uid;
+    if (uid != null) {
+      unawaited(UserHistoryService().logProductView(uid, widget.product));
+    }
+  }
 
   Future<void> _handleContact(BuildContext context) async {
     try {
@@ -290,7 +301,7 @@ class _DetalleProductoScreenState extends State<DetalleProductoScreen> {
                       width: double.infinity,
                       height: 220,
                       fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => _imagePlaceholder(),
+                      errorBuilder: (_, _, _) => _imagePlaceholder(),
                     )
                   : _imagePlaceholder(),
 

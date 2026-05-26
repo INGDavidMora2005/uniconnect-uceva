@@ -209,8 +209,9 @@ class _LoginScreenState extends State<LoginScreen> {
                     isPassword: true,
                     controller: _passwordController,
                     validator: (v) {
-                      if (v == null || v.isEmpty)
+                      if (v == null || v.isEmpty) {
                         return 'Ingresa tu contraseña';
+                      }
                       if (v.length < 8) return 'Mínimo 8 caracteres';
                       return null;
                     },

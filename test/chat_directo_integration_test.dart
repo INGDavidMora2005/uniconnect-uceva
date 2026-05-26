@@ -1,7 +1,7 @@
 import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../lib/services/chat_service.dart';
+import 'package:uniconnect_dev/services/chat_service.dart';
 
 void main() {
   late FakeFirebaseFirestore fakeFirestore;
