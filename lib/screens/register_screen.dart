@@ -206,8 +206,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     keyboardType: TextInputType.emailAddress,
                     validator: (v) {
                       if (v == null || v.isEmpty) return 'Ingresa tu correo';
-                      if (!RegExp(r'^[a-zA-Z0-9._%+\-]+@uceva\.edu\.co$').hasMatch(v))
+                      if (!RegExp(r'^[a-zA-Z0-9._%+\-]+@uceva\.edu\.co$').hasMatch(v)) {
                         return 'Usa tu correo @uceva.edu.co';
+                      }
                       return null;
                     },
                   ),

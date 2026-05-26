@@ -94,8 +94,9 @@ class AuthService {
     try {
       if (value == null) return '';
       final str = value.toString();
-      if (!str.contains('encryptedData') && !str.contains('ciphertext'))
+      if (!str.contains('encryptedData') && !str.contains('ciphertext')) {
         return str;
+      }
       if (!str.startsWith('{')) return str;
       final map = jsonDecode(str) as Map<String, dynamic>;
       final result = await _cryptoService.decryptData({
@@ -174,10 +175,11 @@ class AuthService {
       // ref: Stallings - Data Encryption in Transit
       // Si el cifrado falla, hacemos fallback a Firebase Auth sin almacenamiento cifrado
       try {
-        if (kDebugMode)
+        if (kDebugMode) {
           debugPrint(
             '[AuthService] Iniciando cifrado de contraseña con CryptoService...',
           );
+        }
         final stopwatchCrypto = Stopwatch()..start();
 
         final encryptedPassword = await _cryptoService.encryptPassword(
@@ -204,14 +206,16 @@ class AuthService {
         );
       } catch (e) {
         // Fallback si el cifrado falla: continuar con Firebase Auth
-        if (kDebugMode)
+        if (kDebugMode) {
           debugPrint(
             '[AuthService] Advertencia: Cifrado falló — usando fallback. Error: $e',
           );
+        }
       }
 
-      if (kDebugMode)
+      if (kDebugMode) {
         debugPrint('[AuthService] Enviando credenciales a Firebase Auth...');
+      }
       final stopwatchFirebase = Stopwatch()..start();
 
       // Firebase Auth requiere contraseña en texto plano para verificación
@@ -230,7 +234,7 @@ class AuthService {
       if (credential.user?.emailVerified == false &&
           email.trim().toLowerCase() != 'admin.00@uceva.edu.co') {
         await _auth.signOut();
-        return 'email_not_verified:${email}';
+        return 'email_not_verified:$email';
       }
 
       final uid = credential.user?.uid;
@@ -239,8 +243,9 @@ class AuthService {
         final isSuspended = userDoc.data()?['suspended'] ?? false;
         if (isSuspended) {
           await _auth.signOut();
-          if (kDebugMode)
+          if (kDebugMode) {
             debugPrint('[AuthService] Resultado: Cuenta suspendida');
+          }
           return 'Tu cuenta ha sido suspendida. Contacta al administrador para más información.';
         }
       }
@@ -259,28 +264,33 @@ class AuthService {
       return 'Inicio de sesión exitoso.';
     } on FirebaseAuthException catch (e) {
       if (e.code == 'invalid-credential') {
-        if (kDebugMode)
+        if (kDebugMode) {
           debugPrint('[AuthService] Resultado: Credenciales incorrectas');
+        }
         return 'Correo o contraseña incorrectos.';
       }
       if (e.code == 'invalid-email') {
-        if (kDebugMode)
+        if (kDebugMode) {
           debugPrint('[AuthService] Resultado: Correo electrónico inválido');
+        }
         return 'Correo electrónico inválido.';
       }
       if (e.code == 'user-disabled') {
-        if (kDebugMode)
+        if (kDebugMode) {
           debugPrint('[AuthService] Resultado: Cuenta deshabilitada');
+        }
         return 'Esta cuenta ha sido deshabilitada.';
       }
-      if (kDebugMode)
+      if (kDebugMode) {
         debugPrint('[AuthService] Resultado: Error Firebase — ${e.message}');
+      }
       return 'Error al iniciar sesión: ${e.message}';
     } catch (e) {
-      if (kDebugMode)
+      if (kDebugMode) {
         debugPrint(
           '[AuthService] Resultado: Error inesperado — ${e.toString()}',
         );
+      }
       return 'Error inesperado: ${e.toString()}';
     }
   }
@@ -375,22 +385,25 @@ class AuthService {
     try {
       // Paso 1: Validar email @uceva.edu.co
       if (!_ucevaEmailRegex.hasMatch(email)) {
-        if (kDebugMode)
+        if (kDebugMode) {
           debugPrint('[AuthService] Resultado: Email no válido (dominio)');
+        }
         return 'Solo se permiten correos @uceva.edu.co.';
       }
 
       // Paso 2: Normalizar teléfono
       final normalizedPhone = _normalizePhone(phone);
       if (normalizedPhone == null) {
-        if (kDebugMode)
+        if (kDebugMode) {
           debugPrint('[AuthService] Resultado: Teléfono inválido');
+        }
         return 'Ingresa un número válido de 10 dígitos (ej: 3001234567)';
       }
 
       // Paso 3: Verificar teléfono disponible
-      if (kDebugMode)
+      if (kDebugMode) {
         debugPrint('[AuthService] Verificando disponibilidad del teléfono...');
+      }
       final stopwatchPhoneCheck = Stopwatch()..start();
       final phoneTaken = await _isPhoneTaken(normalizedPhone);
       if (kDebugMode) {
@@ -400,16 +413,18 @@ class AuthService {
         );
       }
       if (phoneTaken) {
-        if (kDebugMode)
+        if (kDebugMode) {
           debugPrint('[AuthService] Resultado: Teléfono ya registrado');
+        }
         return 'Este número ya está registrado en otra cuenta.';
       }
 
       // Paso 4: Verificar código estudiantil disponible
-      if (kDebugMode)
+      if (kDebugMode) {
         debugPrint(
           '[AuthService] Verificando disponibilidad del código estudiantil...',
         );
+      }
       final stopwatchCodeCheck = Stopwatch()..start();
       final codeTaken = await _isStudentCodeTaken(studentCode);
       if (kDebugMode) {
@@ -419,19 +434,21 @@ class AuthService {
         );
       }
       if (codeTaken) {
-        if (kDebugMode)
+        if (kDebugMode) {
           debugPrint(
             '[AuthService] Resultado: Código estudiantil ya registrado',
           );
+        }
         return 'Este código estudiantil ya está registrado.';
       }
 
       // Paso 5: Cifrar contraseña (opcional)
       try {
-        if (kDebugMode)
+        if (kDebugMode) {
           debugPrint(
             '[AuthService] Iniciando cifrado de contraseña con CryptoService...',
           );
+        }
         final stopwatchCrypto = Stopwatch()..start();
 
         final encryptedPassword = await _cryptoService.encryptPassword(
@@ -456,10 +473,11 @@ class AuthService {
           value: encryptedPassword.toJson(),
         );
       } catch (e) {
-        if (kDebugMode)
+        if (kDebugMode) {
           debugPrint(
             '[AuthService] Advertencia: Cifrado falló — usando fallback. Error: $e',
           );
+        }
       }
 
       // Preparar valores para la transacción (fuera del loop para evitar múltiples cifrados)
@@ -472,14 +490,16 @@ class AuthService {
 
       while (attempt < maxAttempts) {
         attempt++;
-        if (kDebugMode)
+        if (kDebugMode) {
           debugPrint('[AuthService] Intento $attempt de $maxAttempts');
+        }
 
         try {
           // Crear cuenta Firebase Auth (solo en primer intento)
           if (createdUser == null) {
-            if (kDebugMode)
+            if (kDebugMode) {
               debugPrint('[AuthService] Creando cuenta Firebase Auth...');
+            }
             final stopwatchFirebase = Stopwatch()..start();
 
             final credential = await _auth.createUserWithEmailAndPassword(
@@ -500,8 +520,9 @@ class AuthService {
           }
 
           // Transacción Firestore atómica
-          if (kDebugMode)
+          if (kDebugMode) {
             debugPrint('[AuthService] Ejecutando transacción Firestore...');
+          }
           final stopwatchTransaction = Stopwatch()..start();
 
           await _db.runTransaction((transaction) async {
@@ -526,7 +547,7 @@ transaction.set(userRef, {
                'suspended': false,
              });
 
-            transaction.set(studentRef, {'uid': createdUser!.uid});
+            transaction.set(studentRef, {'uid': createdUser.uid});
           });
 
           if (kDebugMode) {
@@ -537,9 +558,10 @@ transaction.set(userRef, {
           }
 
           // Éxito: enviar email de verificación y salir del loop
-          if (kDebugMode)
+          if (kDebugMode) {
             debugPrint('[AuthService] Enviando email de verificación...');
-          await createdUser!.sendEmailVerification();
+          }
+          await createdUser.sendEmailVerification();
 
           if (kDebugMode && stopwatchTotal != null) {
             stopwatchTotal.stop();
@@ -551,18 +573,21 @@ transaction.set(userRef, {
         } on FirebaseAuthException catch (e) {
           // Errores de negocio: no reintentar
           if (e.code == 'email-already-in-use') {
-            if (kDebugMode)
+            if (kDebugMode) {
               debugPrint('[AuthService] Resultado: Email ya registrado');
+            }
             return 'Este correo ya está registrado.';
           }
           if (e.code == 'weak-password') {
-            if (kDebugMode)
+            if (kDebugMode) {
               debugPrint('[AuthService] Resultado: Contraseña débil');
+            }
             return 'La contraseña es demasiado débil.';
           }
           if (e.code == 'invalid-email') {
-            if (kDebugMode)
+            if (kDebugMode) {
               debugPrint('[AuthService] Resultado: Email inválido');
+            }
             return 'El correo no es válido.';
           }
           // Otros errores Auth: re-throw para manejo genérico
@@ -582,51 +607,58 @@ transaction.set(userRef, {
           if (isTransient && attempt < maxAttempts) {
             // Error transitorio: esperar con backoff exponencial
             final delayMs = 500 * attempt; // 500ms, 1000ms, 2000ms
-            if (kDebugMode)
+            if (kDebugMode) {
               debugPrint(
                 '[AuthService] Error transitorio (intento $attempt): $e. Reintentando en ${delayMs}ms...',
               );
+            }
             await Future.delayed(Duration(milliseconds: delayMs));
             continue;
           }
 
           // Error permanente o máximo reintentos alcanzado
-          if (kDebugMode)
+          if (kDebugMode) {
             debugPrint(
               '[AuthService] Error permanente o máximo reintentos alcanzado (intento $attempt): $e',
             );
+          }
 
           // Rollback: eliminar cuenta huérfana si existe
           if (createdUser != null) {
             try {
-              if (kDebugMode)
+              if (kDebugMode) {
                 debugPrint('[AuthService] Eliminando cuenta huérfana...');
+              }
               await createdUser.delete();
             } catch (deleteError) {
-              if (kDebugMode)
+              if (kDebugMode) {
                 debugPrint(
                   '[AuthService] Error al eliminar cuenta huérfana: $deleteError',
                 );
+              }
             }
           }
 
-          if (kDebugMode)
+          if (kDebugMode) {
             debugPrint('[AuthService] Resultado: Error al completar registro');
+          }
           return 'Error al completar el registro. Por favor intenta de nuevo.';
         }
       }
 
       // Si llega aquí, algo salió mal
-      if (kDebugMode)
+      if (kDebugMode) {
         debugPrint(
           '[AuthService] Resultado: Error inesperado en loop de reintentos',
         );
+      }
       return 'Error inesperado durante el registro.';
     } catch (e) {
-      if (kDebugMode)
+      if (kDebugMode) {
         debugPrint(
           '[AuthService] Resultado: Error inesperado — ${e.toString()}',
         );
+      }
       return 'Error inesperado: ${e.toString()}';
     }
   }
@@ -819,8 +851,9 @@ await _db.collection('users').doc(userCredential.user!.uid).set({
       final uid = _auth.currentUser?.uid;
       if (uid == null) return 'No hay sesión activa.';
 
-      if (newStudentCode.trim().isEmpty)
+      if (newStudentCode.trim().isEmpty) {
         return 'El código no puede estar vacío.';
+      }
 
       // Verificar que el nuevo código no esté en uso por otro usuario
       if (await _isStudentCodeTaken(newStudentCode.trim(), excludeUid: uid)) {
@@ -864,14 +897,16 @@ await _db.collection('users').doc(userCredential.user!.uid).set({
   Future<String> forgotPassword(String email) async {
     try {
       if (email.isEmpty) return 'El correo es obligatorio.';
-      if (!_ucevaEmailRegex.hasMatch(email))
+      if (!_ucevaEmailRegex.hasMatch(email)) {
         return 'Solo se permiten emails @uceva.edu.co.';
+      }
       await _auth.sendPasswordResetEmail(email: email);
       return 'Email de recuperación enviado. Revisa tu bandeja de entrada.';
     } on FirebaseAuthException catch (e) {
       if (e.code == 'user-not-found') return 'Usuario no encontrado.';
-      if (e.code == 'invalid-credential')
+      if (e.code == 'invalid-credential') {
         return 'Correo o contraseña incorrectos.';
+      }
       if (e.code == 'invalid-email') return 'Correo inválido.';
       return 'Error al enviar email: ${e.message}';
     } catch (e) {

@@ -4,7 +4,6 @@ import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:firebase_auth_mocks/firebase_auth_mocks.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:mockito/annotations.dart';
-import 'package:mockito/mockito.dart';
 
 import 'package:uniconnect_dev/services/auth_service.dart';
 import 'package:uniconnect_dev/services/crypto_service.dart';

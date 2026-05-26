@@ -203,8 +203,9 @@ class _HomeRutasScreenState extends State<HomeRutasScreen> {
       if (!matchesOrigin ||
           !matchesDestination ||
           !matchesTime ||
-          !matchesSearch)
+          !matchesSearch) {
         return false;
+      }
       if (_selectedFilter == 0) return true;
 
       final timeParts = r.time.split(':');
@@ -591,8 +592,9 @@ class _HomeRutasScreenState extends State<HomeRutasScreen> {
                       if (r.driverId == _currentUid) return false;
                       if (r.status != RouteStatus.activa &&
                           r.status != RouteStatus.disponible &&
-                          r.status != RouteStatus.llena)
+                          r.status != RouteStatus.llena) {
                         return false;
+                      }
                       if (_rejectedRouteIds.contains(r.id)) return false;
                       return true;
                     }).toList();

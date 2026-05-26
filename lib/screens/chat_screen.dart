@@ -94,8 +94,8 @@ class _ChatScreenState extends State<ChatScreen> {
           .doc(widget.chatId)
           .get();
       if (!doc.exists) return;
-      final data = doc.data() as Map<String, dynamic>? ?? {};
-      final key = 'deletedAt_${_currentUserId}';
+      final data = doc.data() ?? {};
+      final key = 'deletedAt_$_currentUserId';
       final ts = data[key] as Timestamp?;
       if (ts != null && mounted) {
         setState(() => _deletedAt = ts);
@@ -115,7 +115,7 @@ class _ChatScreenState extends State<ChatScreen> {
           .doc(widget.chatId);
       final doc = await docRef.get();
       if (!doc.exists) return;
-      final data = doc.data() as Map<String, dynamic>? ?? {};
+      final data = doc.data() ?? {};
       final deletedFor = List<String>.from(data['deletedFor'] ?? []);
       if (deletedFor.contains(uid)) {
         // Solo quitar de deletedFor — mantener deletedAt para el filtro de mensajes

@@ -426,7 +426,9 @@ class _MisChatsScreenState extends State<MisChatsScreen> {
                           final lastMessageAt = data['lastMessageAt'] as Timestamp?;
                           if (deletedAt == null && lastMessageAt != null) return true;
                           if (deletedAt != null && lastMessageAt != null &&
-                              lastMessageAt.compareTo(deletedAt) > 0) return true;
+                              lastMessageAt.compareTo(deletedAt) > 0) {
+                            return true;
+                          }
                           return false;
                         }
                         if (isDirectChat) {
@@ -527,7 +529,9 @@ class _MisChatsScreenState extends State<MisChatsScreen> {
                           final lastMessageAt = data['lastMessageAt'] as Timestamp?;
                           if (deletedAt == null && lastMessageAt != null) return true;
                           if (deletedAt != null && lastMessageAt != null &&
-                              lastMessageAt.compareTo(deletedAt) > 0) return true;
+                              lastMessageAt.compareTo(deletedAt) > 0) {
+                            return true;
+                          }
                           return false;
                         }
 

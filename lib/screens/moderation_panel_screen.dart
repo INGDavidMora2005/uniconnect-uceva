@@ -184,12 +184,13 @@ class _ModerationPanelScreenState extends State<ModerationPanelScreen>
           .where('suspended', isEqualTo: true)
           .snapshots(),
       builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting)
+        if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(
             child: CircularProgressIndicator(color: AppColors.accentGreen),
           );
+        }
         final users = snapshot.data?.docs ?? [];
-        if (users.isEmpty)
+        if (users.isEmpty) {
           return Center(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -211,6 +212,7 @@ class _ModerationPanelScreenState extends State<ModerationPanelScreen>
               ],
             ),
           );
+        }
         return ListView.builder(
           padding: const EdgeInsets.all(16),
           itemCount: users.length,
@@ -298,7 +300,7 @@ class _ModerationPanelScreenState extends State<ModerationPanelScreen>
                             onPressed: () async {
                               try {
                                 await ModerationService().unsuspendUser(userId);
-                                if (mounted)
+                                if (mounted) {
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     SnackBar(
                                       content: Text(
@@ -307,14 +309,16 @@ class _ModerationPanelScreenState extends State<ModerationPanelScreen>
                                       backgroundColor: AppColors.accentGreen,
                                     ),
                                   );
+                                }
                               } catch (e) {
-                                if (mounted)
+                                if (mounted) {
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     SnackBar(
                                       content: Text('Error: $e'),
                                       backgroundColor: Colors.redAccent,
                                     ),
                                   );
+                                }
                               }
                             },
                             icon: const Icon(Icons.person_outline, size: 18),
@@ -834,8 +838,7 @@ class _ReportCardState extends State<_ReportCard> {
                               shrinkWrap: true,
                               itemCount: allChats.length,
                               itemBuilder: (context, i) {
-                                final data = allChats[i].data()
-                                    as Map<String, dynamic>;
+                                final data = allChats[i].data();
                                 final chatId = allChats[i].id;
                                 final origin = data['origin'] ?? '';
                                 final destination =
@@ -1038,21 +1041,23 @@ class _ReportCardState extends State<_ReportCard> {
         snackMessage = 'Reporte eliminado.';
       }
 
-      if (snackMessage != null && mounted)
+      if (snackMessage != null && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(snackMessage!),
+            content: Text(snackMessage),
             backgroundColor: AppColors.accentGreen,
           ),
         );
+      }
     } catch (e) {
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Error: $e'),
             backgroundColor: Colors.redAccent,
           ),
         );
+      }
     } finally {
       if (mounted) setState(() => _loading = false);
     }
