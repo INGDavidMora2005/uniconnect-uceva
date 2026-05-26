@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import '../theme/app_theme.dart';
 import '../widgets/custom_text_field.dart';
 import '../widgets/primary_button.dart';
@@ -6,6 +7,7 @@ import '../services/auth_service.dart';
 import 'register_screen.dart';
 import 'home_rutas_screen.dart';
 import 'forgot_password_screen.dart';
+import 'email_verification_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -87,6 +89,19 @@ class _LoginScreenState extends State<LoginScreen> {
 
     setState(() => _isLoading = false);
     if (!mounted) return;
+
+    if (message.startsWith('email_not_verified:')) {
+      final emailFromMsg = message.split(':').length > 1
+          ? message.substring('email_not_verified:'.length)
+          : '';
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => EmailVerificationScreen(email: emailFromMsg),
+        ),
+      );
+      return;
+    }
 
     if (message.startsWith('Inicio de sesión exitoso')) {
       Navigator.pushReplacement(
@@ -174,19 +189,19 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
                 const SizedBox(height: 24),
                 if (!_useGoogle) ...[
-                  CustomTextField(
-                    label: 'Correo',
-                    hint: 'Correo institucional',
-                    controller: _emailController,
-                    keyboardType: TextInputType.emailAddress,
-                    validator: (v) {
-                      if (v == null || v.isEmpty) return 'Ingresa tu correo';
-                      if (!v.contains('@uceva.edu.co')) {
-                        return 'Usa tu correo @uceva.edu.co';
-                      }
-                      return null;
-                    },
-                  ),
+                   CustomTextField(
+                     label: 'Correo',
+                     hint: 'Correo institucional',
+                     controller: _emailController,
+                     keyboardType: TextInputType.emailAddress,
+                     validator: (v) {
+                       if (v == null || v.isEmpty) return 'Ingresa tu correo';
+                       if (!RegExp(r'^[a-zA-Z0-9._%+\-]+@uceva\.edu\.co$').hasMatch(v)) {
+                         return 'Usa tu correo @uceva.edu.co';
+                       }
+                       return null;
+                     },
+                   ),
                   const SizedBox(height: 20),
                   CustomTextField(
                     label: 'Contraseña',
@@ -194,53 +209,55 @@ class _LoginScreenState extends State<LoginScreen> {
                     isPassword: true,
                     controller: _passwordController,
                     validator: (v) {
-                      if (v == null || v.isEmpty)
+                      if (v == null || v.isEmpty) {
                         return 'Ingresa tu contraseña';
+                      }
                       if (v.length < 8) return 'Mínimo 8 caracteres';
                       return null;
                     },
                   ),
-                  if (_hasPassword) ...[
-                    const SizedBox(height: 8),
-                    GestureDetector(
-                      onTap: () => Navigator.pushNamed(context, '/crypto-test'),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: const Color(
-                            0xFF1B5E20,
-                          ).withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: const Color(0xFF2E7D32),
-                            width: 1,
-                          ),
-                        ),
-                        child: const Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.lock_outline,
-                              size: 12,
-                              color: Color(0xFF2E7D32),
-                            ),
-                            SizedBox(width: 4),
-                            Text(
-                              'AES-256 + RSA-2048 activo',
-                              style: TextStyle(
-                                fontSize: 11,
-                                color: Color(0xFF2E7D32),
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
+                   if (_hasPassword) ...[
+                     const SizedBox(height: 8),
+                     if (kDebugMode) // UU-42 B-08: badge solo visible en debug
+                       GestureDetector(
+                         onTap: () => Navigator.pushNamed(context, '/crypto-test'),
+                         child: Container(
+                           padding: const EdgeInsets.symmetric(
+                             horizontal: 10,
+                             vertical: 4,
+                           ),
+                           decoration: BoxDecoration(
+                             color: const Color(
+                               0xFF1B5E20,
+                             ).withValues(alpha: 0.15),
+                             borderRadius: BorderRadius.circular(12),
+                             border: Border.all(
+                               color: const Color(0xFF2E7D32),
+                               width: 1,
+                             ),
+                           ),
+                           child: const Row(
+                             mainAxisSize: MainAxisSize.min,
+                             children: [
+                               Icon(
+                                 Icons.lock_outline,
+                                 size: 12,
+                                 color: Color(0xFF2E7D32),
+                               ),
+                               SizedBox(width: 4),
+                               Text(
+                                 'AES-256 + RSA-2048 activo',
+                                 style: TextStyle(
+                                   fontSize: 11,
+                                   color: Color(0xFF2E7D32),
+                                   fontWeight: FontWeight.w500,
+                                 ),
+                               ),
+                             ],
+                           ),
+                         ),
+                       ),
+                   ],
                   const SizedBox(height: 30),
                 ],
                 PrimaryButton(

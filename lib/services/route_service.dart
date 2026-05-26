@@ -8,11 +8,16 @@ class RouteService {
   factory RouteService() => _instance;
   RouteService._internal();
 
-  final FirebaseFirestore _db = FirebaseFirestore.instance;
+  FirebaseFirestore? _dbInstance;
+  FirebaseFirestore get _database => _dbInstance ?? FirebaseFirestore.instance;
+
+  void setDatabase(FirebaseFirestore db) {
+    _dbInstance = db;
+  }
 
   Future<String> publishRoute(RouteModel route) async {
     try {
-      await _db.collection('routes').add(route.toMap());
+      await _database.collection('routes').add(route.toMap());
       return 'Ruta publicada exitosamente.';
     } catch (e) {
       return 'Error al publicar la ruta: $e';
@@ -20,7 +25,7 @@ class RouteService {
   }
 
   Stream<List<RouteModel>> getAvailableRoutes() {
-    return _db
+    return _database
         .collection('routes')
         .where(
           'status',
@@ -39,7 +44,7 @@ class RouteService {
   }
 
   Stream<List<RouteModel>> getMyRoutes(String driverId) {
-    return _db
+    return _database
         .collection('routes')
         .where('driverId', isEqualTo: driverId)
         .snapshots()
@@ -53,7 +58,7 @@ class RouteService {
   }
 
   Stream<List<RouteModel>> getMyBookedRoutes(String passengerId) {
-    return _db
+    return _database
         .collection('cupo_requests')
         .where('passengerId', isEqualTo: passengerId)
         .where('status', isEqualTo: 'accepted')
@@ -62,7 +67,7 @@ class RouteService {
           final routeIds = cupoSnap.docs.map((doc) => doc.data()['routeId'] as String).toSet();
           if (routeIds.isEmpty) return [];
 
-          final routesSnap = await _db.collection('routes')
+          final routesSnap = await _database.collection('routes')
               .where(FieldPath.documentId, whereIn: routeIds.toList())
               .get();
 
@@ -72,7 +77,7 @@ class RouteService {
 
   Future<String> updateRouteStatus(String routeId, String newStatus) async {
     try {
-      await _db.collection('routes').doc(routeId).update({'status': newStatus});
+      await _database.collection('routes').doc(routeId).update({'status': newStatus});
       return 'ok';
     } catch (e) {
       return 'Error al actualizar el estado: $e';
@@ -90,7 +95,7 @@ class RouteService {
   Future<String> finalizeRoute(String routeId) async {
     try {
       // 1. Obtener datos de la ruta
-      final routeDoc = await _db.collection('routes').doc(routeId).get();
+      final routeDoc = await _database.collection('routes').doc(routeId).get();
       if (!routeDoc.exists) return 'La ruta no existe.';
       final routeData = routeDoc.data() ?? {};
       final origin = (routeData['origin'] as String?) ?? '';
@@ -100,7 +105,7 @@ class RouteService {
       final driverId = (routeData['driverId'] as String?) ?? '';
 
       // 2. Buscar pasajeros aceptados y notificarlos
-      final acceptedRequests = await _db
+      final acceptedRequests = await _database
           .collection('cupo_requests')
           .where('routeId', isEqualTo: routeId)
           .where('status', isEqualTo: 'accepted')
@@ -136,14 +141,14 @@ class RouteService {
 
       // 3. Sumar +1 a tripsCompleted del conductor
       if (driverId.isNotEmpty) {
-        await _db.collection('users').doc(driverId).update({
+        await _database.collection('users').doc(driverId).update({
           'tripsCompleted': FieldValue.increment(1),
         });
       }
 
       // 4. Borrar cupo_requests y la ruta
       await CupoService().deleteRequestsByRoute(routeId);
-      await _db.collection('routes').doc(routeId).delete();
+      await _database.collection('routes').doc(routeId).delete();
 
       return 'ok';
     } catch (e) {
@@ -154,7 +159,7 @@ class RouteService {
   Future<String> deleteRoute(String routeId) async {
     try {
       await CupoService().deleteRequestsByRoute(routeId);
-      await _db.collection('routes').doc(routeId).delete();
+      await _database.collection('routes').doc(routeId).delete();
       return 'ok';
     } catch (e) {
       return 'Error al eliminar la ruta: $e';
@@ -167,12 +172,12 @@ class RouteService {
     required String message,
   }) async {
     try {
-      final userDoc = await _db.collection('users').doc(passengerId).get();
+      final userDoc = await _database.collection('users').doc(passengerId).get();
       if (!userDoc.exists) return 'No se encontró tu perfil de usuario.';
       final passengerName =
           (userDoc.data()?['fullName'] as String?) ?? 'Pasajero';
 
-      final routeDoc = await _db.collection('routes').doc(routeId).get();
+      final routeDoc = await _database.collection('routes').doc(routeId).get();
       if (!routeDoc.exists) return 'La ruta no existe.';
       final data = routeDoc.data() ?? {};
 
@@ -209,6 +214,68 @@ class RouteService {
       return result;
     } catch (e) {
       return 'Error al procesar la solicitud: $e';
+    }
+  }
+
+  Future<String> updateRoute({
+    required String routeId,
+    required String time,
+    required int availableSeats,
+    required double price,
+  }) async {
+    try {
+      await _database.collection('routes').doc(routeId).update({
+        'time': time,
+        'availableSeats': availableSeats,
+        'totalSeats': availableSeats,
+        'price': price,
+      });
+      return 'ok';
+    } catch (e) {
+      return 'Error al actualizar la ruta: $e';
+    }
+  }
+
+  Future<String> cancelRoute({
+    required String routeId,
+    required String origin,
+    required String destination,
+  }) async {
+    try {
+      final acceptedRequests = await _database
+          .collection('cupo_requests')
+          .where('routeId', isEqualTo: routeId)
+          .where('status', isEqualTo: 'accepted')
+          .get();
+
+      for (final doc in acceptedRequests.docs) {
+        final data = doc.data();
+        final passengerId = (data['passengerId'] as String?) ?? '';
+        if (passengerId.isEmpty) continue;
+        await NotificationService().saveNotification(
+          toUserId: passengerId,
+          title: 'Ruta cancelada',
+          body: 'El conductor canceló la ruta $origin → $destination.',
+          type: 'route_cancelled',
+          extra: {
+            'routeId': routeId,
+            'origin': origin,
+            'destination': destination,
+          },
+        );
+      }
+
+      for (final doc in acceptedRequests.docs) {
+        await doc.reference.update({'status': 'cancelled'});
+      }
+
+      await _database.collection('routes').doc(routeId).update({
+        'status': 'Cancelada',
+      });
+
+      return 'ok';
+    } catch (e) {
+      return 'Error al cancelar la ruta: $e';
     }
   }
 }

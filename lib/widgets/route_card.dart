@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -11,6 +12,7 @@ import '../screens/solicitar_cupo_screen.dart';
 import '../screens/mapa_trayecto_screen.dart';
 import '../screens/route_details_screen.dart';
 import '../screens/report_form_screen.dart';
+import '../screens/editar_ruta_screen.dart';
 
 class RouteCard extends StatefulWidget {
   final RouteModel route;
@@ -167,7 +169,7 @@ class _RouteCardState extends State<RouteCard> {
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
         content: const Text(
-          '¿Confirmas que la ruta ya comenzó? Los pacientes podrán '
+          '¿Confirmas que la ruta ya comenzó? Los pasajeros podrán '
           'ver tu ubicación en tiempo real.',
         ),
         actions: [
@@ -308,45 +310,89 @@ class _RouteCardState extends State<RouteCard> {
         ],
       );
     } else {
-      return SizedBox(
-        width: double.infinity,
-        height: 36,
-        child: _starting
-            ? const Center(
-                child: SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: AppColors.accentGreen,
+      return Column(
+        children: [
+          SizedBox(
+            width: double.infinity,
+            height: 36,
+            child: OutlinedButton.icon(
+              onPressed: () async {
+                final updated = await Navigator.push<bool>(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => EditarRutaScreen(route: widget.route),
                   ),
-                ),
-              )
-            : OutlinedButton.icon(
-                onPressed: _handleStartRoute,
-                icon: const Icon(
-                  Icons.play_arrow_rounded,
-                  size: 16,
+                );
+                if (updated == true && context.mounted) {
+                  setState(() {});
+                }
+              },
+              icon: const Icon(
+                Icons.edit_outlined,
+                size: 16,
+                color: AppColors.accentGreen,
+              ),
+              label: const Text(
+                'Editar ruta',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
                   color: AppColors.accentGreen,
                 ),
-                label: const Text(
-                  'Iniciar ruta',
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.accentGreen,
-                  ),
+              ),
+              style: OutlinedButton.styleFrom(
+                side: const BorderSide(
+                  color: AppColors.accentGreen,
+                  width: 1.5,
                 ),
-                style: OutlinedButton.styleFrom(
-                  side: const BorderSide(
-                    color: AppColors.accentGreen,
-                    width: 1.5,
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
                 ),
               ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            width: double.infinity,
+            height: 36,
+            child: _starting
+                ? const Center(
+                    child: SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: AppColors.accentGreen,
+                      ),
+                    ),
+                  )
+                : OutlinedButton.icon(
+                    onPressed: _handleStartRoute,
+                    icon: const Icon(
+                      Icons.play_arrow_rounded,
+                      size: 16,
+                      color: AppColors.accentGreen,
+                    ),
+                    label: const Text(
+                      'Iniciar ruta',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.accentGreen,
+                      ),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      side: const BorderSide(
+                        color: AppColors.accentGreen,
+                        width: 1.5,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                  ),
+          ),
+        ],
       );
     }
   }
@@ -782,7 +828,7 @@ class _RouteCardState extends State<RouteCard> {
 
   @override
   void dispose() {
-    if (_isSharingLocation) _stopPassengerSharing();
+    if (_isSharingLocation) unawaited(_stopPassengerSharing());
     super.dispose();
   }
 }

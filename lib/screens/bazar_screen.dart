@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../models/product_model.dart';
 import '../models/user_model.dart';
 import '../services/product_service.dart';
 import '../services/auth_service.dart';
+import '../services/ai_recommendation_service.dart';
 import '../theme/app_theme.dart';
 import 'publicar_producto_screen.dart';
 import 'detalle_producto_screen.dart';
@@ -35,6 +37,9 @@ class _BazarScreenState extends State<BazarScreen> {
   UserModel? _currentUser;
   String _selectedCategory = 'Todos';
 
+  List<ProductModel> _suggestedProducts = [];
+  bool _loadingSuggestions = false;
+
   @override
   void initState() {
     super.initState();
@@ -44,6 +49,32 @@ class _BazarScreenState extends State<BazarScreen> {
   Future<void> _loadUser() async {
     final user = await AuthService().getUserData();
     if (mounted) setState(() => _currentUser = user);
+  }
+
+  Future<void> _loadSuggestions(List<ProductModel> availableProducts) async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null || _suggestedProducts.isNotEmpty) return;
+    if (mounted) setState(() => _loadingSuggestions = true);
+    try {
+      final suggestions = await AiRecommendationService()
+          .getProductRecommendations(
+        uid: uid,
+        availableProducts: availableProducts,
+      );
+      if (mounted) {
+        setState(() {
+          _suggestedProducts = suggestions;
+          _loadingSuggestions = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _suggestedProducts = [];
+          _loadingSuggestions = false;
+        });
+      }
+    }
   }
 
   List<ProductModel> _applyFilters(List<ProductModel> products) {
@@ -219,11 +250,16 @@ class _BazarScreenState extends State<BazarScreen> {
                         );
                       },
                     ),
-                  ),
-                  const SizedBox(height: 16),
+                   ),
+                   const SizedBox(height: 16),
 
-                  // ── Grid de productos ─────────────────────────
-                  StreamBuilder<List<ProductModel>>(
+                   // ── Sugerido para ti 🤖 ───────────────────
+                   if (_loadingSuggestions || _suggestedProducts.isNotEmpty)
+                     _buildSuggestedProductsSection(),
+
+                   // ── Grid de productos ─────────────────────────
+                   StreamBuilder<List<ProductModel>>(
+
                     stream: ProductService().getProducts(),
                     builder: (context, snapshot) {
                       if (snapshot.connectionState == ConnectionState.waiting) {
@@ -252,7 +288,20 @@ class _BazarScreenState extends State<BazarScreen> {
                         );
                       }
 
-                      final products = _applyFilters(snapshot.data ?? []);
+                      final allProducts = snapshot.data ?? [];
+                      if (allProducts.isNotEmpty &&
+                          _suggestedProducts.isEmpty &&
+                          !_loadingSuggestions) {
+                        WidgetsBinding.instance.addPostFrameCallback((_) {
+                          if (mounted &&
+                              _suggestedProducts.isEmpty &&
+                              !_loadingSuggestions) {
+                            _loadSuggestions(allProducts);
+                          }
+                        });
+                      }
+
+                      final products = _applyFilters(allProducts);
 
                       if (products.isEmpty) {
                         return Center(
@@ -347,6 +396,84 @@ class _BazarScreenState extends State<BazarScreen> {
       ),
     );
   }
+
+  Widget _buildSuggestedProductsSection() {
+    if (_loadingSuggestions) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Sugerido para ti 🤖',
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.bold,
+              color: AppColors.textDark,
+            ),
+          ),
+          const SizedBox(height: 8),
+          GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              crossAxisSpacing: 12,
+              mainAxisSpacing: 12,
+              childAspectRatio: 0.78,
+            ),
+            itemCount: 2,
+            itemBuilder: (context, index) => Container(
+              decoration: BoxDecoration(
+                color: Colors.grey.shade200,
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+        ],
+      );
+    }
+
+    if (_suggestedProducts.isNotEmpty) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Sugerido para ti 🤖',
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.bold,
+              color: AppColors.textDark,
+            ),
+          ),
+          const SizedBox(height: 8),
+          GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              crossAxisSpacing: 12,
+              mainAxisSpacing: 12,
+              childAspectRatio: 0.78,
+            ),
+            itemCount: _suggestedProducts.length,
+            itemBuilder: (_, i) => _ProductCard(
+              product: _suggestedProducts[i],
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) =>
+                      DetalleProductoScreen(product: _suggestedProducts[i]),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+        ],
+      );
+    }
+
+    return const SizedBox.shrink();
+  }
 }
 
 class _ProductCard extends StatelessWidget {
@@ -386,7 +513,7 @@ class _ProductCard extends StatelessWidget {
                         ? Image.network(
                             product.imageUrls.first,
                             fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => _placeholder(),
+                            errorBuilder: (_, _, _) => _placeholder(),
                           )
                         : _placeholder(),
                     if (product.status == 'Vendido')

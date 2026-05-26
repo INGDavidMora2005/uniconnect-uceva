@@ -1,8 +1,14 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/route_model.dart';
 import '../models/report_model.dart';
 import '../theme/app_theme.dart';
+import '../services/chat_service.dart';
+import '../services/cupo_service.dart';
+import '../services/user_history_service.dart';
 
 import 'mapa_trayecto_screen.dart';
 import 'report_form_screen.dart';
@@ -23,12 +29,58 @@ class RouteDetailsScreen extends StatefulWidget {
 
 class _RouteDetailsScreenState extends State<RouteDetailsScreen> {
   bool _isDriver = false;
+  bool _hasCupoAceptado = false;
+  bool _loading = false;
+  String _currentUserName = '';
 
   @override
   void initState() {
     super.initState();
     final uid = FirebaseAuth.instance.currentUser?.uid;
     _isDriver = uid == widget.route.driverId;
+    _checkCupoAceptado();
+    if (uid != null) {
+      unawaited(UserHistoryService().logRouteView(uid, widget.route));
+    }
+  }
+
+  /// Verifica si el pasajero tiene cupo aceptado para mostrar botón de chat
+  Future<void> _checkCupoAceptado() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
+    if (uid.isEmpty || _isDriver) return;
+    final status = await CupoService().getRequestStatus(uid, widget.route.id);
+    final userDoc = await FirebaseFirestore.instance
+        .collection('users').doc(uid).get();
+    if (mounted) {
+      setState(() {
+        _hasCupoAceptado = status == 'accepted';
+        _currentUserName = userDoc.data()?['fullName'] ?? '';
+      });
+    }
+  }
+
+  Future<void> _cancelarReserva() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
+    setState(() => _loading = true);
+    await CupoService().cancelSeat(
+      routeId: widget.route.id,
+      passengerId: uid,
+      passengerName: _currentUserName,
+      driverId: widget.route.driverId ?? '',
+      origin: widget.route.origin,
+      destination: widget.route.destination,
+    );
+    if (!mounted) return;
+    setState(() {
+      _loading = false;
+      _hasCupoAceptado = false;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Reserva cancelada exitosamente'),
+        backgroundColor: Colors.green,
+      ),
+    );
   }
 
   @override
@@ -216,6 +268,126 @@ class _RouteDetailsScreenState extends State<RouteDetailsScreen> {
                 ),
               ),
             ],
+            // Botones para pasajeros con cupo aceptado
+            if (_hasCupoAceptado)
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  children: [
+                    ElevatedButton.icon(
+                  icon: const Icon(Icons.chat_bubble_outline, color: Colors.white),
+                  label: const Text(
+                    'Abrir chat con el conductor',
+                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.accentGreen,
+                    minimumSize: const Size(double.infinity, 48),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  onPressed: () async {
+                    final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
+                    final routeId = widget.route.id;
+                    final driverId = widget.route.driverId ?? '';
+
+                    debugPrint('=== ABRIR CHAT ===');
+                    debugPrint('routeId: $routeId');
+                    debugPrint('passengerId: $uid');
+                    debugPrint('driverId: $driverId');
+                    debugPrint('passengerName: $_currentUserName');
+                    debugPrint('driverName: ${widget.route.driverName}');
+
+                    if (routeId.isEmpty || uid.isEmpty || driverId.isEmpty) {
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                                'Error: faltan datos para abrir el chat'),
+                            backgroundColor: Colors.redAccent,
+                          ),
+                        );
+                      }
+                      return;
+                    }
+
+                    final chatId = await ChatService().getOrCreateChat(
+                      routeId: routeId,
+                      passengerId: uid,
+                      driverId: driverId,
+                      passengerName: _currentUserName,
+                      driverName: widget.route.driverName,
+                      origin: widget.route.origin,
+                      destination: widget.route.destination,
+                    );
+
+                    debugPrint('chatId resultado: $chatId');
+
+                    if (!mounted) return;
+                    if (chatId.startsWith('error')) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                            content:
+                                Text('No se pudo abrir el chat: $chatId'),
+                            backgroundColor: Colors.redAccent),
+                      );
+                      return;
+                    }
+                    Navigator.pushNamed(context, '/chat', arguments: {
+                      'chatId': chatId,
+                      'otherUserName': widget.route.driverName,
+                      'otherUserId': driverId,
+                      'routeInfo':
+                          '${widget.route.origin} → ${widget.route.destination}',
+                    });
+                  },
+                ),
+                    const SizedBox(height: 12),
+                    ElevatedButton.icon(
+                      icon: const Icon(Icons.cancel_outlined, color: Colors.white),
+                      label: const Text(
+                        'Cancelar reserva',
+                        style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.red.shade700,
+                        minimumSize: const Size(double.infinity, 48),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      onPressed: _loading
+                          ? null
+                          : () async {
+                              final confirm = await showDialog<bool>(
+                                context: context,
+                                builder: (ctx) => AlertDialog(
+                                  title: const Text('¿Cancelar reserva?'),
+                                  content: const Text(
+                                    'Si cancelas, tu cupo será liberado y el conductor será notificado. Esta acción no se puede deshacer.',
+                                  ),
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () => Navigator.pop(ctx, false),
+                                      child: const Text('Volver'),
+                                    ),
+                                    TextButton(
+                                      onPressed: () => Navigator.pop(ctx, true),
+                                      child: const Text(
+                                        'Sí, cancelar',
+                                        style: TextStyle(color: Colors.red),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                              if (confirm == true) await _cancelarReserva();
+                            },
+                    ),
+                  ],
+                ),
+              ),
           ],
         ),
       ),

@@ -24,6 +24,16 @@ class BottomNavBar extends StatelessWidget {
         .map((snap) => snap.docs.isNotEmpty);
   }
 
+  Stream<bool> _hasUnreadMessages() {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return const Stream.empty();
+    return FirebaseFirestore.instance
+        .collection('chats')
+        .where('passengerId', isEqualTo: uid)
+        .snapshots()
+        .map((snap) => snap.docs.isNotEmpty);
+  }
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -60,6 +70,16 @@ class BottomNavBar extends StatelessWidget {
             icon: Icon(Icons.storefront_outlined),
             activeIcon: Icon(Icons.storefront),
             label: 'Bazar',
+          ),
+          BottomNavigationBarItem(
+            icon: StreamBuilder<bool>(
+              stream: _hasUnreadMessages(),
+              builder: (context, snap) {
+                return const Icon(Icons.chat_bubble_outline);
+              },
+            ),
+            activeIcon: const Icon(Icons.chat_bubble),
+            label: 'Chats',
           ),
           BottomNavigationBarItem(
             icon: StreamBuilder<bool>(

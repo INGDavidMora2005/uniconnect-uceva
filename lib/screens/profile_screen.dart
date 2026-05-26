@@ -12,13 +12,17 @@ import 'moderation_panel_screen.dart';
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key, this.showBottomNav = true});
   final bool showBottomNav;
+  // NOTE: ProfileScreen está diseñada solo para mostrar el perfil propio del usuario.
+  // No existe parámetro userId para ver el perfil de otros usuarios.
+  // Si se requiere acceso al chat desde otro perfil, se debería usar
+  // PerfilVendedorScreen o una pantalla similar que reciba userId externo.
 
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  int _currentNavIndex = 3;
+  int _currentNavIndex = 4;
   UserModel? _user;
   bool _loading = true;
 
@@ -344,41 +348,77 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           ),
                         ),
 
-                        const SizedBox(height: 12),
+                          const SizedBox(height: 12),
 
-                        // ── Botón Mis Publicaciones ─────────
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 20),
-                          child: SizedBox(
-                            width: double.infinity,
-                            height: 48,
-                            child: OutlinedButton(
-                              onPressed: () => Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) =>
-                                      const MisPublicacionesScreen(),
+                          // ── Ajustes de notificaciones ────────
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 20),
+                            child: SizedBox(
+                              width: double.infinity,
+                              child: OutlinedButton(
+                                onPressed: () => Navigator.pushNamed(context, '/notification-settings'),
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: AppColors.accentGreen,
+                                  side: const BorderSide(
+                                    color: AppColors.accentGreen,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
                                 ),
-                              ),
-                              style: OutlinedButton.styleFrom(
-                                foregroundColor: AppColors.accentGreen,
-                                side: const BorderSide(
-                                  color: AppColors.accentGreen,
-                                ),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                              ),
-                              child: const Text(
-                                'Mis Publicaciones',
-                                style: TextStyle(
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.bold,
+                                child: const Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(Icons.notifications_outlined, color: AppColors.accentGreen),
+                                    SizedBox(width: 8),
+                                    Text(
+                                      'Ajustes de notificaciones',
+                                      style: TextStyle(
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
                             ),
                           ),
-                        ),
+
+                          const SizedBox(height: 12),
+
+                         // ── Botón Mis Publicaciones ─────────
+                         Padding(
+                           padding: const EdgeInsets.symmetric(horizontal: 20),
+                           child: SizedBox(
+                             width: double.infinity,
+                             height: 48,
+                             child: OutlinedButton(
+                               onPressed: () => Navigator.push(
+                                 context,
+                                 MaterialPageRoute(
+                                   builder: (_) =>
+                                       const MisPublicacionesScreen(),
+                                 ),
+                               ),
+                               style: OutlinedButton.styleFrom(
+                                 foregroundColor: AppColors.accentGreen,
+                                 side: const BorderSide(
+                                   color: AppColors.accentGreen,
+                                 ),
+                                 shape: RoundedRectangleBorder(
+                                   borderRadius: BorderRadius.circular(12),
+                                 ),
+                               ),
+                               child: const Text(
+                                 'Mis Publicaciones',
+                                 style: TextStyle(
+                                   fontSize: 15,
+                                   fontWeight: FontWeight.bold,
+                                 ),
+                               ),
+                             ),
+                           ),
+                         ),
 
                         const SizedBox(height: 12),
 
