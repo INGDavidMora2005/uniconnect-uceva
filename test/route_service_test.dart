@@ -1,7 +1,7 @@
 import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:flutter_test/flutter_test.dart';
-import '../lib/services/route_service.dart';
-import '../lib/models/route_model.dart';
+import 'package:uniconnect_dev/services/route_service.dart';
+import 'package:uniconnect_dev/models/route_model.dart';
 
 FakeFirebaseFirestore? _fakeFirestore;
 late RouteService routeService;

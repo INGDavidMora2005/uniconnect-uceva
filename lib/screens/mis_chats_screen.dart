@@ -7,6 +7,7 @@ import '../theme/app_theme.dart';
 import '../services/chat_service.dart';
 import 'buscar_usuario_screen.dart';
 import 'chat_screen.dart';
+import 'ai_bot_chat_screen.dart';
 
 /// Pantalla que lista todos los chats del usuario actual, tanto como
 /// conductor como pasajero. Combina dos streams separados porque
@@ -425,7 +426,9 @@ class _MisChatsScreenState extends State<MisChatsScreen> {
                           final lastMessageAt = data['lastMessageAt'] as Timestamp?;
                           if (deletedAt == null && lastMessageAt != null) return true;
                           if (deletedAt != null && lastMessageAt != null &&
-                              lastMessageAt.compareTo(deletedAt) > 0) return true;
+                              lastMessageAt.compareTo(deletedAt) > 0) {
+                            return true;
+                          }
                           return false;
                         }
                         if (isDirectChat) {
@@ -497,6 +500,13 @@ class _MisChatsScreenState extends State<MisChatsScreen> {
                   ),
                 ),
                 const SizedBox(height: 4),
+                _buildUniBotTile(context),
+                const Divider(
+                  height: 1,
+                  thickness: 0.5,
+                  indent: 70,
+                  color: Color(0xFFE8E8E8),
+                ),
                 Expanded(
                   child: StreamBuilder<List<QueryDocumentSnapshot>>(
                     stream: _combinedController.stream,
@@ -519,7 +529,9 @@ class _MisChatsScreenState extends State<MisChatsScreen> {
                           final lastMessageAt = data['lastMessageAt'] as Timestamp?;
                           if (deletedAt == null && lastMessageAt != null) return true;
                           if (deletedAt != null && lastMessageAt != null &&
-                              lastMessageAt.compareTo(deletedAt) > 0) return true;
+                              lastMessageAt.compareTo(deletedAt) > 0) {
+                            return true;
+                          }
                           return false;
                         }
 
@@ -606,6 +618,79 @@ class _MisChatsScreenState extends State<MisChatsScreen> {
         onPressed: () => Navigator.push(
           context,
           MaterialPageRoute(builder: (_) => const BuscarUsuarioScreen()),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildUniBotTile(BuildContext context) {
+    return InkWell(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const AiBotChatScreen()),
+        );
+      },
+      splashColor: AppColors.accentGreen.withValues(alpha: 0.08),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 72),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Container(
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: LinearGradient(
+                    colors: [
+                      AppColors.primaryGreen,
+                      AppColors.accentGreen,
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                ),
+                child: const CircleAvatar(
+                  radius: 28,
+                  backgroundColor: Colors.transparent,
+                  child: Icon(
+                    Icons.smart_toy_rounded,
+                    color: Colors.white,
+                    size: 26,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'UniBot',
+                      style: const TextStyle(
+                        fontSize: 15.5,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textDark,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Asistente IA • Pregunta por rutas o el Bazar',
+                      style: const TextStyle(
+                        fontSize: 13.5,
+                        color: AppColors.textMedium,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
