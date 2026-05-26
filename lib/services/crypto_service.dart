@@ -12,9 +12,15 @@ import 'key_service.dart';
 class CryptoService {
   static final CryptoService _instance = CryptoService._internal();
   factory CryptoService() => _instance;
-  CryptoService._internal();
+  CryptoService._internal() : _keyService = KeyService();
 
-  final KeyService _keyService = KeyService();
+  late final KeyService _keyService;
+
+  /// Constructor solo para testing — permite inyectar un KeyService con claves
+  /// precargadas sin depender de FlutterSecureStorage.
+  /// No usar en código productivo.
+  CryptoService.withKeyService(KeyService keyService)
+    : _keyService = keyService;
 
   /// Cifra datos sensibles usando AES-256-CBC
   /// AES: Advanced Encryption Standard - cifrado simétrico de bloque
@@ -27,7 +33,21 @@ class CryptoService {
     final iv = IV.fromSecureRandom(16);
 
     final encrypter = Encrypter(AES(aesKey, mode: AESMode.cbc));
-    final encrypted = encrypter.encrypt(plaintext, iv: iv);
+    final Encrypted encrypted;
+    if (plaintext.isEmpty) {
+      final engine = AESEngine();
+      final cbc = CBCBlockCipher(engine);
+      cbc.init(
+        true,
+        ParametersWithIV<KeyParameter>(KeyParameter(aesKey.bytes), iv.bytes),
+      );
+      final padBlock = Uint8List(16)..fillRange(0, 16, 0x10);
+      final outBlock = Uint8List(16);
+      cbc.processBlock(padBlock, 0, outBlock, 0);
+      encrypted = Encrypted(outBlock);
+    } else {
+      encrypted = encrypter.encrypt(plaintext, iv: iv);
+    }
 
     final publicKey = await _keyService.getPublicKey();
     final encryptedAesKey = _rsaEncrypt(aesKey.bytes, publicKey);

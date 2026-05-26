@@ -58,7 +58,10 @@ class KeyService {
   static const String _privateKeyKey = 'rsa_private_key';
 
   // Gemini API Key para UniBot (AiBotService) y AiRecommendationService
-  static const String _geminiKey = String.fromEnvironment('GEMINI_API_KEY', defaultValue: '');
+  static const String _geminiKey = String.fromEnvironment(
+    'GEMINI_API_KEY',
+    defaultValue: '',
+  );
 
   final FlutterSecureStorage _secureStorage = const FlutterSecureStorage(
     aOptions: AndroidOptions(encryptedSharedPreferences: true),
@@ -166,5 +169,13 @@ class KeyService {
     await _secureStorage.delete(key: _publicKeyKey);
     await _secureStorage.delete(key: _privateKeyKey);
     _cachedKeyPair = null;
+  }
+
+  /// Solo para testing — inyecta un par de claves sin pasar por SecureStorage.
+  /// No llamar en código productivo.
+  void injectKeysForTesting(
+    AsymmetricKeyPair<RSAPublicKey, RSAPrivateKey> pair,
+  ) {
+    _cachedKeyPair = pair;
   }
 }
