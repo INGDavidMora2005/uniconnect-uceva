@@ -17,6 +17,7 @@ class _AiBotChatScreenState extends State<AiBotChatScreen> {
   List<Map<String, dynamic>> _messages = [];
   bool _isLoading = true;
   bool _isWaiting = false;
+  bool _isClearingHistory = false;
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   final AiBotService _botService = AiBotService();
@@ -24,8 +25,20 @@ class _AiBotChatScreenState extends State<AiBotChatScreen> {
   @override
   void initState() {
     super.initState();
-    _uid = FirebaseAuth.instance.currentUser?.uid ?? '';
-    _loadHistory();
+    final current = FirebaseAuth.instance.currentUser;
+    if (current != null) {
+      _uid = current.uid;
+      _loadHistory();
+    } else {
+      FirebaseAuth.instance.authStateChanges().first.then((user) {
+        if (user != null && mounted) {
+          setState(() => _uid = user.uid);
+          _loadHistory();
+        } else if (mounted) {
+          setState(() => _isLoading = false);
+        }
+      });
+    }
   }
 
   @override
@@ -64,6 +77,9 @@ class _AiBotChatScreenState extends State<AiBotChatScreen> {
     final text = _messageController.text.trim();
     if (text.isEmpty || _isWaiting) return;
 
+    // Capturamos snapshot del historial ANTES de agregar el nuevo mensaje del usuario
+    final historySnapshot = List<Map<String, dynamic>>.from(_messages);
+
     setState(() {
       _messages.add({'role': 'user', 'text': text});
       _isWaiting = true;
@@ -75,12 +91,14 @@ class _AiBotChatScreenState extends State<AiBotChatScreen> {
     if (kDebugMode) {
       debugPrint('[AiBotChatScreen] Persisting user message for uid: $_uid');
     }
-    _botService.persistUserMessage(_uid, text);
+    try {
+      await _botService.persistUserMessage(_uid, text);
+    } catch (_) {}
 
     final response = await _botService.sendMessage(
       uid: _uid,
       userMessage: text,
-      conversationHistory: List.from(_messages),
+      conversationHistory: historySnapshot,
     );
 
     if (mounted) {
@@ -94,7 +112,9 @@ class _AiBotChatScreenState extends State<AiBotChatScreen> {
     if (kDebugMode) {
       debugPrint('[AiBotChatScreen] Persisting assistant message for uid: $_uid');
     }
-    _botService.persistAssistantMessage(_uid, response);
+    try {
+      await _botService.persistAssistantMessage(_uid, response);
+    } catch (_) {}
 
     _scrollToBottom();
   }
@@ -109,6 +129,67 @@ class _AiBotChatScreenState extends State<AiBotChatScreen> {
         );
       }
     });
+  }
+
+  void _showClearHistoryDialog() {
+    showDialog<void>(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          title: const Text('Borrar historial de UniBot'),
+          content: const Text(
+            'Se eliminará permanentemente todo el historial de conversaciones con UniBot.\n\nEsta acción no se puede deshacer.',
+            style: TextStyle(height: 1.4),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Cancelar'),
+            ),
+            TextButton(
+              onPressed: _isClearingHistory
+                  ? null
+                  : () {
+                      Navigator.of(dialogContext).pop();
+                      _clearHistory();
+                    },
+              child: const Text(
+                'Borrar',
+                style: TextStyle(color: Colors.red),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _clearHistory() async {
+    if (_isClearingHistory || _uid.isEmpty) return;
+
+    setState(() => _isClearingHistory = true);
+
+    final success = await _botService.clearHistory(_uid);
+
+    if (!mounted) return;
+
+    if (success) {
+      setState(() {
+        _messages.clear();
+        _isClearingHistory = false;
+      });
+      if (kDebugMode) {
+        debugPrint('[AiBotChatScreen] Historial de UniBot borrado exitosamente');
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Historial borrado')),
+      );
+    } else {
+      setState(() => _isClearingHistory = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Error al borrar el historial')),
+      );
+    }
   }
 
   @override
@@ -160,6 +241,29 @@ class _AiBotChatScreenState extends State<AiBotChatScreen> {
           ],
         ),
         centerTitle: false,
+        actions: [
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.more_vert_rounded, color: Colors.white),
+            tooltip: 'Opciones',
+            onSelected: (value) {
+              if (value == 'clear_history') {
+                _showClearHistoryDialog();
+              }
+            },
+            itemBuilder: (context) => [
+              const PopupMenuItem<String>(
+                value: 'clear_history',
+                child: Row(
+                  children: [
+                    Icon(Icons.delete_outline_rounded, size: 20, color: Colors.red),
+                    SizedBox(width: 8),
+                    Text('Borrar historial'),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
       body: Column(
         children: [
