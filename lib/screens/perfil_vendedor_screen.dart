@@ -639,7 +639,7 @@ class _ProductGridItem extends StatelessWidget {
                         ? Image.network(
                             product.imageUrls.first,
                             fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => _placeholder(),
+                            errorBuilder: (_, _, _) => _placeholder(),
                           )
                         : _placeholder(),
                     if (product.status == 'Vendido')

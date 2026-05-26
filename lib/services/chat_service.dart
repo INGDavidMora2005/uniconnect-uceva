@@ -289,7 +289,7 @@ await messageRef.set({
       final chatDoc =
           await _db.collection('direct_chats').doc(chatId).get();
       if (chatDoc.exists) {
-        final data = chatDoc.data() as Map<String, dynamic>? ?? {};
+        final data = chatDoc.data() ?? {};
         final deletedFor = List<String>.from(data['deletedFor'] ?? []);
         final participants = List<String>.from(data['participants'] ?? []);
         final Map<String, dynamic> updates = {};

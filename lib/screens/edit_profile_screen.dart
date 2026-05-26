@@ -312,7 +312,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                       // ── Rol ──────────────────────────────────
                       _sectionLabel('Rol'),
                       DropdownButtonFormField<String>(
-                        value: _selectedRole,
+                        initialValue: _selectedRole,
                         decoration: _inputDecoration('Selecciona tu rol'),
                         items: _roles
                             .map(
@@ -329,7 +329,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                       // ── Facultad ─────────────────────────────
                       _sectionLabel('Facultad'),
                       DropdownButtonFormField<String>(
-                        value: _selectedFaculty,
+                        initialValue: _selectedFaculty,
                         isExpanded: true,
                         dropdownColor: Colors.white,
                         decoration: _inputDecoration('Selecciona tu facultad'),

@@ -152,7 +152,7 @@ class _NotificationSettingsScreenState extends State<NotificationSettingsScreen>
         });
         _updateSetting(key, value);
       },
-      activeColor: AppColors.accentGreen,
+      activeThumbColor: AppColors.accentGreen,
       activeTrackColor: AppColors.lightGreen,
     );
   }

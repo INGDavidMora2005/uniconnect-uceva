@@ -418,7 +418,7 @@ class _PublicarRutaScreenState extends State<PublicarRutaScreen> {
               child: ListView.separated(
                 shrinkWrap: true,
                 itemCount: suggestions.length,
-                separatorBuilder: (_, __) => const Divider(
+                separatorBuilder: (_, _) => const Divider(
                   height: 1,
                   color: AppColors.borderDefault,
                 ),

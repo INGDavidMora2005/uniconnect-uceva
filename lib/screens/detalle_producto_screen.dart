@@ -301,7 +301,7 @@ class _DetalleProductoScreenState extends State<DetalleProductoScreen> {
                       width: double.infinity,
                       height: 220,
                       fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => _imagePlaceholder(),
+                      errorBuilder: (_, _, _) => _imagePlaceholder(),
                     )
                   : _imagePlaceholder(),
 

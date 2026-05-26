@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import '../lib/services/location_service.dart';
+import 'package:uniconnect_dev/services/location_service.dart';
 
 void main() {
   group('LocationService', () {

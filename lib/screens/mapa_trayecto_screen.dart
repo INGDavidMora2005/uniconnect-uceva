@@ -521,9 +521,9 @@ class _MapaTrayectoScreenState extends State<MapaTrayectoScreen> {
 
   void _tryFitBounds() {
     final points = <LatLng>[
-      if (_driverPosition != null) _driverPosition!,
-      if (_originPoint != null) _originPoint!,
-      if (_destPoint != null) _destPoint!,
+      ?_driverPosition,
+      ?_originPoint,
+      ?_destPoint,
       if (_myPosition != null && !widget.isDriver) _myPosition!,
     ];
 
