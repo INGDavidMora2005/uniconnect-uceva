@@ -221,7 +221,7 @@ Reglas:
           .collection('ai_chats')
           .doc(uid)
           .collection('messages')
-          .orderBy('sentAt', descending: true)
+          .orderBy('clientTimestamp', descending: true)
           .limit(20)
           .get();
 
@@ -337,6 +337,7 @@ Reglas:
         'role': 'user',
         'text': trimmed,
         'sentAt': FieldValue.serverTimestamp(),
+        'clientTimestamp': DateTime.now().millisecondsSinceEpoch,
       });
 
       if (kDebugMode) {
@@ -373,6 +374,7 @@ Reglas:
         'role': 'assistant',
         'text': trimmed,
         'sentAt': FieldValue.serverTimestamp(),
+        'clientTimestamp': DateTime.now().millisecondsSinceEpoch,
       });
 
       if (kDebugMode) {
@@ -383,6 +385,63 @@ Reglas:
         debugPrint('[AiBotService] ❌ Error persistiendo respuesta del asistente: $e');
         debugPrint(stack.toString());
       }
+    }
+  }
+
+  /// Elimina **todo** el historial de conversaciones con UniBot para un usuario.
+  /// Utiliza batch writes para eficiencia.
+  Future<bool> clearHistory(String uid) async {
+    if (uid.isEmpty) return false;
+
+    try {
+      final collectionRef = _db
+          .collection('ai_chats')
+          .doc(uid)
+          .collection('messages');
+
+      final snapshot = await collectionRef.get();
+
+      if (snapshot.docs.isEmpty) {
+        if (kDebugMode) {
+          debugPrint('[AiBotService] clearHistory: no había mensajes para borrar (uid: $uid)');
+        }
+        return true;
+      }
+
+      // Batch deletes (máximo ~499 por batch)
+      final batches = <WriteBatch>[];
+      var currentBatch = _db.batch();
+      var count = 0;
+
+      for (final doc in snapshot.docs) {
+        currentBatch.delete(doc.reference);
+        count++;
+
+        if (count == 499) {
+          batches.add(currentBatch);
+          currentBatch = _db.batch();
+          count = 0;
+        }
+      }
+
+      if (count > 0) {
+        batches.add(currentBatch);
+      }
+
+      for (final batch in batches) {
+        await batch.commit();
+      }
+
+      if (kDebugMode) {
+        debugPrint('[AiBotService] ✅ clearHistory completado: ${snapshot.docs.length} mensajes eliminados para uid: $uid');
+      }
+      return true;
+    } catch (e, stack) {
+      if (kDebugMode) {
+        debugPrint('[AiBotService] ❌ Error en clearHistory: $e');
+        debugPrint(stack.toString());
+      }
+      return false;
     }
   }
 }
