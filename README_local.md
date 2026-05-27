@@ -31,6 +31,19 @@ flutter run \
   --dart-define=SHARED_PHONE_KEY=REEMPLAZAR_CON_CLAVE_AES_256_DE_32_CARACTERES
 ```
 
+### SHARED_PHONE_KEY (requisito AES-256)
+
+- **Longitud exacta: 32 caracteres** (requisito de AES-256 para claves de 256 bits).
+- **Valor canónico del proyecto:** `UniConnectPhone2024SecureKey3256`.
+- Si falta en modo release, la app lanza `StateError` y no arranca.
+- **Advertencia:** cambiar el valor en el futuro hace ilegibles los teléfonos ya
+  cifrados en Firestore con el valor anterior.
+- Los registros anteriores al fix tienen el `phone` en texto plano y son compatibles:
+  la app detecta automáticamente si el valor está cifrado (contiene `:`) o es texto
+  plano y lo maneja sin intentar descifrar datos antiguos.
+
+### GEMINI_API_KEY
+
 Para obtener `GEMINI_API_KEY`:
 - Ve a https://aistudio.google.com/app/apikey
 - Crea la key y restríngela en Google Cloud Console al package `com.uceva.uniconnect_app`.
