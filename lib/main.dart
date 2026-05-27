@@ -15,7 +15,6 @@ import 'screens/notification_settings_screen.dart';
 import 'screens/notifications_screen.dart';
 import 'screens/mis_chats_screen.dart';
 import 'screens/chat_screen.dart';
-import 'screens/crypto_test_screen.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
@@ -114,12 +113,6 @@ class _UniConnectAppState extends State<UniConnectApp> with WidgetsBindingObserv
             routeInfo: args['routeInfo'],
           );
         },
-        // UU-42 B-08: ruta de debug solo disponible en kDebugMode
-        ...kDebugMode
-            ? <String, WidgetBuilder>{
-                '/crypto-test': (context) => const CryptoTestScreen(),
-              }
-            : <String, WidgetBuilder>{},
       },
     );
   }
