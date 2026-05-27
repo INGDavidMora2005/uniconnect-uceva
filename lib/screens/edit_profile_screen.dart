@@ -86,9 +86,12 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     } catch (e) {
       setState(() => _uploadingImage = false);
       if (mounted) {
+        final msg = e is CloudinaryUploadException
+            ? e.message
+            : 'Error inesperado al subir la imagen.';
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('Error subiendo imagen: $e')));
+        ).showSnackBar(SnackBar(content: Text(msg), backgroundColor: Colors.redAccent));
       }
     }
   }

@@ -217,7 +217,10 @@ class _PublicarProductoScreenState extends State<PublicarProductoScreen> {
         _loading = false;
         _uploadingImages = false;
       });
-      _showError('Error: $e');
+      final msg = e is CloudinaryUploadException
+          ? e.message
+          : 'Error inesperado. Intenta de nuevo.';
+      _showError(msg);
     }
   }
 
