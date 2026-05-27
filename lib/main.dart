@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:flutter/foundation.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'theme/app_theme.dart';
 import 'screens/splash_screen.dart';
@@ -9,6 +8,7 @@ import 'screens/moderation_panel_screen.dart';
 import 'screens/email_verification_screen.dart';
 import 'services/notification_service.dart';
 import 'services/chat_service.dart';
+import 'services/auth_service.dart';
 import 'screens/profile_screen.dart';
 import 'screens/home_rutas_screen.dart';
 import 'screens/notification_settings_screen.dart';
@@ -20,6 +20,7 @@ final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  AuthService.assertPhoneKeyConfigured();
   await Firebase.initializeApp();
   await NotificationService().init(); // ← inicializa FCM
   runApp(const UniConnectApp());
