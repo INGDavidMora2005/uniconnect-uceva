@@ -1,11 +1,12 @@
 import 'dart:convert';
-
+import 'dart:typed_data';
 import 'package:crypto/crypto.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_sign_in/google_sign_in.dart';
-import 'package:flutter/foundation.dart';
+import 'package:flutter/foundation.dart' show kDebugMode, debugPrint;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:encrypt/encrypt.dart' as encrypt;
 import '../models/user_model.dart';
 import 'crypto_service.dart';
 import 'notification_service.dart';
@@ -46,6 +47,18 @@ class AuthService {
     'SHARED_PHONE_KEY',
     defaultValue: '',
   );
+
+  /// Valida en tiempo de inicialización que SHARED_PHONE_KEY esté configurada.
+  /// Lanza [StateError] en modo release si la clave está vacía.
+  /// Llamar desde main() antes de runApp().
+  static void assertPhoneKeyConfigured() {
+    if (!kDebugMode && _sharedPhoneKey.isEmpty) {
+      throw StateError(
+        '[AuthService] SHARED_PHONE_KEY no configurado. '
+        'Compilar con: --dart-define=SHARED_PHONE_KEY=<clave-de-32-chars>',
+      );
+    }
+  }
 
   FirebaseAuth? _authOverride;
   FirebaseFirestore? _dbOverride;
@@ -113,6 +126,27 @@ class AuthService {
   String _hashPhone(String normalizedPhone) {
     final bytes = utf8.encode(normalizedPhone);
     return sha256.convert(bytes).toString();
+  }
+
+  /// Cifra el número de teléfono con AES-256-CBC usando la clave compartida.
+  /// Si la clave no está configurada (debug sin dart-define), retorna el texto
+  /// plano para no bloquear el desarrollo local.
+  String _encryptPhone(String normalizedPhone) {
+    if (_sharedPhoneKey.isEmpty) return normalizedPhone;
+    final key = encrypt.Key(Uint8List.fromList(utf8.encode(_sharedPhoneKey)));
+    return _cryptoService.encryptWithAES(normalizedPhone, key);
+  }
+
+  /// Descifra el número de teléfono. Compatible con registros antiguos en texto
+  /// plano: si el valor no contiene ':', se asume texto plano y se retorna tal cual.
+  String _decryptPhone(String value) {
+    if (_sharedPhoneKey.isEmpty || !value.contains(':')) return value;
+    try {
+      final key = encrypt.Key(Uint8List.fromList(utf8.encode(_sharedPhoneKey)));
+      return _cryptoService.decryptWithAES(value, key);
+    } catch (_) {
+      return value; // fallback: retornar el valor sin descifrar
+    }
   }
 
   String _hashStudentCode(String studentCode) {
@@ -550,14 +584,14 @@ class AuthService {
             final studentRef = _db.collection('studentCodes').doc(studentCode);
 
 transaction.set(userRef, {
-               'fullName': fullName,
-               'studentCode': encryptedStudentCode,
-               'hashedStudentCode': _hashStudentCode(studentCode),
-               'email': email,
-               'role': role,
-               'faculty': faculty,
-               'phone': normalizedPhone,
-               'hashedPhone': _hashPhone(normalizedPhone),
+                'fullName': fullName,
+                'studentCode': encryptedStudentCode,
+                'hashedStudentCode': _hashStudentCode(studentCode),
+                'email': email,
+                'role': role,
+                'faculty': faculty,
+                'phone': _encryptPhone(normalizedPhone),
+                'hashedPhone': _hashPhone(normalizedPhone),
                'profileImageUrl': null,
                'description': '',
                'rating': 0.0,
@@ -760,14 +794,14 @@ transaction.set(userRef, {
       }
 
 await _db.collection('users').doc(userCredential.user!.uid).set({
-         'fullName': googleUser.displayName ?? '',
-         'studentCode': await _encryptFieldAsync(studentCode),
-         'hashedStudentCode': _hashStudentCode(studentCode),
-         'email': googleUser.email,
-         'role': role,
-         'faculty': faculty,
-         'phone': normalizedPhone,
-         'hashedPhone': _hashPhone(normalizedPhone),
+          'fullName': googleUser.displayName ?? '',
+          'studentCode': await _encryptFieldAsync(studentCode),
+          'hashedStudentCode': _hashStudentCode(studentCode),
+          'email': googleUser.email,
+          'role': role,
+          'faculty': faculty,
+          'phone': _encryptPhone(normalizedPhone),
+          'hashedPhone': _hashPhone(normalizedPhone),
          'profileImageUrl': null,
          'description': '',
          'rating': 0.0,
@@ -819,7 +853,9 @@ await _db.collection('users').doc(userCredential.user!.uid).set({
       return UserModel.fromMap({
         'id': uid,
         ...data,
-        'phone': data['phone'] is Map ? '' : (data['phone']?.toString() ?? ''),
+        'phone': data['phone'] is Map
+            ? ''
+            : _decryptPhone(data['phone']?.toString() ?? ''),
         'studentCode': decryptedStudentCode,
       });
     } catch (e) {
@@ -854,7 +890,7 @@ await _db.collection('users').doc(userCredential.user!.uid).set({
         'role': role,
         'faculty': faculty,
         'description': description,
-        'phone': normalizedPhone,
+        'phone': _encryptPhone(normalizedPhone),
         'hashedPhone': _hashPhone(normalizedPhone),
       };
       if (profileImageUrl != null) data['profileImageUrl'] = profileImageUrl;
