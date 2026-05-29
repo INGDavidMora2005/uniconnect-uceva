@@ -1,0 +1,43 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "UniConnect (debug)",
+      "request": "launch",
+      "type": "dart",
+      "program": "lib/main.dart",
+      "args": [
+        "--dart-define=GEMINI_API_KEY=REEMPLAZAR_CON_TU_KEY",
+        "--dart-define=SHARED_PHONE_KEY=REEMPLAZAR_CON_CLAVE_AES_256_DE_32_CARACTERES",
+        "--dart-define=CLOUDINARY_CLOUD_NAME=REEMPLAZAR_CON_TU_CLOUD_NAME",
+        "--dart-define=CLOUDINARY_UPLOAD_PRESET=REEMPLAZAR_CON_TU_UPLOAD_PRESET"
+      ]
+    },
+    {
+      "name": "UniConnect (profile)",
+      "request": "launch",
+      "type": "dart",
+      "program": "lib/main.dart",
+      "flutterMode": "profile",
+      "args": [
+        "--dart-define=GEMINI_API_KEY=REEMPLAZAR_CON_TU_KEY",
+        "--dart-define=SHARED_PHONE_KEY=REEMPLAZAR_CON_CLAVE_AES_256_DE_32_CARACTERES",
+        "--dart-define=CLOUDINARY_CLOUD_NAME=REEMPLAZAR_CON_TU_CLOUD_NAME",
+        "--dart-define=CLOUDINARY_UPLOAD_PRESET=REEMPLAZAR_CON_TU_UPLOAD_PRESET"
+      ]
+    },
+    {
+      "name": "UniConnect (release)",
+      "request": "launch",
+      "type": "dart",
+      "program": "lib/main.dart",
+      "flutterMode": "release",
+      "args": [
+        "--dart-define=GEMINI_API_KEY=REEMPLAZAR_CON_TU_KEY",
+        "--dart-define=SHARED_PHONE_KEY=REEMPLAZAR_CON_CLAVE_AES_256_DE_32_CARACTERES",
+        "--dart-define=CLOUDINARY_CLOUD_NAME=REEMPLAZAR_CON_TU_CLOUD_NAME",
+        "--dart-define=CLOUDINARY_UPLOAD_PRESET=REEMPLAZAR_CON_TU_UPLOAD_PRESET"
+      ]
+    }
+  ]
+}

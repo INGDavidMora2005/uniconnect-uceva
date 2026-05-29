@@ -49,6 +49,9 @@ app.*.map.json
 .env.*
 !.env.example
 
+# Archivo de configuración de VS Code con credenciales reales (no commitear)
+.vscode/launch.json
+
 # Claves y certificados de firma Android
 *.keystore
 *.jks

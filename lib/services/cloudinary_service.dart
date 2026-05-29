@@ -14,12 +14,25 @@ class CloudinaryUploadException implements Exception {
 }
 
 class CloudinaryService {
-  static const String _cloudName = 'dzey2lhu5';
-  static const String _uploadPreset = 'uceva_unsigned';
+  static const String _cloudName = String.fromEnvironment(
+    'CLOUDINARY_CLOUD_NAME',
+    defaultValue: '',
+  );
+  static const String _uploadPreset = String.fromEnvironment(
+    'CLOUDINARY_UPLOAD_PRESET',
+    defaultValue: '',
+  );
   static const int _maxRetries = 2;
   static const int _timeoutSeconds = 30;
 
   static Future<String> uploadImage(File imageFile) async {
+    if (_cloudName.isEmpty || _uploadPreset.isEmpty) {
+      throw CloudinaryUploadException(
+        'Cloudinary no configurado. Compilar con '
+        '--dart-define=CLOUDINARY_CLOUD_NAME=... y '
+        '--dart-define=CLOUDINARY_UPLOAD_PRESET=...',
+      );
+    }
     for (int attempt = 0; attempt < _maxRetries; attempt++) {
       try {
         final uri = Uri.parse(
