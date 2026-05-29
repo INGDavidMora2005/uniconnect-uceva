@@ -49,7 +49,8 @@ service cloud.firestore {
     }
 
     match /users/{userId} {
-      allow list: if true;
+      // FIX-2: era "if true" — cualquier visitante anónimo podía listar todos los usuarios
+      allow list: if request.auth != null;
       allow get: if request.auth != null;
       allow create: if request.auth != null && request.auth.uid == userId;
       allow update: if request.auth != null && (
@@ -173,10 +174,16 @@ service cloud.firestore {
         resource.data.passengerId == request.auth.uid ||
         request.auth.token.email == 'admin.00@uceva.edu.co'
       );
+      // FIX-1: antes cualquier usuario autenticado podía leer/editar mensajes de cualquier chat
       match /messages/{msgId} {
-        allow create: if request.auth != null;
-        allow read: if request.auth != null;
-        allow update: if request.auth != null;
+        allow create: if request.auth != null
+          && (request.auth.uid == get(/databases/$(database)/documents/chats/$(chatId)).data.driverId
+           || request.auth.uid == get(/databases/$(database)/documents/chats/$(chatId)).data.passengerId);
+        allow read: if request.auth != null
+          && (request.auth.uid == get(/databases/$(database)/documents/chats/$(chatId)).data.driverId
+           || request.auth.uid == get(/databases/$(database)/documents/chats/$(chatId)).data.passengerId
+           || request.auth.token.email == 'admin.00@uceva.edu.co');
+        allow update: if false;
         allow delete: if false;
       }
     }
@@ -195,11 +202,17 @@ service cloud.firestore {
         resource.data.user2Id == request.auth.uid ||
         request.auth.token.email == 'admin.00@uceva.edu.co'
       );
+      // FIX-1: antes cualquier autenticado podía leer, editar y borrar mensajes de cualquier chat directo
       match /messages/{msgId} {
-        allow create: if request.auth != null;
-        allow read: if request.auth != null;
-        allow update: if request.auth != null;
-        allow delete: if request.auth != null;
+        allow create: if request.auth != null
+          && (request.auth.uid == get(/databases/$(database)/documents/direct_chats/$(chatId)).data.user1Id
+           || request.auth.uid == get(/databases/$(database)/documents/direct_chats/$(chatId)).data.user2Id);
+        allow read: if request.auth != null
+          && (request.auth.uid == get(/databases/$(database)/documents/direct_chats/$(chatId)).data.user1Id
+           || request.auth.uid == get(/databases/$(database)/documents/direct_chats/$(chatId)).data.user2Id
+           || request.auth.token.email == 'admin.00@uceva.edu.co');
+        allow update: if false;
+        allow delete: if false;
       }
     }
 
