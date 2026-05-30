@@ -59,7 +59,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       _phoneController.text = user.phone;
       _profileImageUrl = user.profileImageUrl;
 
-      _originalStudentCode = user.studentCode ?? '';
+_originalStudentCode = user.studentCode;
       _studentCodeController.text = _originalStudentCode;
 
       _selectedRole = _roles.contains(user.role) ? user.role : null;
@@ -73,7 +73,12 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
   Future<void> _pickImage() async {
     final picker = ImagePicker();
-    final picked = await picker.pickImage(source: ImageSource.gallery);
+    final picked = await picker.pickImage(
+      source: ImageSource.gallery,
+      maxWidth: 1080,
+      maxHeight: 1080,
+      imageQuality: 75,
+    );
     if (picked == null) return;
 
     setState(() => _uploadingImage = true);

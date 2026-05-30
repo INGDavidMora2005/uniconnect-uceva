@@ -95,7 +95,7 @@ class NotificationService {
           .collection('users')
           .doc(uid)
           .set({'fcmToken': newToken}, SetOptions(merge: true));
-      print('Token refrescado y guardado: $newToken');
+      debugPrint('Token refrescado y guardado: $newToken');
     });
   }
 
@@ -169,24 +169,24 @@ class NotificationService {
   Future<void> _saveToken() async {
     try {
       final uid = FirebaseAuth.instance.currentUser?.uid;
-      print('UID: $uid');
+      debugPrint('UID: $uid');
       if (uid == null) {
-        print('No UID found, skipping token save');
+        debugPrint('No UID found, skipping token save');
         return;
       }
       final token = await _fcm.getToken();
-      print('FCM Token: $token');
+      debugPrint('FCM Token: $token');
       if (token == null) {
-        print('No FCM token found');
+        debugPrint('No FCM token found');
         return;
       }
       await FirebaseFirestore.instance
           .collection('users')
           .doc(uid)
           .set({'fcmToken': token}, SetOptions(merge: true));
-      print('Token guardado correctamente');
+      debugPrint('Token guardado correctamente');
     } catch (e) {
-      print('Error en _saveToken: $e');
+      debugPrint('Error en _saveToken: $e');
     }
   }
 

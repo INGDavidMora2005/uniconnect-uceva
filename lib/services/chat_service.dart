@@ -1,6 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/chat_model.dart';
-import '../models/cupo_request_model.dart';
 
 class ChatService {
   // Singleton para uso normal en la app

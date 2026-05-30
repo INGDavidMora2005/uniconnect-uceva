@@ -43,6 +43,7 @@ class AuthService {
   //   flutter run --dart-define=SHARED_PHONE_KEY=UniConnectPhone2024SecureKey3256
   // Para build release:
   //   flutter build apk --release --dart-define=SHARED_PHONE_KEY=UniConnectPhone2024SecureKey3256
+  // ignore: unused_field
   static const String _sharedPhoneKey = String.fromEnvironment(
     'SHARED_PHONE_KEY',
     defaultValue: '',
@@ -174,16 +175,12 @@ class AuthService {
     String studentCode, {
     String? excludeUid,
   }) async {
-    final hashed = _hashStudentCode(studentCode);
+    // Consultar studentCodes que tiene read: if true (permite consulta sin auth)
     final snap = await _db
-        .collection('users')
-        .where('hashedStudentCode', isEqualTo: hashed)
-        .limit(1)
+        .collection('studentCodes')
+        .doc(studentCode)
         .get();
-    if (excludeUid != null) {
-      return snap.docs.any((doc) => doc.id != excludeUid);
-    }
-    return snap.docs.isNotEmpty;
+    return snap.exists;
   }
 
   /// Inicio de sesión con cifrado híbrido RSA-2048 + AES-256-CBC
@@ -454,266 +451,151 @@ class AuthService {
         return 'Ingresa un número válido de 10 dígitos (ej: 3001234567)';
       }
 
-      // Paso 3: Verificar teléfono disponible
+      // Preparar valores para la transacción
+      final encryptedStudentCode = await _encryptFieldAsync(studentCode);
+
+      // Paso 3: Crear cuenta Firebase Auth
       if (kDebugMode) {
-        debugPrint('[AuthService] Verificando disponibilidad del teléfono...');
+        debugPrint('[AuthService] Creando cuenta Firebase Auth...');
       }
-      final stopwatchPhoneCheck = Stopwatch()..start();
+      final stopwatchFirebase = Stopwatch()..start();
+
+      final credential = await _auth.createUserWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+
+      // Esperar a que el usuario esté disponible en currentUser
+      int waitAttempts = 0;
+      while (_auth.currentUser == null && waitAttempts < 20) {
+        await Future.delayed(const Duration(milliseconds: 500));
+        waitAttempts++;
+      }
+      
+      if (_auth.currentUser == null) {
+        if (kDebugMode) {
+          debugPrint('[AuthService] Resultado: Usuario no sincronizado');
+        }
+        return 'Error al crear la cuenta. Por favor intenta de nuevo.';
+      }
+      
+      // Forzar refresh del token
+      await _auth.currentUser!.getIdToken(true);
+      
+      // Esperar a que el token esté disponible para Firestore
+      int tokenPollAttempts = 0;
+      bool tokenReady = false;
+      while (!tokenReady && tokenPollAttempts < 10) {
+        try {
+          await _db.collection('products').limit(1).get();
+          tokenReady = true;
+        } catch (e) {
+          if (e is FirebaseException && e.code == 'permission-denied') {
+            tokenPollAttempts++;
+            await Future.delayed(const Duration(milliseconds: 1500));
+          } else {
+            break;
+          }
+        }
+      }
+
+      final uid = _auth.currentUser!.uid;
+
+      // Verificar disponibilidad de teléfono y código DESPUÉS de autenticar
       final phoneTaken = await _isPhoneTaken(normalizedPhone);
-      if (kDebugMode) {
-        stopwatchPhoneCheck.stop();
-        debugPrint(
-          '[AuthService] Verificación teléfono completada en ${stopwatchPhoneCheck.elapsedMilliseconds} ms',
-        );
-      }
       if (phoneTaken) {
         if (kDebugMode) {
           debugPrint('[AuthService] Resultado: Teléfono ya registrado');
         }
+        await _auth.currentUser!.delete();
         return 'Este número ya está registrado en otra cuenta.';
       }
 
-      // Paso 4: Verificar código estudiantil disponible
-      if (kDebugMode) {
-        debugPrint(
-          '[AuthService] Verificando disponibilidad del código estudiantil...',
-        );
-      }
-      final stopwatchCodeCheck = Stopwatch()..start();
       final codeTaken = await _isStudentCodeTaken(studentCode);
-      if (kDebugMode) {
-        stopwatchCodeCheck.stop();
-        debugPrint(
-          '[AuthService] Verificación código completada en ${stopwatchCodeCheck.elapsedMilliseconds} ms',
-        );
-      }
       if (codeTaken) {
         if (kDebugMode) {
-          debugPrint(
-            '[AuthService] Resultado: Código estudiantil ya registrado',
-          );
+          debugPrint('[AuthService] Resultado: Código estudiantil ya registrado');
         }
+        await _auth.currentUser!.delete();
         return 'Este código estudiantil ya está registrado.';
       }
 
-      // Paso 5: Cifrar contraseña (opcional)
-      try {
-        if (kDebugMode) {
-          debugPrint(
-            '[AuthService] Iniciando cifrado de contraseña con CryptoService...',
-          );
-        }
-        final stopwatchCrypto = Stopwatch()..start();
+      // Transacción Firestore atómica
+      if (kDebugMode) {
+        debugPrint('[AuthService] Ejecutando transacción Firestore...');
+      }
+      final stopwatchTransaction = Stopwatch()..start();
 
-        final encryptedPassword = await _cryptoService.encryptPassword(
-          password,
+      await _db.runTransaction((transaction) async {
+        final userRef = _db.collection('users').doc(uid);
+        final studentRef = _db.collection('studentCodes').doc(studentCode);
+
+        transaction.set(userRef, {
+          'fullName': fullName,
+          'studentCode': encryptedStudentCode,
+          'hashedStudentCode': _hashStudentCode(studentCode),
+          'email': email,
+          'role': role,
+          'faculty': faculty,
+          'phone': _encryptPhone(normalizedPhone),
+          'hashedPhone': _hashPhone(normalizedPhone),
+          'profileImageUrl': null,
+          'description': '',
+          'rating': 0.0,
+          'tripsCompleted': 0,
+          'bazarPurchases': 0,
+          'createdAt': FieldValue.serverTimestamp(),
+          'suspended': false,
+        });
+
+        transaction.set(studentRef, {'uid': uid});
+      });
+
+      if (kDebugMode) {
+        stopwatchTransaction.stop();
+        debugPrint(
+          '[AuthService] Transacción Firestore completada en ${stopwatchTransaction.elapsedMilliseconds} ms',
         );
+      }
 
-        if (kDebugMode) {
-          stopwatchCrypto.stop();
-          final cryptoTime = stopwatchCrypto.elapsedMilliseconds;
-          debugPrint('[AuthService] Cifrado completado en $cryptoTime ms');
-
-          final cipherPreview = encryptedPassword.ciphertext.length > 20
-              ? '${encryptedPassword.ciphertext.substring(0, 20)}...'
-              : encryptedPassword.ciphertext;
-          debugPrint(
-            '[AuthService] Payload generado — ciphertext: $cipherPreview, iv: ${encryptedPassword.iv}, keyLen: ${encryptedPassword.encryptedKey.length}',
-          );
-        }
-
+      // Cifrar credenciales después de transacción exitosa
+      try {
         await _secureStorage.write(
           key: 'encrypted_credentials_$email',
-          value: encryptedPassword.toJson(),
+          value: jsonEncode({
+            'ciphertext': await _cryptoService.encryptPassword(password),
+          }),
         );
       } catch (e) {
         if (kDebugMode) {
-          debugPrint(
-            '[AuthService] Advertencia: Cifrado falló — usando fallback. Error: $e',
-          );
+          debugPrint('[AuthService] Advertencia: Cifrado falló — $e');
         }
       }
 
-      // Preparar valores para la transacción (fuera del loop para evitar múltiples cifrados)
-      final encryptedStudentCode = await _encryptFieldAsync(studentCode);
-
-      // Paso 6-7: Crear cuenta y transacción con reintentos
-      User? createdUser;
-      int attempt = 0;
-      const maxAttempts = 3;
-
-      while (attempt < maxAttempts) {
-        attempt++;
-        if (kDebugMode) {
-          debugPrint('[AuthService] Intento $attempt de $maxAttempts');
-        }
-
-        try {
-          // Crear cuenta Firebase Auth (solo en primer intento)
-          if (createdUser == null) {
-            if (kDebugMode) {
-              debugPrint('[AuthService] Creando cuenta Firebase Auth...');
-            }
-            final stopwatchFirebase = Stopwatch()..start();
-
-            final credential = await _auth.createUserWithEmailAndPassword(
-              email: email,
-              password: password,
-            );
-
-            // Forzar refresh del token
-            await credential.user!.getIdToken(true);
-            createdUser = credential.user!;
-
-            if (kDebugMode) {
-              stopwatchFirebase.stop();
-              debugPrint(
-                '[AuthService] Cuenta Firebase Auth creada en ${stopwatchFirebase.elapsedMilliseconds} ms',
-              );
-            }
-          }
-
-          // Transacción Firestore atómica
-          if (kDebugMode) {
-            debugPrint('[AuthService] Ejecutando transacción Firestore...');
-          }
-          final stopwatchTransaction = Stopwatch()..start();
-
-          await _db.runTransaction((transaction) async {
-            final userRef = _db.collection('users').doc(createdUser!.uid);
-            final studentRef = _db.collection('studentCodes').doc(studentCode);
-
-transaction.set(userRef, {
-                'fullName': fullName,
-                'studentCode': encryptedStudentCode,
-                'hashedStudentCode': _hashStudentCode(studentCode),
-                'email': email,
-                'role': role,
-                'faculty': faculty,
-                'phone': _encryptPhone(normalizedPhone),
-                'hashedPhone': _hashPhone(normalizedPhone),
-               'profileImageUrl': null,
-               'description': '',
-               'rating': 0.0,
-               'tripsCompleted': 0,
-               'bazarPurchases': 0,
-               'createdAt': FieldValue.serverTimestamp(),
-               'suspended': false,
-             });
-
-            transaction.set(studentRef, {'uid': createdUser.uid});
-          });
-
-          if (kDebugMode) {
-            stopwatchTransaction.stop();
-            debugPrint(
-              '[AuthService] Transacción Firestore completada en ${stopwatchTransaction.elapsedMilliseconds} ms',
-            );
-          }
-
-          // Éxito: enviar email de verificación y salir del loop
-          if (kDebugMode) {
-            debugPrint('[AuthService] Enviando email de verificación...');
-          }
-          await createdUser.sendEmailVerification();
-
-          if (kDebugMode && stopwatchTotal != null) {
-            stopwatchTotal.stop();
-            debugPrint(
-              '[AuthService] Resultado: Registro exitoso (total: ${stopwatchTotal.elapsedMilliseconds} ms)',
-            );
-          }
-          return 'verification_email_sent';
-        } on FirebaseAuthException catch (e) {
-          // Errores de negocio: no reintentar
-          if (e.code == 'email-already-in-use') {
-            if (kDebugMode) {
-              debugPrint('[AuthService] Resultado: Email ya registrado');
-            }
-            return 'Este correo ya está registrado.';
-          }
-          if (e.code == 'weak-password') {
-            if (kDebugMode) {
-              debugPrint('[AuthService] Resultado: Contraseña débil');
-            }
-            return 'La contraseña es demasiado débil.';
-          }
-          if (e.code == 'invalid-email') {
-            if (kDebugMode) {
-              debugPrint('[AuthService] Resultado: Email inválido');
-            }
-            return 'El correo no es válido.';
-          }
-          // Otros errores Auth: re-throw para manejo genérico
-          rethrow;
-        } catch (e) {
-          // Determinar si es error transitorio (reintentar) o permanente (fallar)
-          final isTransient =
-              (e is FirebaseException &&
-                  (e.code == 'unavailable' ||
-                      e.code == 'deadline-exceeded' ||
-                      e.code == 'internal' ||
-                      e.code == 'cancelled')) ||
-              (e is! FirebaseAuthException &&
-                  (e.toString().toLowerCase().contains('network') ||
-                      e.toString().toLowerCase().contains('timeout')));
-
-          if (isTransient && attempt < maxAttempts) {
-            // Error transitorio: esperar con backoff exponencial
-            final delayMs = 500 * attempt; // 500ms, 1000ms, 2000ms
-            if (kDebugMode) {
-              debugPrint(
-                '[AuthService] Error transitorio (intento $attempt): $e. Reintentando en ${delayMs}ms...',
-              );
-            }
-            await Future.delayed(Duration(milliseconds: delayMs));
-            continue;
-          }
-
-          // Error permanente o máximo reintentos alcanzado
-          if (kDebugMode) {
-            debugPrint(
-              '[AuthService] Error permanente o máximo reintentos alcanzado (intento $attempt): $e',
-            );
-          }
-
-          // Rollback: eliminar cuenta huérfana si existe
-          if (createdUser != null) {
-            try {
-              if (kDebugMode) {
-                debugPrint('[AuthService] Eliminando cuenta huérfana...');
-              }
-              await createdUser.delete();
-            } catch (deleteError) {
-              if (kDebugMode) {
-                debugPrint(
-                  '[AuthService] Error al eliminar cuenta huérfana: $deleteError',
-                );
-              }
-            }
-          }
-
-          if (kDebugMode) {
-            debugPrint('[AuthService] Resultado: Error al completar registro');
-          }
-          return 'Error al completar el registro. Por favor intenta de nuevo.';
-        }
-      }
-
-      // Si llega aquí, algo salió mal
+      // Éxito: enviar email de verificación
       if (kDebugMode) {
+        debugPrint('[AuthService] Enviando email de verificación...');
+      }
+      await _auth.currentUser!.sendEmailVerification();
+
+      if (kDebugMode && stopwatchTotal != null) {
+        stopwatchTotal.stop();
         debugPrint(
-          '[AuthService] Resultado: Error inesperado en loop de reintentos',
+          '[AuthService] Resultado: Registro exitoso (total: ${stopwatchTotal.elapsedMilliseconds} ms)',
         );
       }
-      return 'Error inesperado durante el registro.';
+      return 'verification_email_sent';
     } catch (e) {
       if (kDebugMode) {
-        debugPrint(
-          '[AuthService] Resultado: Error inesperado — ${e.toString()}',
-        );
+        debugPrint('[AuthService] Resultado: Error — ${e.toString()}');
       }
-      return 'Error inesperado: ${e.toString()}';
+      // Intentar rollback de cuenta
+      if (_auth.currentUser != null && e is! FirebaseAuthException) {
+        try {
+          await _auth.currentUser!.delete();
+        } catch (_) {}
+      }
+      return 'Error al completar el registro. Por favor intenta de nuevo.';
     }
   }
 
@@ -747,6 +629,23 @@ transaction.set(userRef, {
       final UserCredential userCredential = await _auth.signInWithCredential(
         credential,
       );
+
+      // Esperar a que el token esté disponible para Firestore
+      int tokenPollAttempts = 0;
+      bool tokenReady = false;
+      while (!tokenReady && tokenPollAttempts < 10) {
+        try {
+          await _db.collection('products').limit(1).get();
+          tokenReady = true;
+        } catch (e) {
+          if (e is FirebaseException && e.code == 'permission-denied') {
+            tokenPollAttempts++;
+            await Future.delayed(const Duration(milliseconds: 1500));
+          } else {
+            break; // Otro error, no reintentar
+          }
+        }
+      }
 
       final existingUserDoc = await _db
           .collection('users')

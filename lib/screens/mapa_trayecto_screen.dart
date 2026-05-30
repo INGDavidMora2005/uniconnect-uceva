@@ -82,7 +82,6 @@ class _MapaTrayectoScreenState extends State<MapaTrayectoScreen> {
   List<LatLng> _pickupPolyline = []; // Azul: conductor→pasajero más cercano
   bool _polylineLoading = false;
   bool _usingRouteFallback = false;
-  bool _usingPickupFallback = false;
 
   // ── UU-40 — fallback mejorado con reintentos ──────────────────────────
   int _routeRetryCount = 0;
@@ -393,11 +392,10 @@ class _MapaTrayectoScreenState extends State<MapaTrayectoScreen> {
                     LatLng((c[1] as num).toDouble(), (c[0] as num).toDouble()),
               )
               .toList();
-          setState(() {
-            _pickupPolyline = points;
-            _isCalculatingPickup = false;
-            _usingPickupFallback = false;
-          });
+setState(() {
+             _pickupPolyline = points;
+             _isCalculatingPickup = false;
+           });
           _pickupRetryTimer?.cancel();
           _pickupRetryCount = 0;
           return;
@@ -422,13 +420,12 @@ class _MapaTrayectoScreenState extends State<MapaTrayectoScreen> {
 
   void _applyPickupFallback(LatLng? target) {
     if (!mounted) return;
-    setState(() {
-      _pickupPolyline = (_driverPosition != null && target != null)
-          ? _interpolateSegmented(_driverPosition!, target)
-          : [];
-      _isCalculatingPickup = false;
-      _usingPickupFallback = true;
-    });
+setState(() {
+       _pickupPolyline = (_driverPosition != null && target != null)
+           ? _interpolateSegmented(_driverPosition!, target)
+           : [];
+       _isCalculatingPickup = false;
+     });
     if (_pickupRetryCount < _maxOsrmRetries) {
       _pickupRetryTimer = Timer(_osrmRetryInterval, () {
         _pickupRetryCount++;

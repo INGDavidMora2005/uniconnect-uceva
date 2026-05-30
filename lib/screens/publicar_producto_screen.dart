@@ -50,7 +50,12 @@ class _PublicarProductoScreenState extends State<PublicarProductoScreen> {
 
   Future<void> _pickImage() async {
     final picker = ImagePicker();
-    final pickedFile = await picker.pickImage(source: ImageSource.gallery);
+    final pickedFile = await picker.pickImage(
+      source: ImageSource.gallery,
+      maxWidth: 1080,
+      maxHeight: 1080,
+      imageQuality: 75,
+    );
     if (pickedFile != null && _selectedImages.length < 3) {
       setState(() => _selectedImages.add(File(pickedFile.path)));
     }

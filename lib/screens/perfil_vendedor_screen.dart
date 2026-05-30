@@ -1,5 +1,3 @@
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -250,9 +248,6 @@ class _PerfilVendedorScreenState extends State<PerfilVendedorScreen> {
           final data = snapshot.data!.data() as Map<String, dynamic>;
           // Obtener el teléfono - intentar usar getUserData para obtener descifrado
           final rawPhoneVendedor = data['phone'];
-          final phone = rawPhoneVendedor is Map
-              ? ''
-              : (rawPhoneVendedor?.toString() ?? '');
           final faculty = (data['faculty'] ?? '').toString();
           final rating = (data['rating'] ?? 0.0).toDouble();
           final trips = (data['tripsCompleted'] ?? 0) as int;

@@ -210,11 +210,9 @@ class _MisChatsScreenState extends State<MisChatsScreen> {
 
       routeInfo = 'Chat directo';
     } else {
-      // Chat de ruta: driverId, passengerId, origin, destination
+      // Chat de ruta: driverId, passengerId
       final String driverId = data['driverId'] as String? ?? '';
       final String passengerId = data['passengerId'] as String? ?? '';
-      final String origin = data['origin'] as String? ?? '';
-      final String destination = data['destination'] as String? ?? '';
 
       if (driverId == currentUid) {
         otherUserId = passengerId;
