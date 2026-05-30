@@ -262,7 +262,7 @@ class _ReportFormScreenState extends State<ReportFormScreen> {
                           padding: const EdgeInsets.all(14),
                           decoration: BoxDecoration(
                             color: isSelected
-                                ? AppColors.accentGreen.withOpacity(0.1)
+                                ? AppColors.accentGreen.withValues(alpha:0.1)
                                 : Colors.white,
                             borderRadius: BorderRadius.circular(12),
                             border: Border.all(

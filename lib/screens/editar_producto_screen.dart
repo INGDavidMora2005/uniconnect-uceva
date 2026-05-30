@@ -276,7 +276,7 @@ class _EditarProductoScreenState extends State<EditarProductoScreen> {
                           color: Colors.white,
                           borderRadius: BorderRadius.circular(14),
                           border: Border.all(
-                            color: AppColors.accentGreen.withOpacity(0.4),
+                            color: AppColors.accentGreen.withValues(alpha:0.4),
                             width: 1.5,
                           ),
                         ),
@@ -287,7 +287,7 @@ class _EditarProductoScreenState extends State<EditarProductoScreen> {
                               width: 32,
                               height: 32,
                               decoration: BoxDecoration(
-                                color: AppColors.accentGreen.withOpacity(0.1),
+                                color: AppColors.accentGreen.withValues(alpha:0.1),
                                 shape: BoxShape.circle,
                               ),
                               child: const Icon(
@@ -457,7 +457,7 @@ class _EditarProductoScreenState extends State<EditarProductoScreen> {
                       : _handleUpdate,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.accentGreen,
-                    disabledBackgroundColor: AppColors.accentGreen.withOpacity(
+                    disabledBackgroundColor: AppColors.accentGreen.withValues(alpha:
                       0.6,
                     ),
                     shape: RoundedRectangleBorder(

@@ -156,7 +156,7 @@ class _PublicarProductoScreenState extends State<PublicarProductoScreen> {
                   width: 64,
                   height: 64,
                   decoration: BoxDecoration(
-                    color: AppColors.accentGreen.withOpacity(0.12),
+                    color: AppColors.accentGreen.withValues(alpha:0.12),
                     shape: BoxShape.circle,
                   ),
                   child: const Icon(
@@ -332,7 +332,7 @@ class _PublicarProductoScreenState extends State<PublicarProductoScreen> {
                           color: Colors.white,
                           borderRadius: BorderRadius.circular(14),
                           border: Border.all(
-                            color: AppColors.accentGreen.withOpacity(0.4),
+                            color: AppColors.accentGreen.withValues(alpha:0.4),
                             width: 1.5,
                           ),
                         ),
@@ -343,7 +343,7 @@ class _PublicarProductoScreenState extends State<PublicarProductoScreen> {
                               width: 32,
                               height: 32,
                               decoration: BoxDecoration(
-                                color: AppColors.accentGreen.withOpacity(0.1),
+                                color: AppColors.accentGreen.withValues(alpha:0.1),
                                 shape: BoxShape.circle,
                               ),
                               child: const Icon(
@@ -508,7 +508,7 @@ class _PublicarProductoScreenState extends State<PublicarProductoScreen> {
                       : _handlePublish,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.accentGreen,
-                    disabledBackgroundColor: AppColors.accentGreen.withOpacity(
+                    disabledBackgroundColor: AppColors.accentGreen.withValues(alpha:
                       0.6,
                     ),
                     shape: RoundedRectangleBorder(

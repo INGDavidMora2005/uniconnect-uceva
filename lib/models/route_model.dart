@@ -94,7 +94,7 @@ class RouteModel {
   }
 
   /// Color de fondo del badge (versión suave).
-  Color get statusBackgroundColor => statusColor.withOpacity(0.12);
+  Color get statusBackgroundColor => statusColor.withValues(alpha: 0.12);
 
   // ── Precio formateado ────────────────────────────────────────
   String get priceFormatted =>

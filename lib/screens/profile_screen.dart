@@ -205,7 +205,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                   vertical: 6,
                                 ),
                                 decoration: BoxDecoration(
-                                  color: Colors.white.withOpacity(0.15),
+                                  color: Colors.white.withValues(alpha:0.15),
                                   borderRadius: BorderRadius.circular(20),
                                 ),
                                 child: Text(
@@ -599,7 +599,7 @@ class _InfoCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha:0.05),
             blurRadius: 6,
             offset: const Offset(0, 2),
           ),

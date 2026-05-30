@@ -723,7 +723,7 @@ setState(() {
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.12),
+            color: Colors.black.withValues(alpha:0.12),
             blurRadius: 6,
             offset: const Offset(0, 2),
           ),
@@ -744,11 +744,11 @@ setState(() {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.95),
+        color: Colors.white.withValues(alpha:0.95),
         borderRadius: BorderRadius.circular(10),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.1),
+            color: Colors.black.withValues(alpha:0.1),
             blurRadius: 6,
             offset: const Offset(0, 2),
           ),
@@ -915,7 +915,7 @@ setState(() {
                 polylines: [
                   Polyline(
                     points: _routePolyline,
-                    color: AppColors.accentGreen.withOpacity(0.85),
+                    color: AppColors.accentGreen.withValues(alpha:0.85),
                     strokeWidth: 5.0,
                     borderColor: Colors.white,
                     borderStrokeWidth: 2.0,
@@ -929,7 +929,7 @@ setState(() {
                 polylines: [
                   Polyline(
                     points: _pickupPolyline,
-                    color: Colors.blue.shade600.withOpacity(0.9),
+                    color: Colors.blue.shade600.withValues(alpha:0.9),
                     strokeWidth: 4.0,
                     borderColor: Colors.white,
                     borderStrokeWidth: 1.5,
@@ -958,7 +958,7 @@ setState(() {
                   borderRadius: BorderRadius.circular(20),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.1),
+                      color: Colors.black.withValues(alpha:0.1),
                       blurRadius: 6,
                     ),
                   ],
@@ -1004,7 +1004,7 @@ setState(() {
                   borderRadius: BorderRadius.circular(20),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.12),
+                      color: Colors.black.withValues(alpha:0.12),
                       blurRadius: 6,
                       offset: const Offset(0, 2),
                     ),
@@ -1190,7 +1190,7 @@ class _MapPinWithTail extends StatelessWidget {
               border: Border.all(color: Colors.white, width: 2.5),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.25),
+                  color: Colors.black.withValues(alpha:0.25),
                   blurRadius: 6,
                   offset: const Offset(0, 3),
                 ),

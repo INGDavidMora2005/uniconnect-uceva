@@ -233,7 +233,7 @@ class _RouteDetailsScreenState extends State<RouteDetailsScreen> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               decoration: BoxDecoration(
-                color: widget.route.statusColor.withOpacity(0.1),
+                color: widget.route.statusColor.withValues(alpha:0.1),
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(color: widget.route.statusColor),
               ),

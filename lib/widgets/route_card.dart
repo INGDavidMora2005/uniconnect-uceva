@@ -456,7 +456,7 @@ class _RouteCardState extends State<RouteCard> {
       textColor = Colors.white;
     } else {
       label = 'DISPONIBLE';
-      bgColor = AppColors.accentGreen.withOpacity(0.15);
+      bgColor = AppColors.accentGreen.withValues(alpha:0.15);
       textColor = AppColors.accentGreen;
     }
 
@@ -493,7 +493,7 @@ class _RouteCardState extends State<RouteCard> {
           borderRadius: BorderRadius.circular(12),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.06),
+              color: Colors.black.withValues(alpha:0.06),
               blurRadius: 8,
               offset: const Offset(0, 2),
             ),
@@ -530,8 +530,8 @@ class _RouteCardState extends State<RouteCard> {
                           ),
                           decoration: BoxDecoration(
                             color: _isFull
-                                ? Colors.red.withOpacity(0.1)
-                                : AppColors.accentGreen.withOpacity(0.1),
+                                ? Colors.red.withValues(alpha:0.1)
+                                : AppColors.accentGreen.withValues(alpha:0.1),
                             borderRadius: BorderRadius.circular(20),
                           ),
                           child: Text(
@@ -690,7 +690,7 @@ class _RouteCardState extends State<RouteCard> {
                                 width: double.infinity,
                                 height: 36,
                                 decoration: BoxDecoration(
-                                  color: AppColors.accentGreen.withOpacity(0.1),
+                                  color: AppColors.accentGreen.withValues(alpha:0.1),
                                   borderRadius: BorderRadius.circular(8),
                                   border: Border.all(
                                     color: AppColors.accentGreen,

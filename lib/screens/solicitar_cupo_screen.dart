@@ -57,7 +57,7 @@ class _SolicitarCupoScreenState extends State<SolicitarCupoScreen> {
                 width: 64,
                 height: 64,
                 decoration: BoxDecoration(
-                  color: AppColors.accentGreen.withOpacity(0.12),
+                  color: AppColors.accentGreen.withValues(alpha:0.12),
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(
@@ -172,7 +172,7 @@ class _SolicitarCupoScreenState extends State<SolicitarCupoScreen> {
                   borderRadius: BorderRadius.circular(16),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.10),
+                      color: Colors.black.withValues(alpha:0.10),
                       blurRadius: 10,
                       offset: const Offset(0, 4),
                     ),
@@ -257,7 +257,7 @@ class _SolicitarCupoScreenState extends State<SolicitarCupoScreen> {
                   border: Border.all(color: const Color(0xFFE8EDE9)),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.04),
+                      color: Colors.black.withValues(alpha:0.04),
                       blurRadius: 6,
                       offset: const Offset(0, 2),
                     ),
@@ -382,7 +382,7 @@ class _SolicitarCupoScreenState extends State<SolicitarCupoScreen> {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF2D9E6B),
                     disabledBackgroundColor:
-                        const Color(0xFF2D9E6B).withOpacity(0.6),
+                        const Color(0xFF2D9E6B).withValues(alpha:0.6),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(14),
                     ),
@@ -451,7 +451,7 @@ class _SolicitarCupoScreenState extends State<SolicitarCupoScreen> {
         color: Colors.transparent,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: Colors.white.withOpacity(0.55),
+          color: Colors.white.withValues(alpha:0.55),
           width: 1.2,
         ),
       ),

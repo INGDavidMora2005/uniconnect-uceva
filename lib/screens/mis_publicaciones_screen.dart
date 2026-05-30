@@ -289,7 +289,7 @@ class _ProductCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(14),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.08),
+            color: Colors.black.withValues(alpha:0.08),
             blurRadius: 10,
             offset: const Offset(0, 3),
           ),
@@ -325,11 +325,11 @@ class _ProductCard extends StatelessWidget {
                       child: Container(
                         padding: const EdgeInsets.all(5),
                         decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.95),
+                          color: Colors.white.withValues(alpha:0.95),
                           borderRadius: BorderRadius.circular(6),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black.withOpacity(0.15),
+                              color: Colors.black.withValues(alpha:0.15),
                               blurRadius: 4,
                               offset: const Offset(0, 1),
                             ),
@@ -352,7 +352,7 @@ class _ProductCard extends StatelessWidget {
                     child: Container(
                       padding: const EdgeInsets.all(4),
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.9),
+                        color: Colors.white.withValues(alpha:0.9),
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: const Icon(
@@ -368,7 +368,7 @@ class _ProductCard extends StatelessWidget {
                   Positioned.fill(
                     child: Container(
                       decoration: BoxDecoration(
-                        color: Colors.black.withOpacity(0.6),
+                        color: Colors.black.withValues(alpha:0.6),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: const Center(

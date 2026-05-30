@@ -209,7 +209,7 @@ class _CalificarBazarScreenState extends State<CalificarBazarScreen> {
                         borderRadius: BorderRadius.circular(16),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withOpacity(0.06),
+                            color: Colors.black.withValues(alpha:0.06),
                             blurRadius: 8,
                             offset: const Offset(0, 2),
                           ),
@@ -253,10 +253,10 @@ class _CalificarBazarScreenState extends State<CalificarBazarScreen> {
                             width: double.infinity,
                             padding: const EdgeInsets.all(12),
                             decoration: BoxDecoration(
-                              color: AppColors.primaryGreen.withOpacity(0.08),
+                              color: AppColors.primaryGreen.withValues(alpha:0.08),
                               borderRadius: BorderRadius.circular(12),
                               border: Border.all(
-                                color: AppColors.primaryGreen.withOpacity(0.2),
+                                color: AppColors.primaryGreen.withValues(alpha:0.2),
                               ),
                             ),
                             child: Column(
@@ -353,7 +353,7 @@ class _CalificarBazarScreenState extends State<CalificarBazarScreen> {
                             ),
                             decoration: BoxDecoration(
                               color: selected
-                                  ? AppColors.accentGreen.withOpacity(0.1)
+                                  ? AppColors.accentGreen.withValues(alpha:0.1)
                                   : AppColors.backgroundWhite,
                               borderRadius: BorderRadius.circular(20),
                               border: Border.all(
