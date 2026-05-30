@@ -1,6 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_markdown/flutter_markdown.dart';
 
 import '../theme/app_theme.dart';
 import '../services/ai_bot_service.dart';
@@ -406,14 +407,35 @@ class _AiBotChatScreenState extends State<AiBotChatScreen> {
                             bottomRight: Radius.circular(16),
                           ),
                   ),
-                  child: Text(
-                    displayText,
-                    style: TextStyle(
-                      fontSize: 15,
-                      color: isUser ? Colors.white : AppColors.textDark,
-                      height: 1.3,
-                    ),
-                  ),
+                  child: isUser
+                      ? Text(
+                          displayText,
+                          style: const TextStyle(
+                            fontSize: 15,
+                            color: Colors.white,
+                            height: 1.3,
+                          ),
+                        )
+                      : MarkdownBody(
+                          data: displayText,
+                          styleSheet: MarkdownStyleSheet(
+                            p: const TextStyle(
+                              fontSize: 15,
+                              color: AppColors.textDark,
+                              height: 1.3,
+                            ),
+                            strong: const TextStyle(
+                              fontSize: 15,
+                              color: AppColors.textDark,
+                              fontWeight: FontWeight.bold,
+                            ),
+                            listBullet: const TextStyle(
+                              fontSize: 15,
+                              color: AppColors.textDark,
+                            ),
+                          ),
+                          softLineBreak: true,
+                        ),
                 ),
               ),
             ],

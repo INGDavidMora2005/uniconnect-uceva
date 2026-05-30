@@ -36,6 +36,7 @@ dependencies:
   # Antes era solo dependencia transitiva; ahora es directa para
   # evitar que una actualización de dependencias lo elimine sin aviso.
   http: ^1.2.0
+  flutter_markdown: ^0.7.3
 
   # Imágenes
   image_picker: ^1.2.1
